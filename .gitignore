@@ -7,3 +7,7 @@ dist-desktop/
 node_modules/
 *.log
 _agy_prompt.txt
+
+# Unignore electron project sources (overriding global .gitignore)
+!electron/
+!electron/**
