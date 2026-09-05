@@ -389,8 +389,11 @@ class IdleDexBot:
             log_event(self.token_status, "warning")
             return False
 
+        cookie_val = self.config.session_token.strip()
+        cookie_hdr = cookie_val if "__Secure-better-auth.session_token=" in cookie_val else f"__Secure-better-auth.session_token={cookie_val}"
+
         headers = {
-            "Cookie": f"__Secure-better-auth.session_token={self.config.session_token}",
+            "Cookie": cookie_hdr,
             "Origin": "https://idledex.com",
             "Referer": "https://idledex.com/play",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -770,9 +773,12 @@ class IdleDexBot:
             shard_path = f"/ws/{self.shard}" if self.shard > 0 else "/ws"
             ws_url = f"wss://idledex.com{shard_path}?token={self.active_token}&v=5"
 
+            cookie_val = self.config.session_token.strip()
+            cookie_hdr = cookie_val if "__Secure-better-auth.session_token=" in cookie_val else f"__Secure-better-auth.session_token={cookie_val}"
+
             ws_headers = [
                 ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"),
-                ("Cookie", f"__Secure-better-auth.session_token={self.config.session_token}"),
+                ("Cookie", cookie_hdr),
             ]
 
             log_event(f"🔌 Conectando ao idleDEX (Shard {self.shard})...", "info")

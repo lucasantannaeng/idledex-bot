@@ -1,257 +1,170 @@
 // ==UserScript==
-// @name         IdleDex Bot - Rotinas & Inventário
+// @name         IdleDex Bot - Protocol-Level In-Browser Automation
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
-// @description  Automação de rotinas e gerenciamento de inventário para idleDEX
-// @match        https://idledex.com/play*
+// @version      2.0.0
+// @description  Automação em tempo real diretamente dentro da aba do navegador para idleDEX sem risco de desconexão.
+// @match        https://idledex.com/*
 // @grant        none
-// @run-at       document-idle
+// @run-at       document-start
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // Configurações do bot - altere conforme necessidade
-    const CONFIG = {
-        autoCatchEnabled: true,
-        preferBall: 'pokeball',      // pokeball, greatball, ultraball
-        fleeHpThreshold: 0.5,       // Fugir se HP do oponente > 50%
-        catchHpThreshold: 0.3,      // Jogar bola se HP <= 30%
-        autoClaimDailyQuests: true,
-        autoHealOnFaint: true,
-        discordWebhook: null,       // URL do webhook (opcional)
-    };
+    console.log("[IdleDex Bot] Injetando motor de automação v2.0...");
 
-    let gameState = {
-        currentOpponent: null,
-        opponentHpPercent: 0,
-        isAutoHunting: false,
-        lastEncounterTime: 0,
-        inventory: {},
+    const CONFIG = {
+        enabled: true,
+        autoBattle: true,
+        autoCatch: true,
+        catchHpPct: 0.40,
+        preferredBall: 'poke-ball', // 'poke-ball', 'great-ball', 'ultra-ball'
+        autoIdle: true,
+        autoClaim: true,
     };
 
     let activeSocket = null;
-    const commandQueue = [];
-    let isProcessingQueue = false;
+    let inBattle = false;
 
-    // ============== MONITORAMENTO ==============
-
-    // Hook do WebSocket para interceptar eventos
-    const OriginalWebSocket = window.WebSocket;
+    // 1. Hook WebSocket to capture game connection
+    const OrigWebSocket = window.WebSocket;
     window.WebSocket = function(...args) {
-        const socket = new OriginalWebSocket(...args);
-        activeSocket = socket;
+        const ws = new OrigWebSocket(...args);
+        activeSocket = ws;
 
-        socket.addEventListener('message', handleIncomingMessage);
-        socket.addEventListener('open', () => console.log('[IdleDex Bot] WS conectado'));
-        socket.addEventListener('close', () => console.log('[IdleDex Bot] WS desconectado'));
-        socket.addEventListener('error', (e) => console.error('[IdleDex Bot] WS erro:', e));
+        ws.addEventListener('message', (e) => {
+            if (typeof e.data !== 'string') return;
+            try {
+                const msg = JSON.parse(e.data);
+                handleGamePacket(msg);
+            } catch (err) {}
+        });
 
-        return socket;
+        ws.addEventListener('open', () => {
+            console.log("[IdleDex Bot] WebSocket do jogo conectado e interceptado!");
+            updateHudStatus("Conectado");
+        });
+
+        ws.addEventListener('close', () => {
+            console.log("[IdleDex Bot] WebSocket fechado.");
+            updateHudStatus("Desconectado");
+        });
+
+        return ws;
     };
 
-    function handleIncomingMessage(event) {
-        if (event.data instanceof ArrayBuffer) return; // Protocolo binário nativo
-
-        try {
-            const msg = JSON.parse(event.data);
-            processMessage(msg);
-        } catch (e) {
-            // Não é JSON válido, ignora
+    function sendEvent(t, d) {
+        if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
+            const payload = { t };
+            if (d !== undefined) payload.d = d;
+            activeSocket.send(JSON.stringify(payload));
         }
     }
 
-    function processMessage(msg) {
-        const type = msg.type || msg.event || '';
+    // 2. Handle incoming game packets
+    function handleGamePacket(msg) {
+        if (!CONFIG.enabled) return;
 
-        switch (type) {
-            case 'encounter':
-                handleEncounter(msg);
-                break;
-            case 'battle_update':
-            case 'damage':
-                handleBattleUpdate(msg);
-                break;
-            case 'faint':
-                handleFaint(msg);
-                break;
-            case 'catch_result':
-                handleCatchResult(msg);
-                break;
-            case 'daily_quests':
-                handleDailyQuests(msg);
-                break;
-            case 'inventory_update':
-                handleInventoryUpdate(msg);
-                break;
-            case 'trade_offer':
-                handleTradeOffer(msg);
-                break;
-            default:
-                break;
-        }
-    }
+        const t = msg.t || msg.type;
+        const d = msg.d || msg;
 
-    // ============== ROTINAS AUTOMÁTICAS ==============
+        // Combat Turn
+        if (t === "battle:turn" || t === "battle:control") {
+            inBattle = true;
+            const opp = d.opponent || {};
+            const oppHp = opp.hpPercent !== undefined ? opp.hpPercent : 1.0;
+            const oppName = opp.name || opp.species || "Criatura";
 
-    function handleEncounter(msg) {
-        if (!CONFIG.autoCatchEnabled) return;
+            console.log(`[IdleDex Bot] Batalha ativa vs ${oppName} (HP: ${Math.round(oppHp * 100)}%)`);
+            updateHudStatus(`Batalhando: ${oppName} (${Math.round(oppHp * 100)}%)`);
 
-        gameState.currentOpponent = msg;
-        gameState.opponentHpPercent = msg.hp_percent || 1.0;
-        gameState.lastEncounterTime = Date.now();
-
-        console.log(`[IdleDex Bot] Encontro: ${msg.species || 'Desconhecido'}`);
-
-        // Auto-iniciar batalha se estiver em AUTO mode
-        queueCommand({ type: 'battle_start', target: msg.id });
-    }
-
-    function handleBattleUpdate(msg) {
-        if (msg.opponent_hp !== undefined) {
-            const maxHp = msg.max_hp || 100;
-            gameState.opponentHpPercent = msg.opponent_hp / maxHp;
+            setTimeout(() => {
+                if (!CONFIG.enabled || !inBattle) return;
+                // Capture if weak
+                if (CONFIG.autoCatch && oppHp <= CONFIG.catchHpPct) {
+                    console.log(`[IdleDex Bot] Lançando ${CONFIG.preferredBall}...`);
+                    sendEvent("capture:throw", { ballId: CONFIG.preferredBall });
+                } else if (CONFIG.autoBattle) {
+                    sendEvent("battle:move", { moveIndex: 0 });
+                }
+            }, 300);
         }
 
-        // Decisão de fuga
-        if (gameState.opponentHpPercent > CONFIG.fleeHpThreshold) {
-            queueCommand({ type: 'flee' });
-            return;
-        }
+        // Combat Finished
+        else if (t === "battle:end") {
+            inBattle = false;
+            const victory = d.victory;
+            const captured = d.captured;
+            const outcome = captured ? "✨ Capturado!" : (victory ? "⚔️ Vitória!" : "💀 Derrota");
+            console.log(`[IdleDex Bot] ${outcome}`);
+            updateHudStatus(outcome);
 
-        // Decisão de atacar ou usar poção
-        if (msg.player_hp_percent < 0.3 && CONFIG.autoHealOnFaint) {
-            queueCommand({ type: 'use_item', item: 'potion', target: 'player' });
-        } else {
-            queueCommand({ type: 'attack' });
-        }
-    }
-
-    function handleFaint(msg) {
-        console.log(`[IdleDex Bot] Oponente derrotado: ${msg.species || 'Desconhecido'}`);
-        gameState.currentOpponent = null;
-        gameState.opponentHpPercent = 0;
-
-        // Aguardar próximo encontro automaticamente
-        setTimeout(() => {
-            queueCommand({ type: 'explore' });
-        }, 1000);
-    }
-
-    function handleCatchResult(msg) {
-        if (msg.success) {
-            console.log(`[IdleDex Bot] ✨ Capturado: ${msg.species}`);
-            notifyDiscord(`✅ Capturado: ${msg.species} (${msg.iv || 'N/A'} IV)`);
-        } else {
-            console.log(`[IdleDex Bot] Falha na captura: ${msg.species}`);
-        }
-        // Tentar novo encontro
-        setTimeout(() => queueCommand({ type: 'explore' }), 500);
-    }
-
-    function handleDailyQuests(msg) {
-        if (!CONFIG.autoClaimDailyQuests) return;
-
-        const quests = msg.quests || [];
-        for (const quest of quests) {
-            if (quest.completed && !quest.claimed) {
-                console.log(`[IdleDex Bot] Resgatando quest: ${quest.description}`);
-                queueCommand({ type: 'claim_quest', questId: quest.id });
+            if (CONFIG.autoIdle) {
+                setTimeout(() => {
+                    sendEvent("idle:start");
+                }, 1000);
             }
         }
-    }
 
-    function handleInventoryUpdate(msg) {
-        gameState.inventory = { ...gameState.inventory, ...msg.items };
-
-        // Auto-vender duplicados se houver muitas repetições
-        const duplicates = findDuplicates(msg.items || []);
-        if (duplicates.length > 10) {
-            console.log(`[IdleDex Bot] Vendendo ${duplicates.length} duplicatas`);
-            queueCommand({ type: 'sell_duplicates', count: duplicates.length });
-        }
-    }
-
-    function findDuplicates(items) {
-        const counts = {};
-        for (const item of items) {
-            counts[item.id] = (counts[item.id] || 0) + 1;
-        }
-        return Object.entries(counts)
-            .filter(([_, count]) => count > 2)
-            .map(([id, count]) => ({ id, count: count - 2 }));
-    }
-
-    function handleTradeOffer(msg) {
-        // Log de ofertas de trade (não automatiza por segurança)
-        console.log(`[IdleDex Bot] Oferta de trade: ${msg.offer}`);
-    }
-
-    // ============== FILA DE COMANDOS ==============
-
-    function queueCommand(cmd) {
-        commandQueue.push(cmd);
-        if (!isProcessingQueue) {
-            processQueue();
-        }
-    }
-
-    async function processQueue() {
-        isProcessingQueue = true;
-
-        while (commandQueue.length > 0) {
-            const cmd = commandQueue.shift();
-            await sendCommand(cmd);
-            // Delay mínimo entre comandos para evitar rate limiting
-            await delay(200);
-        }
-
-        isProcessingQueue = false;
-    }
-
-    function sendCommand(cmd) {
-        if (!activeSocket || activeSocket.readyState !== WebSocket.OPEN) {
-            console.warn('[IdleDex Bot] Socket indisponível para comando:', cmd.type);
-            return Promise.resolve();
-        }
-
-        return new Promise((resolve) => {
-            try {
-                activeSocket.send(JSON.stringify(cmd));
-                resolve();
-            } catch (e) {
-                console.error('[IdleDex Bot] Erro ao enviar comando:', e);
-                resolve();
+        // Daily quests & rewards
+        else if (t === "daily:list" && CONFIG.autoClaim) {
+            const quests = d.quests || [];
+            for (const q of quests) {
+                if (q.completed && !q.claimed) {
+                    console.log(`[IdleDex Bot] Resgatando missão: ${q.title || q.id}`);
+                    sendEvent("daily:claim", { questId: q.id });
+                }
             }
+            sendEvent("pokedex:claim-all");
+            sendEvent("gamepass:claim-all");
+        }
+    }
+
+    // 3. Floating In-Game HUD
+    function createHud() {
+        const hud = document.createElement('div');
+        hud.id = 'idledex-bot-hud';
+        hud.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #0f172a;
+            border: 1px solid #06b6d4;
+            color: #f8fafc;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            font-size: 12px;
+            z-index: 999999;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        `;
+
+        hud.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                <b style="color:#06b6d4;">🤖 IdleDex Bot v2.0</b>
+                <button id="idledex-bot-toggle" style="background:#06b6d4; color:#0f172a; border:none; padding:2px 8px; border-radius:4px; font-weight:bold; cursor:pointer;">LIGADO</button>
+            </div>
+            <div id="idledex-bot-status" style="color:#94a3b8; font-size:11px;">Aguardando WebSocket...</div>
+        `;
+
+        document.body.appendChild(hud);
+
+        const btn = document.getElementById('idledex-bot-toggle');
+        btn.addEventListener('click', () => {
+            CONFIG.enabled = !CONFIG.enabled;
+            btn.textContent = CONFIG.enabled ? 'LIGADO' : 'PAUSADO';
+            btn.style.background = CONFIG.enabled ? '#06b6d4' : '#64748b';
+            updateHudStatus(CONFIG.enabled ? 'Bot Ativo' : 'Pausado');
         });
     }
 
-    // ============== NOTIFICAÇÕES ==============
-
-    function notifyDiscord(message) {
-        if (!CONFIG.discordWebhook) return;
-
-        fetch(CONFIG.discordWebhook, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: message })
-        }).catch(err => console.error('[IdleDex Bot] Erro no webhook:', err));
+    function updateHudStatus(text) {
+        const el = document.getElementById('idledex-bot-status');
+        if (el) el.textContent = text;
     }
 
-    // ============== UTILITÁRIOS ==============
-
-    function delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    // Expor funções para debugging no console
-    window.idleDexBot = {
-        config: CONFIG,
-        state: gameState,
-        queue: commandQueue,
-        sendCommand,
-        notifyDiscord,
-    };
-
-    console.log('[IdleDex Bot] Carregado. Use window.idleDexBot para controles.');
+    window.addEventListener('DOMContentLoaded', createHud);
 })();
