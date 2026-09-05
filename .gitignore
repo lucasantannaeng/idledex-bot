@@ -3,5 +3,7 @@ __pycache__/
 *.pyc
 build/
 dist/
+dist-desktop/
+node_modules/
 *.log
 _agy_prompt.txt

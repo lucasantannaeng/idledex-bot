@@ -1,32 +1,62 @@
-# IdleDex Bot — Automation Engine & Cyber Dashboard
+# IdleDex Desktop Suite v2.0 — Embedded Chromium & Autonomous Engine
 
-Bot autônomo de alta performance para o jogo IdleDex com protocolo WebSocket reverso de baixa latência, servidor de controle HTTP local integrado, radar canvas em tempo real e dashboard interativo moderno no padrão dark-slate/cyan.
+Suíte desktop completa em Electron para o jogo IdleDex. Integra navegador Chromium nativo (`https://idledex.com/play`) em layout split-screen com barra lateral cibernética retrátil de telemetria e automação autônoma.
+
+> [!IMPORTANT]
+> **Zero Desconexões & Zero Cópia Manual de Token:**
+> O motor autônomo opera diretamente dentro do WebSocket nativo do navegador embutido via preload de protocolo (`preload-game.js`). Isso elimina 100% dos conflitos de conexão única do servidor, prevenindo os kicks automáticos e deslogamentos (`authClient.signOut()`).
 
 ---
 
 ## ⚡ Inicialização Rápida
 
-### Opção 1: Executável Standalone (Recomendado — Não requer Python instalado)
+### Opção 1: Executável Desktop Portátil (Recomendado — Sem Dependências)
 1. Navegue até a pasta da distribuição:
    ```cmd
-   cd dist\idledex-bot
+   cd dist-desktop\win-unpacked
    ```
 2. Execute o binário:
    ```cmd
-   idledex-bot.exe
+   "IdleDex Desktop.exe"
    ```
-3. Abra o navegador em: [http://localhost:8080/dashboard](http://localhost:8080/dashboard)
+3. Faça login no jogo normalmente na janela embutida à esquerda. A barra lateral à direita assume o controle e a telemetria instantaneamente!
 
-### Opção 2: Via Código Fonte (Python 3.10+)
+### Opção 2: Modo de Desenvolvimento (Node.js)
 1. Instale as dependências:
    ```bash
-   pip install -r requirements.txt
+   npm install
    ```
-2. Execute o bot:
+2. Inicie a aplicação:
    ```bash
-   python bot.py
+   npm start
    ```
-3. Acesse o painel web em: [http://localhost:8080/dashboard](http://localhost:8080/dashboard)
+
+---
+
+## 🖥️ Arquitetura da Suíte Desktop
+
+- **Split-Screen Integrado**: O jogo oficial roda em Chromium com persistência total de cookies (`partition="persist:idledex"`).
+- **Injeção de Protocolo no Preload (`preload-game.js`)**: Intercepta a criação do `window.WebSocket` da página e escuta/transmite frames binários e pacotes JSON diretamente pela mesma conexão da aba.
+- **Barra Lateral Cibernética Retrátil (`app/app.js`)**:
+  - **Radar Tático (Grid 20x20)**: Canvas matricial em tempo real plotando a posição do jogador (azul), monstros selvagens (vermelho/rosa pulsante) e outras entidades (cinza).
+  - **Painel de Batalha**: Monitoramento de duelo ao vivo com barras dinâmicas de HP do Pokémon ativo e do oponente.
+  - **Telemetria & KPIs**: Rank, XP acumulado, vitórias, derrotas, capturas, shinies raros, moedas e cristais.
+  - **Mochila (Inventário)**: Pokébolas, Greatbolas, Ultrabolas e Poções em tempo real.
+  - **Parâmetros Estratégicos**: Modos equilibrado/coleção/venda, limites de IV, gatilhos de fuga, poção e captura, com salvamento atômico em disco.
+- **Bandeja do Sistema (Tray)**: Permite minimizar para a bandeja e continuar caçando em segundo plano sem congelamento (`backgroundThrottling: false`).
+
+---
+
+## 📦 Compilação da Aplicação Desktop
+Para gerar novamente a distribuição desktop portátil (`win-unpacked`):
+```cmd
+npm run pack
+```
+Os arquivos e executável serão gerados em `dist-desktop/win-unpacked/IdleDex Desktop.exe`.
+
+---
+
+## 🐍 Modo Legado / Alternativo (Python Standalone Engine)
 
 ---
 

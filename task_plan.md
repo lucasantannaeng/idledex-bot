@@ -37,3 +37,25 @@
 - [x] Verify HTTP API responses (`/state`, `/logs`, `/api/token`, `/api/config`).
 - [x] Test PyInstaller build and run the executable to confirm clean boot and dashboard serving.
 - [x] Record entry in Obsidian Vault `04_Logbook`.
+
+## Phase 6: Electron Desktop App Migration (`idledex-desktop`)
+- [x] Architectural alignment via `/grill-me` (pure Electron desktop app, embedded Chromium `<webview>`, split-screen cyber UI, zero duplicate sockets).
+- [x] Configure `package.json` with `electron` and `electron-builder`.
+- [x] Develop Main Process (`electron/main.js`) with native window, System Tray, persistent partition (`persist:idledex`), and background execution (`backgroundThrottling: false`).
+- [x] Develop Webview Guest Preload (`electron/preload-game.js`) hooking `window.WebSocket`, decoding binary frames, auto-combating, roaming, and streaming telemetry to host via `sendToHost`.
+- [x] Develop Dashboard Host Preload (`electron/preload-dashboard.js`) exposing secure `contextBridge` APIs.
+- [x] Develop Cyber Split-Screen UI (`app/index.html`, `app/styles.css`, `app/app.js`):
+  - Left column: official game loaded natively with full cookie session persistence.
+  - Right column: collapsible cyber sidebar with 20x20 tactical canvas radar, live HP combat bars, KPIs, inventory, and strategy settings.
+- [x] Build Portable Desktop Distribution in `dist-desktop/win-unpacked/` via `electron-builder`.
+- [x] Comprehensive documentation in `README.md` and logging in Obsidian Vault `04_Logbook\Logbook.md`.
+
+## Phase 7: Post-Login Synchronization & Preload Interception Fixes
+- [x] Trace live Chromium runtime & diagnose "Posição: Aguardando..." / bot inactivity.
+- [x] Implement main-process `will-attach-webview` hook in `electron/main.js` to guarantee preload injection before webview navigation begins.
+- [x] Reverse-engineer full JSON protocol in game bundle: map `welcome` snapshot (`snapshot.player.team`, `inventory`, `wallet`, initial `entities` & `playerPos`).
+- [x] Add authoritative JSON `state`, `entity:enter`, `entity:leave`, and `map:change` handlers to `preload-game.js`.
+- [x] Reorder roam loop initialization to trigger post-`welcome` to prevent navigation desync with null player coordinates.
+- [x] Recompile full distribution in `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
+
+

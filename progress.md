@@ -14,3 +14,15 @@
 - **[2026-09-05 19:09]**: Executed standalone test of `dist/idledex-bot/idledex-bot.exe`. Confirmed HTTP 200 response on `/dashboard` and verified live state mutation via `/api/token` and `/api/config`.
 - **[2026-09-05 19:10]**: Updated `README.md`, `QUICKSTART.md`, and registered entry in Obsidian Vault `04_Logbook`.
 - **[2026-09-05 19:33]**: Diagnosed "character standing still" root cause: 1) User clicked "Deslogar" in browser, causing backend Better-Auth session invalidation (HTTP 401); 2) Implemented active map roaming loop (`roam_loop`), `welcome` snapshot ingestion, tactical coordinates, and auto-roam toggle; recompiled PyInstaller standalone executable with exit code 0.
+- **[2026-09-05 19:40]**: User proposed `/grill-me` concept: embed the game natively in Electron to eliminate manual token extraction and resolve automatic logout kicks.
+- **[2026-09-05 19:44]**: Conducted architectural interview, established pure Electron architecture, split-screen UX, protocol-level preload hook, System Tray background support, and unpacked portable packaging.
+- **[2026-09-05 19:47]**: Configured `package.json` with Electron `v33.4.11` and `electron-builder` `v25.1.8`; completed package installation.
+- **[2026-09-05 19:48]**: Developed `electron/main.js` (window lifecycle, persistent partition `persist:idledex`, System Tray, background throttling disabled) and `electron/preload-dashboard.js` (IPC bridge).
+- **[2026-09-05 19:49]**: Developed `electron/preload-game.js` (native `window.WebSocket` interceptor, binary frame decoder, elemental combat engine, smart roaming, auto-catch, auto-idle, and host telemetry streamer).
+- **[2026-09-05 19:50]**: Developed Cyber Split-Screen frontend: `app/index.html`, `app/styles.css`, and `app/app.js` (20x20 tactical radar canvas, dynamic HP combat bars, telemetry KPI cards, strategy controls, and operations log).
+- **[2026-09-05 19:51]**: Empirically verified dynamic preload injection and IPC communication in Electron test harness with 100% success.
+- **[2026-09-05 19:52]**: Executed `npm run pack` via `electron-builder`; compiled portable distribution into `dist-desktop/win-unpacked/IdleDex Desktop.exe` with unpacked guest preload (`resources/app.asar.unpacked/electron/preload-game.js`).
+- **[2026-09-05 19:53]**: Verified executable launch with exit code 0; updated documentation in `README.md` and recorded entry in Obsidian Vault `04_Logbook`.
+- **[2026-09-05 20:33]**: Diagnosed post-login inactivity root cause: 1) Bound `will-attach-webview` in main process before window creation, guaranteeing early preload injection; 2) Extended `preload-game.js` to ingest JSON `welcome` snapshot (`snapshot.player.team`, `inventory`, `wallet`, initial `entities` & `playerPos`), JSON `state` entity/pos deltas, and `entity:enter`/`entity:leave` events; 3) Moved roam loop start to post-welcome synchronization; 4) Recompiled standalone portable distribution into `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
+
+

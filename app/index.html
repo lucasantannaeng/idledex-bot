@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IdleDex Desktop Suite v2.0</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- TOP TITLEBAR -->
+    <header class="titlebar">
+        <div class="titlebar-left">
+            <div class="app-brand">
+                <span class="brand-dot"></span>
+                <span>IDLEDEX DESKTOP</span>
+            </div>
+            <div id="bot-status-pill" class="status-pill">
+                <span id="pill-dot">●</span>
+                <span id="pill-text">BOT ATIVO</span>
+            </div>
+            <span id="shard-indicator" style="font-size:0.75rem; font-family:var(--font-mono); color:var(--text-dim);">Shard: --</span>
+        </div>
+
+        <div class="titlebar-actions">
+            <button id="btn-toggle-bot" class="tb-btn primary" onclick="toggleBotState()">⏸️ Pausar Bot</button>
+            <button class="tb-btn" onclick="toggleSidebar()">📐 Alternar Barra</button>
+            <button class="tb-btn" onclick="minimizeToTray()">📥 Bandeja (Tray)</button>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE (SPLIT SCREEN) -->
+    <div class="workspace">
+        
+        <!-- LEFT COLUMN: EMBEDDED CHROMIUM GAME VIEW -->
+        <div class="game-container">
+            <webview 
+                id="game-view" 
+                partition="persist:idledex" 
+                allowpopups
+                webpreferences="contextIsolation=no, sandbox=no">
+            </webview>
+        </div>
+
+        <!-- RIGHT COLUMN: RETRACTABLE CYBER SIDEBAR -->
+        <aside class="sidebar" id="bot-sidebar">
+            <nav class="sidebar-tabs">
+                <button class="s-tab active" onclick="switchPanel('radar')">🗺️ Radar</button>
+                <button class="s-tab" onclick="switchPanel('combat')">⚔️ Batalha</button>
+                <button class="s-tab" onclick="switchPanel('stats')">📊 Stats</button>
+                <button class="s-tab" onclick="switchPanel('inventory')">🎒 Mochila</button>
+                <button class="s-tab" onclick="switchPanel('config')">⚙️ Config</button>
+            </nav>
+
+            <div class="sidebar-content">
+
+                <!-- PANEL: RADAR -->
+                <div id="panel-radar" class="panel active">
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Radar Tático (20x20 Grid)</span>
+                            <span id="radar-coords" style="font-size:0.75rem; font-family:var(--font-mono); color:var(--cyan);">Posição: Aguardando...</span>
+                        </div>
+                        <div class="radar-box">
+                            <canvas id="radar-canvas" width="280" height="280"></canvas>
+                            <div class="radar-legend">
+                                <div><span class="legend-dot" style="background:#3b82f6;"></span>Você</div>
+                                <div><span class="legend-dot" style="background:#f43f5e;"></span>Criatura</div>
+                                <div><span class="legend-dot" style="background:#64748b;"></span>Outro</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Criaturas Próximas Detectadas</div>
+                        <div id="entities-list" style="margin-top:8px; font-size:0.78rem; display:flex; flex-direction:column; gap:4px; max-height:110px; overflow-y:auto;">
+                            <div style="color:var(--text-dim);">Aguardando telemetria de mapa...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANEL: COMBAT -->
+                <div id="panel-combat" class="panel">
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Duelo em Andamento</span>
+                            <span id="combat-status" style="font-size:0.75rem; font-family:var(--font-mono); color:var(--emerald);">Em Espera</span>
+                        </div>
+
+                        <!-- ENEMY -->
+                        <div class="combatant">
+                            <div class="combatant-meta">
+                                <span id="combat-enemy-name" style="color:var(--rose); font-weight:600;">Nenhum Oponente</span>
+                                <span id="combat-enemy-hp-text" style="font-family:var(--font-mono);">--</span>
+                            </div>
+                            <div class="hp-bar-bg">
+                                <div class="hp-bar-fill enemy" id="combat-enemy-hp-bar" style="width: 0%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- PLAYER -->
+                        <div class="combatant">
+                            <div class="combatant-meta">
+                                <span id="combat-player-name" style="color:var(--emerald); font-weight:600;">Seu Pokémon</span>
+                                <span id="combat-player-hp-text" style="font-family:var(--font-mono);">100%</span>
+                            </div>
+                            <div class="hp-bar-bg">
+                                <div class="hp-bar-fill" id="combat-player-hp-bar" style="width: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Ações Automáticas de Batalha</div>
+                        <p style="font-size:0.78rem; color:var(--text-muted); margin-top:6px; line-height:1.4;">
+                            A inteligência executa golpes elementais prioritários, gerencia o lançamento de Pokébolas conforme o HP do monstro selvagem e utiliza Poções de forma autônoma.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- PANEL: STATS -->
+                <div id="panel-stats" class="panel">
+                    <div class="card">
+                        <div class="card-title" style="margin-bottom:10px;">Telemetria do Treinador</div>
+                        <div class="kpi-grid">
+                            <div class="kpi-cell"><div class="kpi-num" id="stat-rank">1</div><div class="kpi-lbl">Rank</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="stat-xp">0</div><div class="kpi-lbl">XP Acumulado</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="stat-wins" style="color:var(--emerald);">0</div><div class="kpi-lbl">Vitórias</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="stat-losses" style="color:var(--rose);">0</div><div class="kpi-lbl">Derrotas</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="stat-captures" style="color:var(--purple);">0</div><div class="kpi-lbl">Capturados</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="stat-shinies" style="color:#ffd700;">0</div><div class="kpi-lbl">Shinies Raros ✨</div></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Economia</div>
+                        <div style="display:flex; justify-content:space-around; margin-top:8px;">
+                            <div>Ouro: <b id="wallet-coins" style="color:#ffd700; font-family:var(--font-mono);">0</b></div>
+                            <div>Cristais: <b id="wallet-crystals" style="color:var(--cyan); font-family:var(--font-mono);">0</b></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANEL: INVENTORY -->
+                <div id="panel-inventory" class="panel">
+                    <div class="card">
+                        <div class="card-title" style="margin-bottom:10px;">Suprimentos de Captura</div>
+                        <div class="kpi-grid">
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-pokeball">0</div><div class="kpi-lbl">Poké Ball</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-greatball">0</div><div class="kpi-lbl">Great Ball</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-ultraball">0</div><div class="kpi-lbl">Ultra Ball</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-potion" style="color:var(--emerald);">0</div><div class="kpi-lbl">Poções</div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANEL: CONFIG -->
+                <div id="panel-config" class="panel">
+                    <div class="card">
+                        <div class="card-title" style="margin-bottom:10px;">Parâmetros da Estratégia</div>
+                        <div class="form-group">
+                            <div class="form-item">
+                                <label>Modo Estratégico</label>
+                                <select id="cfg-strategy" class="form-control">
+                                    <option value="balanced">Equilibrado (50/50)</option>
+                                    <option value="collection">Foco Coleção</option>
+                                    <option value="monetize">Monetização</option>
+                                </select>
+                            </div>
+                            <div class="form-item">
+                                <label>Mínimo IV para Coleção</label>
+                                <input type="number" id="cfg-iv-col" class="form-control" style="width:75px;" min="100" max="186">
+                            </div>
+                            <div class="form-item">
+                                <label>IV para Descarte/Venda</label>
+                                <input type="number" id="cfg-iv-sell" class="form-control" style="width:75px;" min="100" max="186">
+                            </div>
+                            <div class="form-item">
+                                <label>Fugir se HP Próprio &lt; (%)</label>
+                                <input type="number" id="cfg-flee" class="form-control" style="width:75px;" min="5" max="60">
+                            </div>
+                            <div class="form-item">
+                                <label>Poção se HP Próprio &lt; (%)</label>
+                                <input type="number" id="cfg-potion" class="form-control" style="width:75px;" min="5" max="60">
+                            </div>
+                            <div class="form-item">
+                                <label>Capturar se HP Inimigo &lt; (%)</label>
+                                <input type="number" id="cfg-catch" class="form-control" style="width:75px;" min="10" max="90">
+                            </div>
+                            <div class="form-item">
+                                <label>Auto-Patrulha no Mapa</label>
+                                <input type="checkbox" id="cfg-auto-roam">
+                            </div>
+                            <div class="form-item">
+                                <label>Auto-Idle Nativo</label>
+                                <input type="checkbox" id="cfg-auto-idle">
+                            </div>
+                            <button onclick="saveBotSettings()" class="tb-btn primary" style="margin-top:10px; width:100%; padding:8px;">
+                                💾 Salvar Ajustes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OPERATIONS LOG FEED (ALWAYS VISIBLE AT BOTTOM) -->
+                <div class="card" style="margin-top:auto;">
+                    <div class="card-header">
+                        <span class="card-title">Console de Operações</span>
+                        <button onclick="clearLogs()" style="background:transparent; border:none; color:var(--text-dim); font-size:0.75rem; cursor:pointer;">Limpar</button>
+                    </div>
+                    <div class="log-box" id="log-feed">
+                        <div class="log-entry info"><span style="color:var(--text-dim);">[00:00:00]</span> Inicializando suíte desktop...</div>
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

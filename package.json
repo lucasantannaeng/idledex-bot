@@ -1,16 +1,31 @@
 {
-  "name": "idledex-bot",
-  "version": "1.0.0",
-  "description": "Protocol-level bot for idleDEX game",
-  "main": "bot.py",
+  "name": "idledex-desktop",
+  "version": "2.0.0",
+  "description": "IdleDex Desktop App with Built-in Chromium and Autonomous Bot",
+  "main": "electron/main.js",
   "scripts": {
-    "start": "python bot.py",
-    "test": "python -m pytest tests/"
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --dir"
   },
-  "dependencies": {
-    "websockets": "^12.0"
+  "build": {
+    "appId": "com.idledex.desktop",
+    "productName": "IdleDex Desktop",
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "win": {
+      "target": "dir"
+    },
+    "asar": false,
+    "files": [
+      "electron/**/*",
+      "app/**/*",
+      "package.json"
+    ]
   },
   "devDependencies": {
-    "pytest": "^7.0"
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
   }
 }
