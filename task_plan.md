@@ -50,12 +50,15 @@
 - [x] Build Portable Desktop Distribution in `dist-desktop/win-unpacked/` via `electron-builder`.
 - [x] Comprehensive documentation in `README.md` and logging in Obsidian Vault `04_Logbook\Logbook.md`.
 
-## Phase 7: Post-Login Synchronization & Preload Interception Fixes
-- [x] Trace live Chromium runtime & diagnose "Posição: Aguardando..." / bot inactivity.
-- [x] Implement main-process `will-attach-webview` hook in `electron/main.js` to guarantee preload injection before webview navigation begins.
-- [x] Reverse-engineer full JSON protocol in game bundle: map `welcome` snapshot (`snapshot.player.team`, `inventory`, `wallet`, initial `entities` & `playerPos`).
-- [x] Add authoritative JSON `state`, `entity:enter`, `entity:leave`, and `map:change` handlers to `preload-game.js`.
-- [x] Reorder roam loop initialization to trigger post-`welcome` to prevent navigation desync with null player coordinates.
+## Phase 8: Grass Navigation, Battle Envelopes & Pause Hygiene
+- [x] Reverse-engineer collision map format (`.collision.json` with `Grass: 1` and `Path: 2`).
+- [x] Ingest map collision data in `preload-game.js` via `loadMapCollision()`.
+- [x] Implement smart navigation: hunt visible enemies, navigate to nearest grass patch, and patrol strictly within grass.
+- [x] Reverse-engineer battle envelopes in game bundle: map `battleId`, `battle:move`, `battle:item`, `battle:flee`.
+- [x] Implement smart move selection with capture protection (avoid killing capture targets).
+- [x] Implement hierarchical ball throwing (`ultra-ball`, `great-ball`, `poke-ball`) via `battle:item`.
+- [x] Clean pause: cancel roam and battle timers on pause, flush state, and eliminate `bad_message undefined`.
 - [x] Recompile full distribution in `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
+
 
 

@@ -110,7 +110,8 @@ function handleTelemetry(data) {
     // Radar & Entities
     if (data.playerPos && data.playerPos.x !== null) {
         if (radarCoords) {
-            radarCoords.textContent = `Pos: (${data.playerPos.x}, ${data.playerPos.y})`;
+            const grassTag = data.onGrass ? " 🌿 [Grama Alta]" : "";
+            radarCoords.textContent = `Pos: (${data.playerPos.x}, ${data.playerPos.y})${grassTag}`;
         }
         drawRadar(data.entities || [], data.playerPos);
     } else {

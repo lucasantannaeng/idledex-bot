@@ -24,5 +24,7 @@
 - **[2026-09-05 19:52]**: Executed `npm run pack` via `electron-builder`; compiled portable distribution into `dist-desktop/win-unpacked/IdleDex Desktop.exe` with unpacked guest preload (`resources/app.asar.unpacked/electron/preload-game.js`).
 - **[2026-09-05 19:53]**: Verified executable launch with exit code 0; updated documentation in `README.md` and recorded entry in Obsidian Vault `04_Logbook`.
 - **[2026-09-05 20:33]**: Diagnosed post-login inactivity root cause: 1) Bound `will-attach-webview` in main process before window creation, guaranteeing early preload injection; 2) Extended `preload-game.js` to ingest JSON `welcome` snapshot (`snapshot.player.team`, `inventory`, `wallet`, initial `entities` & `playerPos`), JSON `state` entity/pos deltas, and `entity:enter`/`entity:leave` events; 3) Moved roam loop start to post-welcome synchronization; 4) Recompiled standalone portable distribution into `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
+- **[2026-09-05 20:56]**: Implemented Phase 8 enhancements: 1) Ingested `/maps/${mapId}.collision.json` to detect `Grass: 1` tiles; 2) Implemented active grass hunting and in-patch zigzag patrol; 3) Restructured battle envelopes with required `battleId`, move sorting, tiered ball throwing via `battle:item`, and smart capture protection; 4) Added clean pause state flushing; 5) Recompiled portable distribution in `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
+
 
 

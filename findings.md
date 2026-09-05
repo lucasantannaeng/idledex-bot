@@ -69,3 +69,21 @@
   2. **Reliance Exclusively on Binary Frames**: The bot previously parsed map entities and player position only through binary frames (`0x01`). However, IdleDex transmits the authoritative initial game state inside the JSON `welcome` packet (`e.d.snapshot`) and incremental entity deltas inside JSON `state`, `entity:enter`, and `entity:leave` events.
   3. **Missing Snapshot Extraction**: The `welcome` packet carries `e.d.snapshot.entities` (initial entity list with coordinates), `e.d.snapshot.player.team` (active Pokémon and stats), `e.d.snapshot.player.wallet` (coins and crystals), and `e.d.snapshot.player.inventory` (balls and potions). Without extracting these, the dashboard remained unpopulated until auxiliary events fired.
   4. **Premature Roam Loop**: Starting the roam loop on `ws.open` before the `welcome` packet was received caused movement commands to be sent with `playerPos.x === null`, desyncing the navigation before the player was spawned on the map. Moving `startRoamLoop()` to post-`welcome` ensures accurate position tracking and nearest-enemy calculations.
+
+## 6. Reverse Engineering: Map Grass Collision & Battle Envelopes
+- **Map Collision & Tall Grass**:
+  - Map data is loaded by the official client from `/maps/${mapId}.collision.json`.
+  - The grid is a flat array of dimensions `cols * rows` where:
+    - `1 = Grass` (`l_.Grass` in bundle): tiles where wild Pokémon encounters occur.
+    - `2 = Path` (`l_.Path` in bundle): standard walkable tiles without encounters.
+    - Other values: blocked obstacles, walls, or water.
+  - By loading this JSON matrix in `preload-game.js`, the bot accurately detects whether the player is in tall grass (`isGrass`), navigates straight to the nearest grass patch, and patrols exclusively within encounter tiles.
+- **Battle Protocol & `bad_message` Error Root Cause**:
+  - The IdleDex server requires explicit contextual identifiers in all battle action envelopes:
+    - Attack: `{ t: "battle:move", d: { battleId: string, moveId: string } }`
+    - Items (Balls & Potions): `{ t: "battle:item", d: { battleId: string, itemId: string } }`
+    - Tactical Flee: `{ t: "battle:flee", d: { battleId: string } }`
+  - Sending `{ t: "battle:move", d: { moveIndex: 0 } }` or commands without `battleId` causes the server to reject the packet with `[server] bad_message undefined`.
+  - Captures in battle use `battle:item` with the active `battleId` rather than `capture:throw`.
+  - Pausing the bot now flushes any pending turn timers and roam intervals, eliminating out-of-order residual commands.
+
