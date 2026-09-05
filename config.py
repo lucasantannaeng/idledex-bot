@@ -59,6 +59,11 @@ def clean_session_token(raw: str) -> str:
             
     # Strip any accidental surrounding quotes
     text = text.strip('"\'')
+    if "%" in text:
+        try:
+            text = urllib.parse.unquote(text)
+        except Exception:
+            pass
     return text
 
 
@@ -75,6 +80,7 @@ class BotConfig:
     potion_hp_pct: float = 0.30
     catch_hp_pct: float = 0.50
     auto_idle: bool = True
+    auto_roam: bool = True
     discord_webhook: str = ""
 
     @classmethod

@@ -314,6 +314,13 @@ class IdleDexBot:
         self.last_ping_rtt = 0
 
         # State Telemetry
+        self.player_id: Optional[str] = None
+        self.player_pos: Dict[str, Optional[int]] = {"x": None, "y": None}
+        self.current_map: str = ""
+        self.move_seq: int = 0
+        self.roam_pattern: List[str] = ["N", "N", "E", "E", "S", "S", "W", "W"]
+        self.roam_step_idx: int = 0
+
         self.entities: List[Dict[str, Any]] = []
         self.my_mon: Optional[Dict[str, Any]] = None
         self.enemy_mon: Optional[Dict[str, Any]] = None
@@ -331,6 +338,9 @@ class IdleDexBot:
             "needs_token": self.needs_token,
             "token_status": self.token_status,
             "shard": self.shard,
+            "player_id": self.player_id,
+            "player_pos": self.player_pos,
+            "current_map": self.current_map,
             "strategy_mode": self.config.strategy_mode,
             "uptime_seconds": int(time.time() - self.start_time),
             "ping_rtt_ms": self.last_ping_rtt,
@@ -353,6 +363,7 @@ class IdleDexBot:
                 "potion_hp_pct": self.config.potion_hp_pct,
                 "catch_hp_pct": self.config.catch_hp_pct,
                 "auto_idle": self.config.auto_idle,
+                "auto_roam": self.config.auto_roam,
             },
         }
 
@@ -429,12 +440,156 @@ class IdleDexBot:
             except Exception:
                 break
 
+    def _update_inventory(self, data: Any):
+        items = data.get("items", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+        balls = {"pokeball": 0, "greatball": 0, "ultraball": 0}
+        potions = 0
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            kind = str(item.get("kind", "")).lower()
+            iid = str(item.get("id", item.get("itemId", ""))).lower()
+            qty = int(item.get("quantity", item.get("qty", 1)))
+            if "ball" in kind or "ball" in iid:
+                if "ultra" in iid:
+                    balls["ultraball"] += qty
+                elif "great" in iid:
+                    balls["greatball"] += qty
+                else:
+                    balls["pokeball"] += qty
+            elif "potion" in kind or "potion" in iid or "heal" in kind:
+                potions += qty
+        self.inventory["ball"] = balls
+        self.inventory["potion"] = potions
+
+    def _update_team(self, creatures: List[Dict[str, Any]]):
+        self.team = creatures
+        for c in creatures:
+            if not isinstance(c, dict):
+                continue
+            cid = str(c.get("id", ""))
+            if cid:
+                ivs = c.get("ivs", {})
+                iv_total = sum(int(v) for v in ivs.values() if v is not None) if isinstance(ivs, dict) else c.get("ivTotal", 0)
+                self.collection[cid] = {
+                    "id": cid,
+                    "name": c.get("name", c.get("species", "Pokémon")),
+                    "types": c.get("types", []),
+                    "level": c.get("level", 1),
+                    "iv_total": iv_total,
+                    "nature": c.get("nature", "hardy"),
+                    "is_shiny": bool(c.get("isShiny", False)),
+                }
+
+    def _update_entities_list(self, raw_entities: List[Dict[str, Any]]):
+        updated = []
+        for e in raw_entities:
+            eid = str(e.get("id", ""))
+            x = e.get("x")
+            y = e.get("y")
+            dir_ = e.get("dir")
+            is_player = (eid == self.player_id) or ("Player:" in eid) or ("self" in eid.lower())
+            is_enemy = (not is_player) and ("wild:" in eid.lower() or "foe:" in eid.lower() or "Wild" in eid or ":" in eid)
+
+            if is_player and x is not None and y is not None:
+                self.player_pos = {"x": x, "y": y}
+
+            updated.append({
+                "id": eid,
+                "name": eid,
+                "x": x,
+                "y": y,
+                "dir": dir_,
+                "is_player": is_player,
+                "is_enemy": is_enemy,
+            })
+        self.entities = updated
+
+    async def _configure_and_start_idle(self):
+        """Send optimal idle settings and start idle hunting loop."""
+        idle_payload = {
+            "config": {
+                "doBattle": True,
+                "lvlMin": None,
+                "lvlMax": None,
+                "avoidSpecies": [],
+                "roamMaps": [],
+                "roamEnabled": True,
+                "usePotion": {"enabled": True, "itemId": "potion", "hpPct": int(self.config.potion_hp_pct * 100), "maxPerBattle": None},
+                "useRevive": {"enabled": True, "itemId": "revive", "maxPerBattle": None, "mode": "next"},
+                "tryCatch": {
+                    "enabled": True,
+                    "ballId": "poke-ball",
+                    "foeHpPct": int(self.config.catch_hp_pct * 100),
+                    "hpPctByBall": {},
+                    "avoid": [],
+                    "rules": [],
+                    "maxThrows": None,
+                },
+                "autoHeal": True,
+                "autoBossAttack": True,
+                "keepTeamOrder": False,
+                "stopAfterDefeats": None,
+            }
+        }
+        await self.send_event("idle:config", idle_payload)
+        if self.config.auto_idle:
+            await self.send_event("idle:start")
+            log_event("⚡ Modo Auto-Idle ativado com captura configurada", "success")
+
+    async def roam_loop(self):
+        """Actively patrols and walks the player to seek wild encounters."""
+        while self.connected and self.ws:
+            try:
+                # 1. Skip if auto_roam is disabled or in combat
+                if not self.config.auto_roam or self.enemy_mon is not None:
+                    await asyncio.sleep(0.5)
+                    continue
+
+                chosen_dir = None
+                px = self.player_pos.get("x")
+                py = self.player_pos.get("y")
+
+                # 2. Seek nearby wild enemy if coordinates are known
+                wild_targets = [
+                    e for e in self.entities
+                    if e.get("is_enemy") and e.get("x") is not None and e.get("y") is not None
+                ]
+                if wild_targets and px is not None and py is not None:
+                    closest = min(wild_targets, key=lambda e: abs(e["x"] - px) + abs(e["y"] - py))
+                    dx = closest["x"] - px
+                    dy = closest["y"] - py
+                    dist = abs(dx) + abs(dy)
+                    if dist <= 15:  # Chase targets within 15 tiles
+                        if abs(dx) >= abs(dy) and dx != 0:
+                            chosen_dir = "E" if dx > 0 else "W"
+                        elif dy != 0:
+                            chosen_dir = "S" if dy > 0 else "N"
+
+                # 3. Default patrol pacing
+                if not chosen_dir:
+                    chosen_dir = self.roam_pattern[self.roam_step_idx % len(self.roam_pattern)]
+                    self.roam_step_idx += 1
+
+                self.move_seq += 1
+                await self.send_event("move", {"dir": chosen_dir, "n": self.move_seq})
+
+                # Respect kn=200ms tick with natural movement cadence (350ms)
+                await asyncio.sleep(0.35)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                log.debug(f"Roam step exception: {e}")
+                await asyncio.sleep(1.0)
+
     async def handle_message(self, raw_data: Any):
         """Handle incoming binary or JSON game packets."""
         if isinstance(raw_data, bytes):
             parsed = parse_binary_frame(raw_data)
             if parsed:
-                self.entities = parsed["d"].get("entities", [])
+                raw_ents = parsed["d"].get("entities", [])
+                self._update_entities_list(raw_ents)
             return
 
         try:
@@ -449,6 +604,27 @@ class IdleDexBot:
             return
         elif t == "pong":
             return
+
+        # Initial Welcome & Snapshot
+        elif t == "welcome":
+            self.player_id = d.get("playerId")
+            self.current_map = d.get("map", "")
+            log_event(f"🌟 Sessão iniciada! Jogador ID: {self.player_id} (Mapa: {self.current_map})", "success")
+            snapshot = d.get("snapshot", {})
+            player = snapshot.get("player", {})
+            if player:
+                if "team" in player:
+                    self._update_team(player["team"])
+                if "inventory" in player:
+                    self._update_inventory(player["inventory"])
+                if "wallet" in player:
+                    self.wallet.update(player["wallet"])
+                if "progress" in player:
+                    self.progress.update(player["progress"])
+            entities = snapshot.get("entities", [])
+            if entities:
+                self._update_entities_list(entities)
+            await self._configure_and_start_idle()
 
         # Auth & Shard events
         elif t == "shard:redirect":
@@ -476,43 +652,11 @@ class IdleDexBot:
         elif t == "wallet":
             self.wallet.update(d)
         elif t == "inventory":
-            items = d.get("items", [])
-            balls = {"pokeball": 0, "greatball": 0, "ultraball": 0}
-            potions = 0
-            for item in items:
-                kind = item.get("kind", "")
-                iid = item.get("id", "").lower()
-                qty = item.get("quantity", item.get("qty", 1))
-                if "ball" in kind or "ball" in iid:
-                    if "ultra" in iid:
-                        balls["ultraball"] = qty
-                    elif "great" in iid:
-                        balls["greatball"] = qty
-                    else:
-                        balls["pokeball"] = qty
-                elif "potion" in kind or "potion" in iid:
-                    potions += qty
-            self.inventory["ball"] = balls
-            self.inventory["potion"] = potions
+            self._update_inventory(d)
 
         # Creatures & Team
         elif t in ("team", "team:patch"):
-            creatures = d.get("creatures", [])
-            self.team = creatures
-            for c in creatures:
-                cid = str(c.get("id", ""))
-                if cid:
-                    ivs = c.get("ivs", {})
-                    iv_total = sum(int(v) for v in ivs.values() if v is not None) if isinstance(ivs, dict) else c.get("ivTotal", 0)
-                    self.collection[cid] = {
-                        "id": cid,
-                        "name": c.get("name", c.get("species", "Pokémon")),
-                        "types": c.get("types", []),
-                        "level": c.get("level", 1),
-                        "iv_total": iv_total,
-                        "nature": c.get("nature", "hardy"),
-                        "is_shiny": bool(c.get("isShiny", False)),
-                    }
+            self._update_team(d.get("creatures", []))
 
         # Battle events
         elif t == "battle:turn" or t == "battle:control":
@@ -633,6 +777,7 @@ class IdleDexBot:
 
             log_event(f"🔌 Conectando ao idleDEX (Shard {self.shard})...", "info")
             ping_task: Optional[asyncio.Task] = None
+            roam_task: Optional[asyncio.Task] = None
 
             try:
                 async with websockets.connect(
@@ -651,14 +796,14 @@ class IdleDexBot:
                     # Start application-level heartbeat
                     ping_task = asyncio.create_task(self.ping_loop())
 
-                    # Start native idle if enabled
-                    if self.config.auto_idle:
-                        await self.send_event("idle:start")
-                        log_event("⚡ Modo Auto-Idle ativado", "success")
+                    # Start active movement patrol loop
+                    roam_task = asyncio.create_task(self.roam_loop())
+                    log_event("🗺️ Auto-Patrulha ativada (buscando criaturas no mapa)", "success")
 
                     # Request initial character and daily info
                     await self.send_event("daily:open")
                     await self.send_event("hunt:open")
+                    await self._configure_and_start_idle()
 
                     # Message intake loop
                     async for message in ws:
@@ -693,6 +838,8 @@ class IdleDexBot:
                 self.ws = None
                 if ping_task:
                     ping_task.cancel()
+                if roam_task:
+                    roam_task.cancel()
 
             # Wait 5 seconds before next retry, or instant if reconnect_event is triggered
             try:

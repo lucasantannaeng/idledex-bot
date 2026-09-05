@@ -574,6 +574,10 @@
 
             <!-- TAB: MAP -->
             <div id="tab-map" class="tab-panel active">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-size:0.9rem; font-weight:600; color:var(--text-main);">Radar Tático em Tempo Real</span>
+                    <span id="radar-coords" style="font-size:0.8rem; font-family:var(--font-mono); color:var(--cyan); background:rgba(6,182,212,0.1); padding:2px 8px; border-radius:4px; border:1px solid rgba(6,182,212,0.2);">Posição: Sincronizando...</span>
+                </div>
                 <div class="map-wrapper">
                     <div class="map-canvas-container">
                         <canvas id="map-canvas" width="380" height="380"></canvas>
@@ -710,6 +714,10 @@
                             <label>Auto-Idle do Jogo (Ativar Caça Nativa)</label>
                             <input type="checkbox" id="cfg-auto-idle">
                         </div>
+                        <div class="form-row">
+                            <label>Auto-Patrulha no Mapa (Movimentação Ativa)</label>
+                            <input type="checkbox" id="cfg-auto-roam">
+                        </div>
                         <div style="margin-top: 14px;">
                             <button onclick="saveConfigurations()" class="btn-primary">💾 Salvar Configurações</button>
                         </div>
@@ -828,7 +836,8 @@
                 flee_hp_pct: (parseInt(document.getElementById('cfg-flee').value) || 30) / 100,
                 potion_hp_pct: (parseInt(document.getElementById('cfg-potion').value) || 30) / 100,
                 catch_hp_pct: (parseInt(document.getElementById('cfg-catch').value) || 50) / 100,
-                auto_idle: document.getElementById('cfg-auto-idle').checked
+                auto_idle: document.getElementById('cfg-auto-idle').checked,
+                auto_roam: document.getElementById('cfg-auto-roam').checked
             };
 
             try {
@@ -971,6 +980,18 @@
             // Collection
             renderCollection(state.collection || {});
 
+            // Radar coordinates update
+            const coordsEl = document.getElementById('radar-coords');
+            if (coordsEl) {
+                if (state.player_pos && state.player_pos.x !== null && state.player_pos.y !== null) {
+                    coordsEl.textContent = `Posição: X:${state.player_pos.x} Y:${state.player_pos.y}${state.current_map ? ` (${state.current_map})` : ''}`;
+                } else if (state.connected) {
+                    coordsEl.textContent = 'Posição: No Shard (Aguardando tick)';
+                } else {
+                    coordsEl.textContent = 'Posição: Desconectado';
+                }
+            }
+
             // Config tab initial sync
             if (state.config && !window._configSynced) {
                 document.getElementById('cfg-strategy').value = state.config.strategy_mode || 'balanced';
@@ -980,6 +1001,7 @@
                 document.getElementById('cfg-potion').value = Math.round((state.config.potion_hp_pct || 0.3) * 100);
                 document.getElementById('cfg-catch').value = Math.round((state.config.catch_hp_pct || 0.5) * 100);
                 document.getElementById('cfg-auto-idle').checked = !!state.config.auto_idle;
+                document.getElementById('cfg-auto-roam').checked = !!state.config.auto_roam;
                 window._configSynced = true;
             }
         }
