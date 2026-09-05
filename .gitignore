@@ -1,0 +1,7 @@
+# Virtual environment & cache
+__pycache__/
+*.pyc
+build/
+dist/
+*.log
+_agy_prompt.txt

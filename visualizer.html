@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>idleDEX Bot - Visualizer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background: #161b22;
+            padding: 12px 20px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 { font-size: 1.2rem; color: #58a6ff; }
+        .status { 
+            display: flex; align-items: center; gap: 8px; font-size: 0.85rem;
+        }
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #f85149;
+        }
+        .status-dot.connected { background: #3fb950; }
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 1px;
+            background: #30363d;
+        }
+        .panel {
+            background: #0d1117;
+            overflow: auto;
+            padding: 16px;
+        }
+        .panel h2 {
+            font-size: 0.9rem;
+            color: #8b949e;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #21262d;
+        }
+        /* Map Grid */
+        #game-map {
+            display: grid;
+            grid-template-columns: repeat(20, 1fr);
+            gap: 1px;
+            aspect-ratio: 1;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .cell {
+            background: #161b22;
+            border: 1px solid #21262d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            position: relative;
+        }
+        .cell.player { background: #1f6feb20; border-color: #58a6ff; }
+        .cell.enemy { background: #da363320; border-color: #f85149; }
+        .cell.grass { background: #23863610; }
+        .cell-water { background: #1f6feb10; }
+        .entity {
+            position: absolute;
+            font-size: 12px;
+        }
+        /* Battle Panel */
+        .battle-log {
+            font-family: monospace;
+            font-size: 0.8rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .battle-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #21262d;
+        }
+        .battle-entry.damage { color: #f85149; }
+        .battle-entry.heal { color: #3fb950; }
+        .battle-entry.catch { color: #d2a8ff; }
+        .battle-entry.system { color: #8b949e; }
+        /* Inventory */
+        .inv-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+        }
+        .inv-item {
+            background: #161b22;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 0.75rem;
+            border: 1px solid #21262d;
+        }
+        .inv-item.count { font-weight: bold; color: #58a6ff; }
+        /* Collection */
+        .collection-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .mon-card {
+            background: #161b22;
+            border: 1px solid #21262d;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+        .mon-card.shiny {
+            background: linear-gradient(135deg, #161b22, #ffd70020);
+            border-color: #ffd700;
+        }
+        .mon-name { font-weight: bold; margin-bottom: 4px; }
+        .mon-stats { color: #8b949e; font-size: 0.75rem; }
+        .mon-iv { color: #3fb950; }
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        button {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        button:hover { background: #30363d; }
+        button.primary { background: #1f6feb; border-color: #1f6feb; }
+        button.primary:hover { background: #388bfd; }
+        .type-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            margin-right: 4px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎮 idleDEX Bot Visualizer</h1>
+        <div class="status">
+            <div class="status-dot" id="status-dot"></div>
+            <span id="status-text">Desconectado</span>
+        </div>
+    </header>
+    <main>
+        <div class="panel">
+            <div class="controls">
+                <button onclick="connect()" class="primary">Conectar</button>
+                <button onclick="disconnect()">Desconectar</button>
+            </div>
+            <h2>Mapa do Jogo</h2>
+            <div id="game-map"></div>
+            <h2 style="margin-top: 20px;">Batalha Atual</h2>
+            <div class="battle-log" id="battle-log">
+                <div class="battle-entry system">Aguardando batalha...</div>
+            </div>
+        </div>
+        <div class="panel">
+            <h2>Inventário</h2>
+            <div class="inv-grid">
+                <div class="inv-item"><div>Poké Ball</div><div class="count" id="pokeballs">10</div></div>
+                <div class="inv-item"><div>Great Ball</div><div class="count" id="greatballs">5</div></div>
+                <div class="inv-item"><div>Ultra Ball</div><div class="count" id="ultraballs">2</div></div>
+                <div class="inv-item"><div>Poções</div><div class="count" id="potions">3</div></div>
+            </div>
+            <h2 style="margin-top: 20px;">Coleção</h2>
+            <div class="collection-list" id="collection">
+                <div style="color: #8b949e; font-size: 0.85rem;">Nenhum Pokémon capturado</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let ws = null;
+        const mapSize = 20;
+        let mapData = {};
+        let entities = [];
+        let collection = {};
+        let battleLog = [];
+        
+        // Type colors
+        const typeColors = {
+            fire: '#f08030', water: '#6890f0', grass: '#78c850', electric: '#f8d030',
+            psychic: '#f85888', dragon: '#7038f8', fighting: '#c03028', poison: '#a040a0',
+            ground: '#e0c068', flying: '#a890f0', bug: '#a8b820', rock: '#b8a038',
+            ghost: '#705898', steel: '#b8b8d0', ice: '#98d8d8', dark: '#705848', normal: '#a8a878', fairy: '#ee99ac'
+        };
+        
+        function connect() {
+            const token = localStorage.getItem('idledex_token') || prompt('Insira seu token WebSocket:') || 'test';
+            ws = new WebSocket(`wss://idledex.com/ws?token=${token}&v=5`);
+            
+            ws.onopen = () => {
+                updateStatus(true);
+                addLog('Conectado ao servidor', 'system');
+            };
+            
+            ws.onmessage = (e) => {
+                try {
+                    const msg = JSON.parse(e.data);
+                    handleMessage(msg);
+                } catch {}
+            };
+            
+            ws.onclose = () => updateStatus(false);
+            ws.onerror = () => updateStatus(false);
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                updateStatus(false);
+            }
+        }
+        
+        function updateStatus(connected) {
+            document.getElementById('status-dot').className = `status-dot ${connected ? 'connected' : ''}`;
+            document.getElementById('status-text').textContent = connected ? 'Conectado' : 'Desconectado';
+        }
+        
+        function handleMessage(msg) {
+            const type = msg.t || msg.type || '';
+            
+            switch(type) {
+                case 'welcome':
+                    handleWelcome(msg.d);
+                    break;
+                case 'state':
+                    handleState(msg.d);
+                    break;
+                case 'battle:start':
+                    handleBattleStart(msg.d);
+                    break;
+                case 'battle:turn':
+                    handleBattleTurn(msg.d);
+                    break;
+                case 'entity:enter':
+                    handleEntityEnter(msg.d);
+                    break;
+                case 'entity:leave':
+                    handleEntityLeave(msg.d);
+                    break;
+                case 'catch_result':
+                    handleCatch(msg.d);
+                    break;
+            }
+        }
+        
+        function handleWelcome(data) {
+            addLog('Bem-vindo! ID: ' + data.playerId, 'system');
+            if (data.snapshot?.entities) {
+                entities = data.snapshot.entities;
+                renderMap();
+            }
+        }
+        
+        function handleState(data) {
+            if (data.entities) {
+                entities = data.entities;
+                renderMap();
+            }
+        }
+        
+        function handleBattleStart(data) {
+            addLog(`⚔️ Batalha iniciada!`, 'system');
+        }
+        
+        function handleBattleTurn(data) {
+            const turn = data.turn;
+            if (!turn?.events) return;
+            
+            turn.events.forEach(ev => {
+                if (ev.e === 'attack') {
+                    const target = ev.by === 'you' ? 'inimigo' : 'você';
+                    addLog(`${ev.moveName} → ${target} (${ev.damage} dano)`, 'damage');
+                } else if (ev.e === 'heal') {
+                    addLog(`💊 ${ev.itemId} (+${ev.amount} HP)`, 'heal');
+                } else if (ev.e === 'ball') {
+                    addLog(`🔮 ${ev.itemId} - ${ev.caught ? 'CAPTURADO!' : 'Falhou'}`, 'catch');
+                }
+            });
+        }
+        
+        function handleEntityEnter(data) {
+            entities.push(data);
+            renderMap();
+            if (data.kind === 'creature' && data.speciesName) {
+                addLog(`👁️ Encontrou: ${data.speciesName}`, 'system');
+            }
+        }
+        
+        function handleEntityLeave(data) {
+            entities = entities.filter(e => e.id !== data.id);
+            renderMap();
+        }
+        
+        function handleCatch(data) {
+            if (data.success) {
+                collection[data.species] = {
+                    name: data.species,
+                    ivs: data.ivs || {},
+                    nature: data.nature,
+                    shiny: data.shiny
+                };
+                renderCollection();
+                addLog(`✨ Capturado: ${data.species} (IV: ${Object.values(data.ivs || {}).reduce((a,b)=>a+b,0)})`, 'catch');
+            }
+        }
+        
+        function addLog(message, type = 'system') {
+            const log = document.getElementById('battle-log');
+            const entry = document.createElement('div');
+            entry.className = `battle-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function renderMap() {
+            const map = document.getElementById('game-map');
+            map.innerHTML = '';
+            
+            for (let y = 0; y < mapSize; y++) {
+                for (let x = 0; x < mapSize; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    
+                    // Check for entities
+                    const entity = entities.find(e => e.x === x && e.y === y);
+                    if (entity) {
+                        if (entity.kind === 'player') {
+                            cell.classList.add('player');
+                            cell.innerHTML = '<span class="entity">🧙</span>';
+                        } else if (entity.kind === 'creature') {
+                            cell.classList.add('enemy');
+                            cell.innerHTML = `<span class="entity">${entity.isShiny ? '✨' : '🐉'}</span>`;
+                            cell.title = entity.name || entity.speciesName;
+                        }
+                    }
+                    
+                    map.appendChild(cell);
+                }
+            }
+        }
+        
+        function renderCollection() {
+            const list = document.getElementById('collection');
+            const mons = Object.values(collection);
+            
+            if (mons.length === 0) {
+                list.innerHTML = '<div style="color: #8b949e; font-size: 0.85rem;">Nenhum Pokémon capturado</div>';
+                return;
+            }
+            
+            list.innerHTML = mons.map(m => `
+                <div class="mon-card ${m.shiny ? 'shiny' : ''}">
+                    <div class="mon-name">${m.shiny ? '✨ ' : ''}${m.name}</div>
+                    <div class="mon-stats">
+                        ${m.types?.map(t => `<span class="type-badge" style="background:${typeColors[t]}20;color:${typeColors[t]}">${t}</span>`).join('') || ''}
+                        IV: <span class="mon-iv">${m.ivTotal || '-'}</span> | ${m.nature || 'hardy'}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Start with connection hint
+        addLog('Clique em "Conectar" para iniciar o bot', 'system');
+    </script>
+</body>
+</html>

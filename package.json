@@ -1,0 +1,16 @@
+{
+  "name": "idledex-bot",
+  "version": "1.0.0",
+  "description": "Protocol-level bot for idleDEX game",
+  "main": "bot.py",
+  "scripts": {
+    "start": "python bot.py",
+    "test": "python -m pytest tests/"
+  },
+  "dependencies": {
+    "websockets": "^12.0"
+  },
+  "devDependencies": {
+    "pytest": "^7.0"
+  }
+}

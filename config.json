@@ -1,0 +1,14 @@
+{
+    "session_token": "",
+    "ws_token": "",
+    "shard": 0,
+    "port": 8080,
+    "strategy_mode": "collection",
+    "iv_collection_threshold": 175,
+    "iv_sell_threshold": 120,
+    "flee_hp_pct": 0.3,
+    "potion_hp_pct": 0.3,
+    "catch_hp_pct": 0.5,
+    "auto_idle": true,
+    "discord_webhook": ""
+}

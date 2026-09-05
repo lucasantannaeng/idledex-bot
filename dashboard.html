@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>idleDEX Bot & Management Suite</title>
+    <style>
+        :root {
+            --bg-base: #090d16;
+            --bg-surface: #111827;
+            --bg-surface-elevated: #1f293d;
+            --border-color: #243049;
+            --border-highlight: #3b82f6;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --text-dim: #6b7280;
+            --cyan: #06b6d4;
+            --blue: #3b82f6;
+            --emerald: #10b981;
+            --amber: #f59e0b;
+            --rose: #f43f5e;
+            --purple: #a855f7;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-base);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* HEADER */
+        header {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 20;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .brand-logo {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #2563eb, #06b6d4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 0 12px rgba(6, 182, 212, 0.35);
+        }
+        .brand-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #fff;
+        }
+        .brand-version {
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--cyan);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            margin-left: 6px;
+        }
+
+        .header-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 0.85rem;
+            font-family: var(--font-mono);
+        }
+        .meta-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-surface-elevated);
+            padding: 5px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--rose);
+            box-shadow: 0 0 8px var(--rose);
+            transition: all 0.3s;
+        }
+        .status-dot.online { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+        .status-dot.warning { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+
+        /* BUTTONS */
+        button {
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+            font-weight: 500;
+            border: 1px solid var(--border-color);
+            background: var(--bg-surface-elevated);
+            color: var(--text-main);
+            padding: 7px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        button:hover { background: #2b3954; border-color: #3b82f6; }
+        button.btn-primary { background: #2563eb; border-color: #3b82f6; color: #fff; }
+        button.btn-primary:hover { background: #1d4ed8; }
+        button.btn-success { background: #059669; border-color: #10b981; color: #fff; }
+        button.btn-success:hover { background: #047857; }
+        button.btn-danger { background: #e11d48; border-color: #f43f5e; color: #fff; }
+        button.btn-danger:hover { background: #be123c; }
+
+        /* ALERT BANNER */
+        #auth-banner {
+            display: none;
+            background: linear-gradient(90deg, #831843, #701a75);
+            border-bottom: 1px solid #f43f5e;
+            padding: 10px 24px;
+            font-size: 0.85rem;
+            align-items: center;
+            justify-content: space-between;
+        }
+        #auth-banner.show { display: flex; }
+
+        /* MAIN LAYOUT */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            overflow: hidden;
+        }
+        @media (max-width: 1100px) {
+            main { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+        }
+
+        .content-pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--bg-base);
+            border-right: 1px solid var(--border-color);
+        }
+
+        /* TABS */
+        .tab-nav {
+            display: flex;
+            gap: 4px;
+            padding: 12px 20px 0 20px;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tab-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            border-bottom: none;
+            color: var(--text-muted);
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            border-radius: 6px 6px 0 0;
+            font-weight: 500;
+        }
+        .tab-btn:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.03); }
+        .tab-btn.active {
+            color: var(--cyan);
+            background: var(--bg-base);
+            border-color: var(--border-color);
+            border-bottom: 2px solid var(--cyan);
+            font-weight: 600;
+        }
+
+        .tab-panel {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: none;
+        }
+        .tab-panel.active { display: block; }
+
+        /* CARDS & CONTAINERS */
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .card-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        /* MAP TAB */
+        .map-wrapper {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .map-canvas-container {
+            background: #060911;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+        #map-canvas {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+        }
+        .map-legend {
+            display: flex;
+            gap: 16px;
+            margin-top: 10px;
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-box { width: 10px; height: 10px; border-radius: 2px; }
+
+        .entities-table {
+            flex: 1;
+            min-width: 300px;
+            max-height: 440px;
+            overflow-y: auto;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+        .entity-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+
+        /* BATTLE TAB */
+        .battle-arena {
+            background: linear-gradient(180deg, #111827 0%, #0c1220 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+        .combatants {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        .combatant {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .combatant.enemy { border-color: rgba(244, 63, 94, 0.4); }
+        .combatant.player { border-color: rgba(16, 185, 129, 0.4); }
+        .combatant-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .combatant-name { font-weight: 700; font-size: 1.1rem; }
+        .hp-bar-outer {
+            background: #1e293b;
+            height: 12px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 8px 0;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .hp-bar-inner {
+            height: 100%;
+            background: var(--emerald);
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+
+        /* STATS KPI GRID */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .kpi-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: left;
+        }
+        .kpi-val {
+            font-size: 1.8rem;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            color: var(--cyan);
+            margin-top: 4px;
+        }
+        .kpi-lbl {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* INVENTORY GRID */
+        .inv-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+        }
+        .inv-box {
+            background: var(--bg-surface-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+        .inv-box .count {
+            font-size: 1.6rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: #fff;
+        }
+        .inv-box .label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* COLLECTION */
+        .collection-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+        }
+        .pokemon-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+        }
+        .pokemon-card.shiny {
+            border-color: #ffd700;
+            background: linear-gradient(145deg, #111827 0%, rgba(255, 215, 0, 0.08) 100%);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.15);
+        }
+        .shiny-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-size: 0.7rem;
+            background: #ffd700;
+            color: #000;
+            font-weight: bold;
+            padding: 1px 6px;
+            border-radius: 4px;
+        }
+        .type-tag {
+            display: inline-block;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-right: 4px;
+            background: rgba(255,255,255,0.08);
+        }
+
+        /* CONFIG FORM */
+        .config-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 600px;
+        }
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .form-row label { font-size: 0.9rem; }
+        .form-control {
+            background: var(--bg-surface-elevated);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+        }
+
+        /* SIDEBAR (LIVE LOGS) */
+        .sidebar {
+            background: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .sidebar-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .log-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .log-line {
+            padding: 4px 6px;
+            border-radius: 4px;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+        .log-line.info { color: #cbd5e1; }
+        .log-line.success { color: #34d399; background: rgba(52, 211, 153, 0.05); }
+        .log-line.warning { color: #fbbf24; background: rgba(251, 191, 36, 0.05); }
+        .log-line.error { color: #f87171; background: rgba(248, 113, 113, 0.08); }
+        .log-time { color: var(--text-dim); margin-right: 6px; }
+
+        /* MODAL */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 24px;
+            width: 90%;
+            max-width: 520px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .modal-title { font-size: 1.1rem; font-weight: 700; }
+        .token-textarea {
+            width: 100%;
+            height: 90px;
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            color: var(--cyan);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            resize: vertical;
+            margin: 12px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOP HEADER -->
+    <header>
+        <div class="brand">
+            <div class="brand-logo">⚡</div>
+            <div>
+                <span class="brand-title">idleDEX Bot Suite</span>
+                <span class="brand-version">v2.0 PRO</span>
+            </div>
+        </div>
+
+        <div class="header-meta">
+            <div class="meta-pill">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">Conectando...</span>
+            </div>
+            <div class="meta-pill">
+                <span>📡</span>
+                <span id="ping-text">-- ms</span>
+            </div>
+            <div class="meta-pill">
+                <span>⏱️</span>
+                <span id="uptime-text">00:00:00</span>
+            </div>
+            <button onclick="openTokenModal()" class="btn-primary" style="padding: 5px 10px; font-size: 0.8rem;">
+                🔐 Atualizar Token
+            </button>
+            <button id="btn-toggle-connect" onclick="toggleConnection()" class="btn-success" style="padding: 5px 10px; font-size: 0.8rem;">
+                Conectar
+            </button>
+        </div>
+    </header>
+
+    <!-- AUTH ALERT BANNER -->
+    <div id="auth-banner">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:1.2rem;">⚠️</span>
+            <span id="auth-banner-msg">Sessão expirada ou token ausente. O bot requer um token ativo para caçar.</span>
+        </div>
+        <button onclick="openTokenModal()" class="btn-primary" style="padding: 4px 12px; font-size: 0.8rem;">
+            Inserir Novo Token Agora
+        </button>
+    </div>
+
+    <!-- MAIN INTERFACE -->
+    <main>
+        <!-- LEFT WORKSPACE -->
+        <div class="content-pane">
+            <nav class="tab-nav">
+                <button class="tab-btn active" onclick="switchTab('map')">🗺️ Radar do Mapa</button>
+                <button class="tab-btn" onclick="switchTab('battle')">⚔️ Batalha & Duelo</button>
+                <button class="tab-btn" onclick="switchTab('stats')">📊 Métricas & Rank</button>
+                <button class="tab-btn" onclick="switchTab('inventory')">🎒 Mochila & Itens</button>
+                <button class="tab-btn" onclick="switchTab('collection')">📦 Coleção Pokémon</button>
+                <button class="tab-btn" onclick="switchTab('config')">⚙️ Configurações</button>
+            </nav>
+
+            <!-- TAB: MAP -->
+            <div id="tab-map" class="tab-panel active">
+                <div class="map-wrapper">
+                    <div class="map-canvas-container">
+                        <canvas id="map-canvas" width="380" height="380"></canvas>
+                        <div class="map-legend">
+                            <div class="legend-item"><div class="legend-box" style="background:#3b82f6;"></div>Você (Treinador)</div>
+                            <div class="legend-item"><div class="legend-box" style="background:#f43f5e;"></div>Criatura Selvagem</div>
+                            <div class="legend-item"><div class="legend-box" style="background:#64748b;"></div>Outro Jogador</div>
+                        </div>
+                    </div>
+
+                    <div class="entities-table">
+                        <div style="font-weight: bold; margin-bottom: 8px; color: var(--text-muted);">ENTIDADES DETECTADAS NA ÁREA</div>
+                        <div id="entities-list">
+                            <div style="color:var(--text-dim);">Aguardando telemetria do shard...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: BATTLE -->
+            <div id="tab-battle" class="tab-panel">
+                <div class="battle-arena">
+                    <div class="combatants">
+                        <!-- PLAYER -->
+                        <div class="combatant player">
+                            <div class="combatant-header">
+                                <span class="combatant-name" id="b-player-name">Seu Pokémon</span>
+                                <span style="font-size:0.8rem; color:var(--emerald);" id="b-player-hp-text">100%</span>
+                            </div>
+                            <div class="hp-bar-outer">
+                                <div class="hp-bar-inner" id="b-player-hp-bar" style="width: 100%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- ENEMY -->
+                        <div class="combatant enemy">
+                            <div class="combatant-header">
+                                <span class="combatant-name" id="b-enemy-name">Nenhum Oponente</span>
+                                <span style="font-size:0.8rem; color:var(--rose);" id="b-enemy-hp-text">--</span>
+                            </div>
+                            <div class="hp-bar-outer">
+                                <div class="hp-bar-inner" id="b-enemy-hp-bar" style="width: 0%; background: var(--rose);"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Ações em Tempo Real</div>
+                    <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">
+                        O bot executa o fluxo automatizado nativo com base na árvore de vantagens elementais e seleção dinâmica de Pokébolas.
+                    </p>
+                </div>
+            </div>
+
+            <!-- TAB: STATS -->
+            <div id="tab-stats" class="tab-panel">
+                <div class="kpi-grid">
+                    <div class="kpi-card"><div class="kpi-lbl">Rank do Treinador</div><div class="kpi-val" id="stat-rank">1</div></div>
+                    <div class="kpi-card"><div class="kpi-lbl">Experiência (XP)</div><div class="kpi-val" id="stat-xp">0</div></div>
+                    <div class="kpi-card"><div class="kpi-lbl">Vitórias</div><div class="kpi-val" id="stat-wins" style="color:var(--emerald);">0</div></div>
+                    <div class="kpi-card"><div class="kpi-lbl">Derrotas</div><div class="kpi-val" id="stat-losses" style="color:var(--rose);">0</div></div>
+                    <div class="kpi-card"><div class="kpi-lbl">Capturas Realizadas</div><div class="kpi-val" id="stat-captures" style="color:var(--purple);">0</div></div>
+                    <div class="kpi-card"><div class="kpi-lbl">Shinies Raros ✨</div><div class="kpi-val" id="stat-shinies" style="color:#ffd700;">0</div></div>
+                </div>
+            </div>
+
+            <!-- TAB: INVENTORY -->
+            <div id="tab-inventory" class="tab-panel">
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Pokébolas & Captura</span></div>
+                    <div class="inv-card-grid">
+                        <div class="inv-box"><div class="count" id="inv-pokeballs">0</div><div class="label">Poké Ball</div></div>
+                        <div class="inv-box"><div class="count" id="inv-greatballs">0</div><div class="label">Great Ball</div></div>
+                        <div class="inv-box"><div class="count" id="inv-ultraballs">0</div><div class="label">Ultra Ball</div></div>
+                        <div class="inv-box"><div class="count" id="inv-potions">0</div><div class="label">Poções de Cura</div></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Carteira & Economia</span></div>
+                    <div class="inv-card-grid">
+                        <div class="inv-box"><div class="count" id="wallet-coins" style="color:#ffd700;">0</div><div class="label">Gold Coins</div></div>
+                        <div class="inv-box"><div class="count" id="wallet-crystals" style="color:var(--cyan);">0</div><div class="label">Cristais</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: COLLECTION -->
+            <div id="tab-collection" class="tab-panel">
+                <div class="card-header">
+                    <span class="card-title">Coleção no Shard</span>
+                    <span id="collection-count" style="font-size:0.8rem; font-family:var(--font-mono); color:var(--text-muted);">0 Pokémon</span>
+                </div>
+                <div class="collection-grid" id="collection-container">
+                    <div style="color:var(--text-dim); font-size:0.85rem;">Nenhum Pokémon indexado na sessão atual.</div>
+                </div>
+            </div>
+
+            <!-- TAB: CONFIG -->
+            <div id="tab-config" class="tab-panel">
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Parâmetros Operacionais</span></div>
+                    <div class="config-group">
+                        <div class="form-row">
+                            <label>Modo Estratégico</label>
+                            <select id="cfg-strategy" class="form-control">
+                                <option value="balanced">Equilibrado (Balanceado 50/50)</option>
+                                <option value="collection">Foco Coleção (Guarda IVs Altos)</option>
+                                <option value="monetize">Monetização (Venda Agressiva)</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Threshold Mínimo IV para Coleção</label>
+                            <input type="number" id="cfg-iv-col" class="form-control" style="width:90px;" min="100" max="186">
+                        </div>
+                        <div class="form-row">
+                            <label>Threshold IV para Descarte/Venda</label>
+                            <input type="number" id="cfg-iv-sell" class="form-control" style="width:90px;" min="100" max="186">
+                        </div>
+                        <div class="form-row">
+                            <label>Fugir da Batalha se HP Próprio for menor que (%)</label>
+                            <input type="number" id="cfg-flee" class="form-control" style="width:90px;" min="5" max="60">
+                        </div>
+                        <div class="form-row">
+                            <label>Usar Poção se HP Próprio for menor que (%)</label>
+                            <input type="number" id="cfg-potion" class="form-control" style="width:90px;" min="5" max="60">
+                        </div>
+                        <div class="form-row">
+                            <label>Tentar Capturar se HP Inimigo for menor que (%)</label>
+                            <input type="number" id="cfg-catch" class="form-control" style="width:90px;" min="10" max="90">
+                        </div>
+                        <div class="form-row">
+                            <label>Auto-Idle do Jogo (Ativar Caça Nativa)</label>
+                            <input type="checkbox" id="cfg-auto-idle">
+                        </div>
+                        <div style="margin-top: 14px;">
+                            <button onclick="saveConfigurations()" class="btn-primary">💾 Salvar Configurações</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT WORKSPACE: LIVE LOGS -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span class="card-title">Console de Operações</span>
+                <button onclick="clearLocalLogs()" style="padding:2px 8px; font-size:0.75rem;">Limpar</button>
+            </div>
+            <div class="log-container" id="log-feed">
+                <div class="log-line info"><span class="log-time">[00:00:00]</span> Carregando stream de telemetria...</div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- TOKEN MODAL -->
+    <div class="modal-overlay" id="token-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div class="modal-title">🔐 Atualizar Sessão / Token do idleDEX</div>
+                <button onclick="closeTokenModal()" style="border:none; background:transparent; font-size:1.2rem; cursor:pointer;">✕</button>
+            </div>
+            <p style="font-size:0.85rem; color:var(--text-muted); line-height: 1.5;">
+                Abra o idleDEX no navegador (<code>https://idledex.com/play</code>), pressione F12 (DevTools) &gt; Armazenamento/Application &gt; Cookies e copie o valor de <b>__Secure-better-auth.session_token</b>:
+            </p>
+            <textarea id="token-input" class="token-textarea" placeholder="Cole o token ou cabeçalho Cookie aqui..."></textarea>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span id="modal-feedback" style="font-size:0.8rem; font-family:var(--font-mono);"></span>
+                <div style="display:flex; gap:8px;">
+                    <button onclick="closeTokenModal()">Cancelar</button>
+                    <button onclick="submitNewToken()" class="btn-primary">Salvar e Conectar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT LOGIC -->
+    <script>
+        let isConnected = false;
+        let uptimeTimer = null;
+        let activeTab = 'map';
+
+        function switchTab(tabId) {
+            activeTab = tabId;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            const target = document.getElementById(`tab-${tabId}`);
+            if (target) target.classList.add('active');
+        }
+
+        function openTokenModal() {
+            document.getElementById('token-modal').classList.add('open');
+            document.getElementById('modal-feedback').textContent = '';
+            document.getElementById('token-input').focus();
+        }
+
+        function closeTokenModal() {
+            document.getElementById('token-modal').classList.remove('open');
+        }
+
+        async function submitNewToken() {
+            const raw = document.getElementById('token-input').value.trim();
+            const fb = document.getElementById('modal-feedback');
+            if (!raw) {
+                fb.style.color = '#f87171';
+                fb.textContent = 'O token não pode estar vazio.';
+                return;
+            }
+            fb.style.color = '#38bdf8';
+            fb.textContent = 'Gravando token...';
+
+            try {
+                const resp = await fetch('/api/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: raw })
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    fb.style.color = '#34d399';
+                    fb.textContent = 'Token atualizado com sucesso!';
+                    setTimeout(() => {
+                        closeTokenModal();
+                        document.getElementById('token-input').value = '';
+                    }, 800);
+                } else {
+                    fb.style.color = '#f87171';
+                    fb.textContent = data.error || 'Erro ao gravar token.';
+                }
+            } catch (e) {
+                fb.style.color = '#f87171';
+                fb.textContent = `Falha de conexão: ${e.message}`;
+            }
+        }
+
+        async function toggleConnection() {
+            const endpoint = isConnected ? '/api/disconnect' : '/api/connect';
+            try {
+                await fetch(endpoint, { method: 'POST' });
+            } catch (e) {
+                console.error("Connection toggle error:", e);
+            }
+        }
+
+        async function saveConfigurations() {
+            const payload = {
+                strategy_mode: document.getElementById('cfg-strategy').value,
+                iv_collection_threshold: parseInt(document.getElementById('cfg-iv-col').value) || 150,
+                iv_sell_threshold: parseInt(document.getElementById('cfg-iv-sell').value) || 120,
+                flee_hp_pct: (parseInt(document.getElementById('cfg-flee').value) || 30) / 100,
+                potion_hp_pct: (parseInt(document.getElementById('cfg-potion').value) || 30) / 100,
+                catch_hp_pct: (parseInt(document.getElementById('cfg-catch').value) || 50) / 100,
+                auto_idle: document.getElementById('cfg-auto-idle').checked
+            };
+
+            try {
+                const resp = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (resp.ok) {
+                    alert('Configurações salvas e aplicadas com sucesso!');
+                }
+            } catch (e) {
+                alert(`Erro ao salvar: ${e.message}`);
+            }
+        }
+
+        function clearLocalLogs() {
+            document.getElementById('log-feed').innerHTML = '';
+        }
+
+        // TELEMETRY REFRESH
+        async function fetchState() {
+            try {
+                const resp = await fetch('/state');
+                if (!resp.ok) return;
+                const state = await resp.json();
+                renderState(state);
+            } catch (e) {
+                renderOffline();
+            }
+        }
+
+        async function fetchLogs() {
+            try {
+                const resp = await fetch('/logs');
+                if (!resp.ok) return;
+                const data = await resp.json();
+                const feed = document.getElementById('log-feed');
+                const shouldScroll = feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 20;
+
+                feed.innerHTML = (data.logs || []).map(l => 
+                    `<div class="log-line ${l.level}"><span class="log-time">[${l.time}]</span>${escapeHtml(l.message)}</div>`
+                ).join('');
+
+                if (shouldScroll) {
+                    feed.scrollTop = feed.scrollHeight;
+                }
+            } catch (e) {}
+        }
+
+        function renderState(state) {
+            isConnected = !!state.connected;
+
+            // Header indicators
+            const dot = document.getElementById('status-dot');
+            const stText = document.getElementById('status-text');
+            const btnConnect = document.getElementById('btn-toggle-connect');
+
+            if (state.connected) {
+                dot.className = 'status-dot online';
+                stText.textContent = `Online (Shard ${state.shard})`;
+                btnConnect.textContent = 'Desconectar';
+                btnConnect.className = 'btn-danger';
+            } else if (state.needs_token) {
+                dot.className = 'status-dot warning';
+                stText.textContent = 'Token Necessário';
+                btnConnect.textContent = 'Conectar';
+                btnConnect.className = 'btn-success';
+            } else {
+                dot.className = 'status-dot';
+                stText.textContent = 'Desconectado';
+                btnConnect.textContent = 'Conectar';
+                btnConnect.className = 'btn-success';
+            }
+
+            document.getElementById('ping-text').textContent = `${state.ping_rtt_ms || 0} ms`;
+
+            // Auth banner
+            const authBanner = document.getElementById('auth-banner');
+            if (state.needs_token) {
+                authBanner.classList.add('show');
+                if (state.token_status) {
+                    document.getElementById('auth-banner-msg').textContent = state.token_status;
+                }
+            } else {
+                authBanner.classList.remove('show');
+            }
+
+            // Uptime
+            const upSec = state.uptime_seconds || 0;
+            const h = String(Math.floor(upSec / 3600)).padStart(2, '0');
+            const m = String(Math.floor((upSec % 3600) / 60)).padStart(2, '0');
+            const s = String(upSec % 60).padStart(2, '0');
+            document.getElementById('uptime-text').textContent = `${h}:${m}:${s}`;
+
+            // Battle
+            if (state.enemy_mon) {
+                document.getElementById('b-enemy-name').textContent = state.enemy_mon.name;
+                const eHp = Math.round(state.enemy_mon.hp_percent * 100);
+                document.getElementById('b-enemy-hp-text').textContent = `${eHp}%`;
+                document.getElementById('b-enemy-hp-bar').style.width = `${eHp}%`;
+            } else {
+                document.getElementById('b-enemy-name').textContent = 'Nenhum Oponente';
+                document.getElementById('b-enemy-hp-text').textContent = '--';
+                document.getElementById('b-enemy-hp-bar').style.width = '0%';
+            }
+
+            if (state.my_mon) {
+                document.getElementById('b-player-name').textContent = state.my_mon.name;
+                const pHp = Math.round(state.my_mon.hp_percent * 100);
+                document.getElementById('b-player-hp-text').textContent = `${pHp}%`;
+                document.getElementById('b-player-hp-bar').style.width = `${pHp}%`;
+            }
+
+            // Stats
+            if (state.progress) {
+                document.getElementById('stat-rank').textContent = state.progress.rank || 1;
+                document.getElementById('stat-xp').textContent = Number(state.progress.xp || 0).toLocaleString();
+                document.getElementById('stat-wins').textContent = state.progress.wins || 0;
+                document.getElementById('stat-losses').textContent = state.progress.losses || 0;
+                document.getElementById('stat-captures').textContent = state.progress.captures || 0;
+                document.getElementById('stat-shinies').textContent = state.progress.shinies || 0;
+            }
+
+            // Inventory & Wallet
+            const balls = state.ball_inventory || {};
+            document.getElementById('inv-pokeballs').textContent = balls.pokeball || 0;
+            document.getElementById('inv-greatballs').textContent = balls.greatball || 0;
+            document.getElementById('inv-ultraballs').textContent = balls.ultraball || 0;
+            document.getElementById('inv-potions').textContent = state.potion_inventory || 0;
+
+            if (state.wallet) {
+                document.getElementById('wallet-coins').textContent = Number(state.wallet.coins || 0).toLocaleString();
+                document.getElementById('wallet-crystals').textContent = Number(state.wallet.crystals || 0).toLocaleString();
+            }
+
+            // Entities on Map
+            renderMap(state.entities || []);
+
+            // Collection
+            renderCollection(state.collection || {});
+
+            // Config tab initial sync
+            if (state.config && !window._configSynced) {
+                document.getElementById('cfg-strategy').value = state.config.strategy_mode || 'balanced';
+                document.getElementById('cfg-iv-col').value = state.config.iv_collection_threshold || 150;
+                document.getElementById('cfg-iv-sell').value = state.config.iv_sell_threshold || 120;
+                document.getElementById('cfg-flee').value = Math.round((state.config.flee_hp_pct || 0.3) * 100);
+                document.getElementById('cfg-potion').value = Math.round((state.config.potion_hp_pct || 0.3) * 100);
+                document.getElementById('cfg-catch').value = Math.round((state.config.catch_hp_pct || 0.5) * 100);
+                document.getElementById('cfg-auto-idle').checked = !!state.config.auto_idle;
+                window._configSynced = true;
+            }
+        }
+
+        function renderOffline() {
+            document.getElementById('status-dot').className = 'status-dot';
+            document.getElementById('status-text').textContent = 'Dashboard Offline';
+        }
+
+        function renderMap(entities) {
+            const canvas = document.getElementById('map-canvas');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            const gridSize = 20;
+            const cellSize = w / gridSize;
+
+            // Clear background
+            ctx.fillStyle = '#0a101f';
+            ctx.fillRect(0, 0, w, h);
+
+            // Grid lines
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= gridSize; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * cellSize, 0);
+                ctx.lineTo(i * cellSize, h);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, i * cellSize);
+                ctx.lineTo(w, i * cellSize);
+                ctx.stroke();
+            }
+
+            // Entities
+            const listEl = document.getElementById('entities-list');
+            if (!entities.length) {
+                listEl.innerHTML = '<div style="color:var(--text-dim);">Nenhuma criatura ou jogador visível neste setor.</div>';
+                return;
+            }
+
+            listEl.innerHTML = entities.map(e => `
+                <div class="entity-row">
+                    <span style="color:${e.is_player ? 'var(--blue)' : (e.is_enemy ? 'var(--rose)' : 'var(--text-main)')};">
+                        ${e.is_player ? '👤' : (e.is_enemy ? '👾' : '📍')} ${escapeHtml(e.name || e.id)}
+                    </span>
+                    <span style="color:var(--text-dim);">X:${e.x ?? '?'} Y:${e.y ?? '?'}</span>
+                </div>
+            `).join('');
+
+            for (const e of entities) {
+                const cx = (e.x !== undefined && e.x !== null) ? (e.x % gridSize) * cellSize : w / 2;
+                const cy = (e.y !== undefined && e.y !== null) ? (e.y % gridSize) * cellSize : h / 2;
+
+                ctx.save();
+                if (e.is_player) {
+                    ctx.fillStyle = '#3b82f6';
+                    ctx.shadowColor = '#3b82f6';
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(cx + cellSize/2, cy + cellSize/2, cellSize * 0.4, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (e.is_enemy) {
+                    ctx.fillStyle = '#f43f5e';
+                    ctx.shadowColor = '#f43f5e';
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(cx + cellSize/2, cy + cellSize/2, cellSize * 0.35, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillRect(cx + 2, cy + 2, cellSize - 4, cellSize - 4);
+                }
+                ctx.restore();
+            }
+        }
+
+        function renderCollection(colDict) {
+            const container = document.getElementById('collection-container');
+            const items = Object.values(colDict);
+            document.getElementById('collection-count').textContent = `${items.length} Pokémon`;
+
+            if (!items.length) {
+                container.innerHTML = '<div style="color:var(--text-dim); font-size:0.85rem;">Nenhum Pokémon indexado nesta sessão.</div>';
+                return;
+            }
+
+            // Sort by shiny first, then iv_total desc
+            items.sort((a, b) => (b.is_shiny ? 1 : 0) - (a.is_shiny ? 1 : 0) || (b.iv_total || 0) - (a.iv_total || 0));
+
+            container.innerHTML = items.map(p => `
+                <div class="pokemon-card ${p.is_shiny ? 'shiny' : ''}">
+                    ${p.is_shiny ? '<span class="shiny-badge">✨ SHINY</span>' : ''}
+                    <div style="font-weight:700; font-size:0.95rem; color:#fff;">${escapeHtml(p.name)}</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted);">
+                        Nível: <b>${p.level || 1}</b> | Natureza: <b>${p.nature || 'Hardy'}</b>
+                    </div>
+                    <div>
+                        ${(p.types || []).map(t => `<span class="type-tag">${escapeHtml(t)}</span>`).join('')}
+                    </div>
+                    <div style="font-family:var(--font-mono); font-size:0.8rem; margin-top:4px;">
+                        IV Total: <b style="color:${(p.iv_total >= 150) ? 'var(--emerald)' : ((p.iv_total >= 120) ? 'var(--cyan)' : 'var(--text-muted)')};">${p.iv_total || 0}</b>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+            }[m]));
+        }
+
+        // INITIALIZE LOOP
+        setInterval(fetchState, 1500);
+        setInterval(fetchLogs, 1000);
+        fetchState();
+        fetchLogs();
+    </script>
+</body>
+</html>
