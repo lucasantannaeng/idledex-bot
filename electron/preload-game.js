@@ -45,10 +45,16 @@ function initMainWorldEngine() {
         catch_only_uncaught: false,
         ball_priority: 'balanced', // 'balanced', 'economy', 'force_highest'
         move_selection_mode: 'smart', // 'smart', 'max_damage', 'first'
+        target_species: [], // array of speciesIds to catch in current area
+        unselected_action: 'battle', // 'battle' (lutar por XP) ou 'flee' (fugir)
+        min_iv_alert: 130,
         roam_step_delay_ms: 300,
         auto_idle: true,
         auto_roam: true,
     };
+
+    let currentMapSpecies = [];
+    let lastCapturedMon = null;
 
     let activeWs = null;
     let inBattle = false;
@@ -232,6 +238,9 @@ function initMainWorldEngine() {
                         battleMoves,
                         playerId,
                         currentMap,
+                        currentMapName: getMapFriendlyName(currentMap),
+                        availableSpecies: currentMapSpecies,
+                        lastCapturedMon,
                         playerPos,
                         onGrass: (playerPos && playerPos.x !== null) ? isGrass(playerPos.x, playerPos.y) : false,
                         myMon,
@@ -371,6 +380,147 @@ function initMainWorldEngine() {
 
     
     // --- ELEMENTAL TYPE CHART & SMART COMBAT ENGINE ---
+    
+    // --- OFFICIAL BALL & POTION CATALOGS (v2.2) ---
+    const BALL_CATALOG = {
+        "poke-ball": { name: "Poké Ball", multiplier: 1 },
+        "great-ball": { name: "Great Ball", multiplier: 3 },
+        "super-ball": { name: "Super Ball", multiplier: 3 },
+        "ultra-ball": { name: "Ultra Ball", multiplier: 4 },
+        "master-ball": { name: "Master Ball", multiplier: 100 }
+    };
+
+    const POTION_CATALOG = {
+        "potion": { name: "Poção", healAmount: 20 },
+        "super-potion": { name: "Super Poção", healAmount: 60 },
+        "hyper-potion": { name: "Hyper Poção", healAmount: 120 },
+        "max-potion": { name: "Max Poção", healAmount: 9999 }
+    };
+
+    // --- OFFICIAL ROUTE NAMES (1-150) & MAP TRANSLATION ---
+    const ROUTE_NAMES = {"route_001": "Rota 1 — Floresta Nascente", "route_002": "Rota 2 — Bosque dos Brotos", "route_003": "Rota 3 — Trilha do Musgo", "route_004": "Rota 4 — Mata dos Cipós", "route_005": "Rota 5 — Caverna Rasa", "route_006": "Rota 6 — Clareira Serena", "route_007": "Rota 7 — Lago Espelhado", "route_008": "Rota 8 — Margem Tranquila", "route_009": "Rota 9 — Areal Brilhante", "route_010": "Rota 10 — Praia Dourada", "route_011": "Rota 11 — Bosque dos Vaga-lumes", "route_012": "Rota 12 — Refúgio Verde", "route_013": "Rota 13 — Copa Alta", "route_014": "Rota 14 — Lago das Garças", "route_015": "Rota 15 — Enseada dos Juncos", "route_016": "Rota 16 — Baía Serena", "route_017": "Rota 17 — Costa das Conchas", "route_018": "Rota 18 — Baía dos Corais", "route_019": "Rota 19 — Gruta dos Morcegos", "route_020": "Rota 20 — Pântano Nebuloso", "route_021": "Rota 21 — Mar Aberto", "route_022": "Rota 22 — Águas Profundas", "route_023": "Rota 23 — Praia dos Caranguejos", "route_024": "Rota 24 — Falésia Costeira", "route_025": "Rota 25 — Charco Raso", "route_026": "Rota 26 — Mangue Denso", "route_027": "Rota 27 — Lamaçal Verde", "route_028": "Rota 28 — Lagoa Funda", "route_029": "Rota 29 — Lago das Correntezas", "route_030": "Rota 30 — Trilha Sufocada", "route_031": "Rota 31 — Mata Fechada", "route_032": "Rota 32 — Selva dos Cipós", "route_033": "Rota 33 — Coração da Mata", "route_034": "Rota 34 — Selva Umbrosa", "route_035": "Rota 35 — Brejo dos Sapos", "route_036": "Rota 36 — Várzea Sombria", "route_037": "Rota 37 — Pântano das Raízes", "route_038": "Rota 38 — Caverna de Pedra", "route_039": "Rota 39 — Túnel Escavado", "route_040": "Rota 40 — Sombra das Árvores", "route_041": "Rota 41 — Caverna Úmida", "route_042": "Rota 42 — Galeria de Quartzo", "route_043": "Rota 43 — Sopé Verdejante", "route_044": "Rota 44 — Recife Submerso", "route_045": "Rota 45 — Trilha da Serra", "route_046": "Rota 46 — Emaranhado Verde", "route_047": "Rota 47 — Mata dos Espinhos", "route_048": "Rota 48 — Selva Profunda", "route_049": "Rota 49 — Represa Antiga", "route_050": "Rota 50 — Costa dos Nenúfares", "route_051": "Rota 51 — Caverna dos Ecos", "route_052": "Rota 52 — Passagem Estreita", "route_053": "Rota 53 — Encosta Gramada", "route_054": "Rota 54 — Campos Nevados", "route_055": "Rota 55 — Trilha Gelada", "route_056": "Rota 56 — Bosque de Inverno", "route_057": "Rota 57 — Planície Branca", "route_058": "Rota 58 — Bosque Impenetrável", "route_059": "Rota 59 — Mata das Sombras", "route_060": "Rota 60 — Charco Profundo", "route_061": "Rota 61 — Nevasca Suave", "route_062": "Rota 62 — Campo dos Flocos", "route_063": "Rota 63 — Colina Congelada", "route_064": "Rota 64 — Vale do Inverno", "route_065": "Rota 65 — Despenhadeiro Gelado", "route_066": "Rota 66 — Colinas Ventosas", "route_067": "Rota 67 — Serra dos Falcões", "route_068": "Rota 68 — Geleira Azul", "route_069": "Rota 69 — Campo de Gelo", "route_070": "Rota 70 — Lago Congelado", "route_071": "Rota 71 — Planalto Polar", "route_072": "Rota 72 — Fenda Glacial", "route_073": "Rota 73 — Banquisa Eterna", "route_074": "Rota 74 — Espelho de Gelo", "route_075": "Rota 75 — Caverna Funda", "route_076": "Rota 76 — Neve Profunda", "route_077": "Rota 77 — Cume Silencioso", "route_078": "Rota 78 — Canal Azul", "route_079": "Rota 79 — Salão das Estalactites", "route_080": "Rota 80 — Ruínas Cobertas", "route_081": "Rota 81 — Caverna Silenciosa", "route_082": "Rota 82 — Mirante Verde", "route_083": "Rota 83 — Passo da Serra", "route_084": "Rota 84 — Encosta Rochosa", "route_085": "Rota 85 — Gruta de Cristal", "route_086": "Rota 86 — Coração da Geleira", "route_087": "Rota 87 — Colunas Antigas", "route_088": "Rota 88 — Pátio Esquecido", "route_089": "Rota 89 — Templo em Ruínas", "route_090": "Rota 90 — Trilha das Raízes", "route_091": "Rota 91 — Sopé do Vulcão", "route_092": "Rota 92 — Campos de Cinza", "route_093": "Rota 93 — Salão dos Ecos", "route_094": "Rota 94 — Muralha Caída", "route_095": "Rota 95 — Campos do Norte", "route_096": "Rota 96 — Tundra Silenciosa", "route_097": "Rota 97 — Maré Baixa", "route_098": "Rota 98 — Costa dos Ventos", "route_099": "Rota 99 — Lago Cristalino", "route_100": "Rota 100 — Aurora Glacial", "route_101": "Rota 101 — Cripta Aberta", "route_102": "Rota 102 — Cidade Perdida", "route_103": "Rota 103 — Altar Partido", "route_104": "Rota 104 — Torre Tombada", "route_105": "Rota 105 — Terra Rachada", "route_106": "Rota 106 — Planície Árida", "route_107": "Rota 107 — Jardim de Corais", "route_108": "Rota 108 — Veio de Minério", "route_109": "Rota 109 — Serra Alta", "route_110": "Rota 110 — Lodaçal Antigo", "route_111": "Rota 111 — Vale da Poeira", "route_112": "Rota 112 — Corrente Escura", "route_113": "Rota 113 — Naufrágio Antigo", "route_114": "Rota 114 — Fossa Marinha", "route_115": "Rota 115 — Cânion Vermelho", "route_116": "Rota 116 — Caverna Cega", "route_117": "Rota 117 — Abismo Interno", "route_118": "Rota 118 — Cordilheira Seca", "route_119": "Rota 119 — Brejo da Névoa", "route_120": "Rota 120 — Pântano Árido", "route_121": "Rota 121 — Encosta Estéril", "route_122": "Rota 122 — Caverna Esquecida", "route_123": "Rota 123 — Fenda sem Fundo", "route_124": "Rota 124 — Vale Escondido", "route_125": "Rota 125 — Serra do Alvorecer", "route_126": "Rota 126 — Deserto dos Ossos", "route_127": "Rota 127 — Dunas Baixas", "route_128": "Rota 128 — Mesa Alta", "route_129": "Rota 129 — Selva Seca", "route_130": "Rota 130 — Última Mata", "route_131": "Rota 131 — Câmara Selada", "route_132": "Rota 132 — Caverna do Fim", "route_133": "Rota 133 — Coração da Pedra", "route_134": "Rota 134 — Serra do Retorno", "route_135": "Rota 135 — Rio de Magma", "route_136": "Rota 136 — Cratera Menor", "route_137": "Rota 137 — Vale Vulcânico", "route_138": "Rota 138 — Encosta Fumegante", "route_139": "Rota 139 — Deserto Profundo", "route_140": "Rota 140 — Floresta Silenciosa", "route_141": "Rota 141 — Chaminé de Cinzas", "route_142": "Rota 142 — Fornalha Natural", "route_143": "Rota 143 — Campos de Obsidiana", "route_144": "Rota 144 — Garganta de Fogo", "route_145": "Rota 145 — Lago de Lava", "route_146": "Rota 146 — Coração do Vulcão", "route_147": "Rota 147 — Borda da Caldeira", "route_148": "Rota 148 — Trono de Lava", "route_149": "Rota 149 — Planície Abissal", "route_150": "Rota 150 — Fundo do Mundo"};
+
+    const MAP_NAMES = {
+        lobby1: "Vila Central",
+        lobby2: "Vila do Porto",
+        lobby3: "Vila das Colinas",
+        npclab: "Laboratório do Professor",
+        guildlobby: "Sede das Guildas",
+        evento1: "Domo Glacial",
+        evento2: "Arena de Cinzas",
+        ranked: "Coliseu",
+        "fishing-lake": "Lago do Festival de Pesca",
+        "gym-cocoon": "Ginásio do Rochedo",
+        "gym-plume": "Ginásio da Cascata",
+        "gym-venom": "Ginásio do Trovão",
+        "gym-volt": "Ginásio do Arco-Íris",
+        gym1: "Ginásio da Alma",
+        "gym-kanto-6": "Ginásio do Pântano",
+        "gym-kanto-7": "Ginásio do Vulcão",
+        "gym-kanto-8": "Ginásio da Terra",
+        "kanto-championship": "Liga de Kanto",
+        "gym-torrent": "Ginásio do Zéfiro",
+        "gym-aurora": "Ginásio da Colmeia",
+        "gym-fist": "Ginásio da Planície",
+        "gym-mind": "Ginásio da Névoa",
+        gym2: "Ginásio da Tempestade",
+        "gym-johto-6": "Ginásio Mineral",
+        "gym-johto-7": "Ginásio da Geleira",
+        "gym-johto-8": "Ginásio Ascendente",
+        "johto-championship": "Liga de Johto",
+        "gym-quake": "Ginásio da Pedra",
+        "gym-boulder": "Ginásio do Punho",
+        "gym-iron": "Ginásio do Dínamo",
+        "gym-hoenn-4": "Ginásio do Calor",
+        "gym-hoenn-5": "Ginásio do Equilíbrio",
+        "gym-hoenn-6": "Ginásio da Pluma",
+        "gym-hoenn-7": "Ginásio da Mente",
+        "gym-hoenn-8": "Ginásio da Chuva",
+        "hoenn-championship": "Liga de Hoenn",
+        "gym-wyvern": "Ginásio do Carvão",
+        "gym-apex": "Ginásio da Floresta",
+        "gym-sinnoh-3": "Ginásio do Combate",
+        "gym-sinnoh-4": "Ginásio do Brejo",
+        "gym-sinnoh-5": "Ginásio da Relíquia",
+        "gym-sinnoh-6": "Ginásio da Mina",
+        "gym-sinnoh-7": "Ginásio do Gelo",
+        "gym-sinnoh-8": "Ginásio do Farol",
+        "sinnoh-championship": "Liga de Sinnoh",
+        seafoam: "Ilhas Espuma",
+        "power-plant": "Usina Abandonada",
+        "ember-summit": "Cume das Brasas",
+        "bell-tower": "Torre do Sino",
+        "cerulean-cave": "Caverna Celeste",
+        "ultra-space-1": "Ultra Espaço I",
+        "ultra-space-2": "Ultra Espaço II",
+        "ultra-space-3": "Ultra Espaço III",
+        "ultra-space-4": "Ultra Espaço IV",
+        florestapvp: "Floresta Contestada",
+        praiapvp: "Costa dos Náufragos",
+        terrapvp: "Ermo Rachado",
+        nevepvp: "Tundra Impiedosa",
+        pantanopvp: "Pântano Traiçoeiro",
+        ruinaspvp: "Ruínas Malditas",
+        motnahapvp: "Montanha Sangrenta",
+        vulcaopvp: "Caldeira Infernal"
+    };
+
+    function getMapFriendlyName(mapId) {
+        if (!mapId) return "Aguardando Mapa...";
+        if (MAP_NAMES[mapId]) return MAP_NAMES[mapId];
+        if (ROUTE_NAMES[mapId]) return ROUTE_NAMES[mapId];
+        if (mapId.startsWith("route_")) {
+            const num = parseInt(mapId.replace("route_", ""), 10);
+            if (!isNaN(num)) return `Rota ${num}`;
+        }
+        return mapId;
+    }
+
+    // --- COMPETITIVE BEST NATURES DATABASE (GEN 1 - 5: KANTO TO UNOVA) ---
+    const BEST_NATURES_GEN1_TO_5 = {"bulbasaur": ["modest", "timid"], "ivysaur": ["modest", "timid"], "venusaur": ["modest", "timid", "calm"], "charmander": ["adamant", "jolly"], "charmeleon": ["adamant", "jolly"], "charizard": ["timid", "jolly", "modest", "adamant"], "squirtle": ["calm", "careful", "bold"], "wartortle": ["calm", "careful", "bold"], "blastoise": ["modest", "bold", "calm"], "caterpie": ["adamant", "jolly"], "metapod": ["impish", "relaxed", "adamant"], "butterfree": ["modest", "timid"], "weedle": ["adamant", "jolly"], "kakuna": ["impish", "relaxed", "adamant"], "beedrill": ["adamant", "jolly"], "pidgey": ["adamant", "jolly"], "pidgeotto": ["adamant", "jolly"], "pidgeot": ["adamant", "jolly"], "rattata": ["adamant", "jolly"], "raticate": ["adamant", "jolly"], "spearow": ["adamant", "jolly"], "fearow": ["adamant", "jolly"], "ekans": ["adamant", "jolly"], "arbok": ["adamant", "jolly"], "pikachu": ["adamant", "jolly"], "raichu": ["timid", "naive", "hasty"], "sandshrew": ["impish", "relaxed", "adamant"], "sandslash": ["adamant", "impish"], "nidoran-f": ["impish", "relaxed", "adamant"], "nidorina": ["impish", "relaxed", "adamant"], "nidoqueen": ["bold", "modest", "timid"], "nidoran-m": ["adamant", "jolly"], "nidorino": ["adamant", "jolly"], "nidoking": ["timid", "modest", "naive"], "clefairy": ["calm", "careful", "bold"], "clefable": ["bold", "calm"], "vulpix": ["modest", "timid"], "ninetales": ["timid", "modest"], "jigglypuff": ["calm", "careful", "bold"], "wigglytuff": ["modest", "calm"], "zubat": ["adamant", "jolly"], "golbat": ["adamant", "jolly"], "oddish": ["modest", "timid"], "gloom": ["modest", "timid"], "vileplume": ["bold", "modest", "calm"], "paras": ["adamant", "jolly"], "parasect": ["careful", "adamant"], "venonat": ["modest", "timid"], "venomoth": ["timid", "modest"], "diglett": ["adamant", "jolly"], "dugtrio": ["adamant", "jolly"], "meowth": ["adamant", "jolly"], "persian": ["adamant", "jolly"], "psyduck": ["modest", "timid"], "golduck": ["modest", "timid"], "mankey": ["adamant", "jolly"], "primeape": ["adamant", "jolly"], "growlithe": ["adamant", "jolly"], "arcanine": ["jolly", "adamant", "timid", "modest"], "poliwag": ["modest", "timid"], "poliwhirl": ["adamant", "jolly"], "poliwrath": ["adamant"], "abra": ["modest", "timid"], "kadabra": ["modest", "timid"], "alakazam": ["timid", "modest"], "machop": ["adamant", "jolly"], "machoke": ["adamant", "jolly"], "machamp": ["adamant", "brave"], "bellsprout": ["naive", "hasty"], "weepinbell": ["naive", "hasty"], "victreebel": ["modest", "adamant", "naive"], "tentacool": ["calm", "careful", "bold"], "tentacruel": ["timid", "calm", "bold"], "geodude": ["impish", "relaxed", "adamant"], "graveler": ["impish", "relaxed", "adamant"], "golem": ["adamant", "impish"], "ponyta": ["adamant", "jolly"], "rapidash": ["adamant", "jolly"], "slowpoke": ["impish", "relaxed", "adamant"], "slowbro": ["bold", "relaxed", "quiet"], "magnemite": ["modest", "timid"], "magneton": ["modest", "timid"], "farfetchd": ["adamant", "jolly"], "doduo": ["adamant", "jolly"], "dodrio": ["adamant", "jolly"], "seel": ["calm", "careful", "bold"], "dewgong": ["calm", "careful"], "grimer": ["impish", "relaxed", "adamant"], "muk": ["adamant", "careful"], "shellder": ["impish", "relaxed", "adamant"], "cloyster": ["jolly", "adamant", "impish"], "gastly": ["modest", "timid"], "haunter": ["modest", "timid"], "gengar": ["timid", "modest"], "onix": ["impish", "relaxed", "adamant"], "drowzee": ["calm", "careful", "bold"], "hypno": ["calm", "careful"], "krabby": ["adamant", "jolly"], "kingler": ["adamant", "jolly"], "voltorb": ["modest", "timid"], "electrode": ["timid", "naive"], "exeggcute": ["modest", "timid"], "exeggutor": ["modest", "quiet"], "cubone": ["adamant", "jolly"], "marowak": ["adamant", "brave"], "hitmonlee": ["adamant", "jolly"], "hitmonchan": ["adamant", "jolly"], "lickitung": ["calm", "careful", "bold"], "koffing": ["impish", "relaxed", "adamant"], "weezing": ["bold", "impish"], "rhyhorn": ["impish", "relaxed", "adamant"], "rhydon": ["adamant", "impish"], "chansey": ["bold", "calm"], "tangela": ["bold", "modest"], "kangaskhan": ["adamant", "jolly"], "horsea": ["modest", "timid"], "seadra": ["modest", "timid"], "goldeen": ["adamant", "jolly"], "seaking": ["adamant", "jolly"], "staryu": ["modest", "timid"], "starmie": ["timid", "modest"], "mr-mime": ["timid", "modest"], "scyther": ["adamant", "jolly"], "jynx": ["timid", "modest"], "electabuzz": ["timid", "naive"], "magmar": ["modest", "timid", "naive"], "pinsir": ["adamant", "jolly"], "tauros": ["adamant", "jolly"], "magikarp": ["adamant", "jolly"], "gyarados": ["adamant", "jolly"], "lapras": ["modest", "calm"], "ditto": ["timid", "jolly", "bold", "calm"], "eevee": ["adamant", "jolly"], "vaporeon": ["bold", "calm", "modest"], "jolteon": ["timid", "modest"], "flareon": ["adamant"], "porygon": ["modest", "timid"], "omanyte": ["modest", "timid"], "omastar": ["modest", "timid"], "kabuto": ["adamant", "jolly"], "kabutops": ["adamant", "jolly"], "aerodactyl": ["jolly", "adamant"], "snorlax": ["adamant", "careful", "brave"], "articuno": ["timid", "calm"], "zapdos": ["timid", "bold", "modest"], "moltres": ["timid", "modest"], "dratini": ["adamant", "jolly"], "dragonair": ["adamant", "jolly"], "dragonite": ["adamant", "jolly"], "mewtwo": ["timid", "modest"], "mew": ["timid", "jolly", "bold", "calm"], "chikorita": ["calm", "careful", "bold"], "bayleef": ["calm", "careful", "bold"], "meganium": ["calm", "bold"], "cyndaquil": ["modest", "timid"], "quilava": ["modest", "timid"], "typhlosion": ["timid", "modest"], "totodile": ["adamant", "jolly"], "croconaw": ["adamant", "jolly"], "feraligatr": ["adamant", "jolly"], "sentret": ["adamant", "jolly"], "furret": ["adamant", "jolly"], "hoothoot": ["calm", "careful", "bold"], "noctowl": ["calm", "modest"], "ledyba": ["adamant", "jolly"], "ledian": ["adamant", "jolly"], "spinarak": ["adamant", "jolly"], "ariados": ["adamant", "jolly"], "crobat": ["jolly", "timid"], "chinchou": ["calm", "careful", "bold"], "lanturn": ["modest", "calm"], "pichu": ["modest", "timid"], "cleffa": ["calm", "careful", "bold"], "igglybuff": ["calm", "careful", "bold"], "togepi": ["calm", "careful", "bold"], "togetic": ["bold", "calm"], "natu": ["modest", "timid"], "xatu": ["timid", "bold"], "mareep": ["modest", "timid"], "flaaffy": ["modest", "timid"], "ampharos": ["modest", "quiet"], "bellossom": ["calm", "modest"], "marill": ["adamant", "jolly"], "azumarill": ["adamant"], "sudowoodo": ["impish", "relaxed", "adamant"], "politoed": ["bold", "calm"], "hoppip": ["adamant", "jolly"], "skiploom": ["adamant", "jolly"], "jumpluff": ["adamant", "jolly"], "aipom": ["adamant", "jolly"], "sunkern": ["modest", "timid"], "sunflora": ["modest", "quiet"], "yanma": ["modest", "timid"], "wooper": ["impish", "relaxed", "adamant"], "quagsire": ["relaxed"], "espeon": ["timid", "modest"], "umbreon": ["calm", "careful"], "murkrow": ["adamant", "jolly"], "slowking": ["calm", "quiet"], "misdreavus": ["timid", "modest"], "unown": ["modest", "timid"], "wobbuffet": ["bold", "calm"], "girafarig": ["timid"], "pineco": ["impish", "relaxed", "adamant"], "forretress": ["relaxed", "impish"], "dunsparce": ["impish", "relaxed", "adamant"], "gligar": ["impish", "jolly"], "steelix": ["impish", "relaxed"], "snubbull": ["adamant", "jolly"], "granbull": ["adamant", "impish"], "qwilfish": ["jolly", "impish"], "scizor": ["adamant"], "shuckle": ["bold", "impish"], "heracross": ["adamant", "jolly"], "sneasel": ["adamant", "jolly"], "teddiursa": ["adamant", "jolly"], "ursaring": ["adamant"], "slugma": ["modest", "timid"], "magcargo": ["bold", "modest"], "swinub": ["adamant", "jolly"], "piloswine": ["adamant"], "corsola": ["impish", "relaxed", "adamant"], "remoraid": ["modest", "timid"], "octillery": ["modest", "quiet"], "delibird": ["adamant", "jolly"], "mantine": ["calm"], "skarmory": ["impish", "bold"], "houndour": ["modest", "timid"], "houndoom": ["timid", "hasty"], "kingdra": ["modest", "adamant"], "phanpy": ["impish", "relaxed", "adamant"], "donphan": ["adamant", "impish"], "porygon2": ["bold", "calm"], "stantler": ["adamant", "jolly"], "smeargle": ["jolly", "timid"], "tyrogue": ["adamant", "jolly"], "hitmontop": ["adamant", "impish"], "smoochum": ["modest", "timid"], "elekid": ["adamant", "jolly"], "magby": ["naive", "hasty"], "miltank": ["impish", "careful"], "blissey": ["bold", "calm"], "raikou": ["timid", "modest"], "entei": ["adamant", "jolly"], "suicune": ["bold", "timid", "calm"], "larvitar": ["adamant", "jolly"], "pupitar": ["adamant", "jolly"], "tyranitar": ["adamant", "jolly"], "lugia": ["bold", "timid"], "ho-oh": ["adamant", "careful"], "celebi": ["timid", "bold", "modest"], "treecko": ["modest", "timid"], "grovyle": ["modest", "timid"], "sceptile": ["timid", "modest", "naive"], "torchic": ["adamant", "jolly"], "combusken": ["adamant", "jolly"], "blaziken": ["adamant", "jolly"], "mudkip": ["impish", "relaxed", "adamant"], "marshtomp": ["impish", "relaxed", "adamant"], "swampert": ["adamant", "relaxed"], "poochyena": ["adamant", "jolly"], "mightyena": ["adamant", "jolly"], "zigzagoon": ["adamant", "jolly"], "linoone": ["adamant", "jolly"], "wurmple": ["modest", "timid"], "silcoon": ["impish", "relaxed", "adamant"], "beautifly": ["modest", "timid"], "cascoon": ["impish", "relaxed", "adamant"], "dustox": ["calm", "careful", "bold"], "lotad": ["modest", "timid"], "lombre": ["modest", "timid"], "ludicolo": ["modest", "timid"], "seedot": ["adamant", "jolly"], "nuzleaf": ["adamant", "jolly"], "shiftry": ["adamant", "naughty"], "taillow": ["adamant", "jolly"], "swellow": ["jolly", "adamant"], "wingull": ["modest", "timid"], "pelipper": ["bold", "calm"], "ralts": ["modest", "timid"], "kirlia": ["modest", "timid"], "gardevoir": ["timid", "modest"], "surskit": ["modest", "timid"], "masquerain": ["timid", "modest"], "shroomish": ["adamant", "jolly"], "breloom": ["adamant", "jolly"], "slakoth": ["adamant", "jolly"], "vigoroth": ["adamant", "jolly"], "slaking": ["jolly", "adamant"], "nincada": ["adamant", "jolly"], "ninjask": ["jolly", "adamant"], "shedinja": ["adamant", "lonely"], "whismur": ["modest", "timid"], "loudred": ["modest", "timid"], "exploud": ["modest"], "makuhita": ["impish", "relaxed", "adamant"], "hariyama": ["adamant"], "azurill": ["adamant", "jolly"], "nosepass": ["impish", "relaxed", "adamant"], "skitty": ["adamant", "jolly"], "delcatty": ["adamant", "jolly"], "sableye": ["bold", "calm"], "mawile": ["adamant"], "aron": ["impish", "relaxed", "adamant"], "lairon": ["impish", "relaxed", "adamant"], "aggron": ["adamant"], "meditite": ["adamant", "jolly"], "medicham": ["jolly", "adamant"], "electrike": ["modest", "timid"], "manectric": ["timid", "modest"], "plusle": ["modest", "timid"], "minun": ["modest", "timid"], "volbeat": ["calm", "careful", "bold"], "illumise": ["calm", "careful", "bold"], "roselia": ["timid", "modest"], "gulpin": ["calm", "careful", "bold"], "swalot": ["calm", "bold"], "carvanha": ["adamant", "jolly"], "sharpedo": ["adamant", "jolly"], "wailmer": ["calm", "careful", "bold"], "wailord": ["modest", "calm"], "numel": ["naive", "hasty"], "camerupt": ["quiet", "modest"], "torkoal": ["bold", "relaxed"], "spoink": ["modest", "timid"], "grumpig": ["calm", "modest"], "spinda": ["adamant", "jolly"], "trapinch": ["adamant", "jolly"], "vibrava": ["adamant", "jolly"], "flygon": ["adamant", "jolly"], "cacnea": ["adamant", "jolly"], "cacturne": ["adamant", "mild"], "swablu": ["calm", "careful", "bold"], "altaria": ["careful", "adamant", "modest"], "zangoose": ["jolly", "adamant"], "seviper": ["modest", "adamant"], "lunatone": ["modest", "timid"], "solrock": ["impish", "relaxed", "adamant"], "barboach": ["impish", "relaxed", "adamant"], "whiscash": ["adamant"], "corphish": ["adamant", "jolly"], "crawdaunt": ["adamant"], "baltoy": ["calm", "careful", "bold"], "claydol": ["bold", "calm"], "lileep": ["calm", "careful", "bold"], "cradily": ["careful"], "anorith": ["adamant", "jolly"], "armaldo": ["adamant", "jolly"], "feebas": ["calm", "careful", "bold"], "milotic": ["bold", "calm"], "castform": ["modest", "timid"], "kecleon": ["adamant"], "shuppet": ["adamant", "jolly"], "banette": ["adamant", "jolly"], "duskull": ["calm", "careful", "bold"], "dusclops": ["bold", "calm"], "tropius": ["calm", "careful", "bold"], "chimecho": ["calm", "bold"], "absol": ["jolly", "adamant"], "wynaut": ["calm", "careful", "bold"], "snorunt": ["modest", "timid"], "glalie": ["jolly"], "spheal": ["calm", "careful", "bold"], "sealeo": ["calm", "careful", "bold"], "walrein": ["calm", "bold"], "clamperl": ["modest", "timid"], "huntail": ["adamant", "jolly"], "gorebyss": ["modest", "timid"], "relicanth": ["adamant"], "luvdisc": ["modest", "timid"], "bagon": ["adamant", "jolly"], "shelgon": ["impish", "relaxed", "adamant"], "salamence": ["jolly", "naive", "adamant", "timid"], "beldum": ["adamant", "jolly"], "metang": ["impish", "relaxed", "adamant"], "metagross": ["adamant", "jolly"], "regirock": ["impish", "careful"], "regice": ["calm", "modest"], "registeel": ["calm", "careful"], "latias": ["timid", "calm"], "latios": ["timid", "modest"], "kyogre": ["timid", "modest"], "groudon": ["adamant", "jolly"], "rayquaza": ["jolly", "naive", "adamant"], "jirachi": ["jolly", "timid"], "deoxys": ["timid", "naive", "hasty"], "turtwig": ["impish", "relaxed", "adamant"], "grotle": ["impish", "relaxed", "adamant"], "torterra": ["adamant", "impish"], "chimchar": ["naive", "hasty"], "monferno": ["naive", "hasty"], "infernape": ["naive", "jolly", "hasty", "timid"], "piplup": ["modest", "timid"], "prinplup": ["modest", "timid"], "empoleon": ["modest", "calm"], "starly": ["adamant", "jolly"], "staravia": ["adamant", "jolly"], "staraptor": ["jolly", "adamant"], "bidoof": ["impish", "relaxed", "adamant"], "bibarel": ["adamant"], "kricketot": ["adamant", "jolly"], "kricketune": ["adamant", "jolly"], "shinx": ["adamant", "jolly"], "luxio": ["adamant", "jolly"], "luxray": ["adamant", "jolly"], "budew": ["modest", "timid"], "roserade": ["timid", "modest"], "cranidos": ["adamant", "jolly"], "rampardos": ["jolly", "adamant"], "shieldon": ["impish", "relaxed", "adamant"], "bastiodon": ["impish", "careful"], "burmy": ["calm", "careful", "bold"], "wormadam": ["calm", "careful", "bold"], "mothim": ["modest", "timid"], "combee": ["calm", "careful", "bold"], "vespiquen": ["impish", "careful"], "pachirisu": ["impish"], "buizel": ["adamant", "jolly"], "floatzel": ["adamant", "jolly"], "cherubi": ["modest", "timid"], "cherrim": ["timid", "modest"], "shellos": ["calm", "careful", "bold"], "gastrodon": ["relaxed", "calm"], "ambipom": ["jolly"], "drifloon": ["modest", "timid"], "drifblim": ["modest", "timid"], "buneary": ["adamant", "jolly"], "lopunny": ["jolly"], "mismagius": ["timid"], "honchkrow": ["adamant"], "glameow": ["adamant", "jolly"], "purugly": ["adamant", "jolly"], "chingling": ["modest", "timid"], "stunky": ["adamant", "jolly"], "skuntank": ["adamant"], "bronzor": ["calm", "careful", "bold"], "bronzong": ["relaxed", "sassy"], "bonsly": ["impish", "relaxed", "adamant"], "mime-jr": ["modest", "timid"], "happiny": ["calm", "careful", "bold"], "chatot": ["modest", "timid"], "spiritomb": ["bold", "calm"], "gible": ["adamant", "jolly"], "gabite": ["adamant", "jolly"], "garchomp": ["jolly", "adamant"], "munchlax": ["calm", "careful", "bold"], "riolu": ["adamant", "jolly"], "lucario": ["jolly", "timid", "adamant"], "hippopotas": ["impish", "relaxed", "adamant"], "hippowdon": ["impish"], "skorupi": ["impish", "relaxed", "adamant"], "drapion": ["jolly", "adamant"], "croagunk": ["adamant", "jolly"], "toxicroak": ["jolly", "adamant"], "carnivine": ["adamant", "jolly"], "finneon": ["modest", "timid"], "lumineon": ["timid", "bold"], "mantyke": ["calm", "careful", "bold"], "snover": ["naive", "hasty"], "abomasnow": ["quiet"], "weavile": ["jolly"], "magnezone": ["modest", "timid"], "lickilicky": ["careful", "adamant"], "rhyperior": ["adamant"], "tangrowth": ["relaxed"], "electivire": ["jolly"], "magmortar": ["modest", "timid"], "togekiss": ["timid", "modest"], "yanmega": ["modest", "timid"], "leafeon": ["jolly", "adamant"], "glaceon": ["modest", "timid"], "gliscor": ["impish", "jolly"], "mamoswine": ["jolly", "adamant"], "porygon-z": ["timid"], "gallade": ["jolly", "adamant"], "probopass": ["bold", "calm"], "dusknoir": ["adamant", "impish"], "froslass": ["timid"], "rotom": ["bold", "timid", "calm", "modest"], "uxie": ["bold", "relaxed"], "mesprit": ["timid", "modest"], "azelf": ["timid", "jolly"], "dialga": ["modest", "timid"], "palkia": ["timid", "hasty"], "heatran": ["timid", "modest", "calm"], "regigigas": ["adamant", "jolly"], "giratina": ["bold", "impish", "modest"], "cresselia": ["bold", "calm"], "phione": ["modest", "timid"], "manaphy": ["timid"], "darkrai": ["timid"], "shaymin": ["timid"], "arceus": ["jolly", "timid", "adamant", "modest"], "snivy": ["modest", "timid"], "servine": ["modest", "timid"], "serperior": ["timid"], "tepig": ["adamant", "jolly"], "pignite": ["adamant", "jolly"], "emboar": ["adamant"], "oshawott": ["modest", "timid"], "dewott": ["modest", "timid"], "samurott": ["adamant", "modest"], "patrat": ["adamant", "jolly"], "watchog": ["adamant", "jolly"], "lillipup": ["adamant", "jolly"], "herdier": ["adamant", "jolly"], "stoutland": ["adamant"], "purrloin": ["adamant", "jolly"], "liepard": ["jolly"], "pansage": ["modest", "timid"], "simisage": ["modest", "timid"], "pansear": ["modest", "timid"], "simisear": ["modest", "timid"], "panpour": ["modest", "timid"], "simipour": ["modest", "timid"], "munna": ["calm", "careful", "bold"], "musharna": ["bold", "calm"], "pidove": ["adamant", "jolly"], "tranquill": ["adamant", "jolly"], "unfezant": ["adamant", "jolly"], "blitzle": ["modest", "timid"], "zebstrika": ["timid"], "roggenrola": ["impish", "relaxed", "adamant"], "boldore": ["impish", "relaxed", "adamant"], "gigalith": ["brave", "adamant"], "woobat": ["modest", "timid"], "swoobat": ["timid"], "drilbur": ["adamant", "jolly"], "excadrill": ["jolly", "adamant"], "audino": ["bold", "calm"], "timburr": ["adamant", "jolly"], "gurdurr": ["impish", "relaxed", "adamant"], "conkeldurr": ["adamant", "brave"], "tympole": ["modest", "timid"], "palpitoad": ["modest", "timid"], "seismitoad": ["modest", "relaxed"], "throh": ["careful"], "sawk": ["jolly"], "sewaddle": ["adamant", "jolly"], "swadloon": ["impish", "relaxed", "adamant"], "leavanny": ["jolly"], "venipede": ["adamant", "jolly"], "whirlipede": ["impish", "relaxed", "adamant"], "scolipede": ["jolly"], "cottonee": ["calm", "careful", "bold"], "whimsicott": ["timid"], "petilil": ["modest", "timid"], "lilligant": ["timid", "modest"], "basculin": ["jolly"], "sandile": ["adamant", "jolly"], "krokorok": ["adamant", "jolly"], "krookodile": ["jolly", "adamant"], "darumaka": ["adamant", "jolly"], "darmanitan": ["jolly", "adamant"], "maractus": ["modest", "timid"], "dwebble": ["impish", "relaxed", "adamant"], "crustle": ["adamant"], "scraggy": ["adamant", "jolly"], "scrafty": ["careful", "adamant"], "sigilyph": ["timid"], "yamask": ["impish", "relaxed", "adamant"], "cofagrigus": ["bold", "quiet"], "tirtouga": ["impish", "relaxed", "adamant"], "carracosta": ["adamant"], "archen": ["adamant", "jolly"], "archeops": ["jolly", "naive"], "trubbish": ["impish", "relaxed", "adamant"], "garbodor": ["impish"], "zorua": ["naive", "hasty"], "zoroark": ["timid", "naive"], "minccino": ["adamant", "jolly"], "cinccino": ["jolly"], "gothita": ["modest", "timid"], "gothorita": ["modest", "timid"], "gothitelle": ["calm"], "solosis": ["brave", "quiet", "relaxed", "sassy"], "duosion": ["brave", "quiet", "relaxed", "sassy"], "reuniclus": ["quiet", "bold"], "ducklett": ["modest", "timid"], "swanna": ["timid", "modest"], "vanillite": ["modest", "timid"], "vanillish": ["modest", "timid"], "vanilluxe": ["modest", "timid"], "deerling": ["adamant", "jolly"], "sawsbuck": ["jolly", "adamant"], "emolga": ["timid"], "karrablast": ["adamant", "jolly"], "escavalier": ["brave", "adamant"], "foongus": ["calm", "careful", "bold"], "amoonguss": ["calm", "bold"], "frillish": ["calm", "careful", "bold"], "jellicent": ["bold", "calm"], "alomomola": ["bold", "impish"], "joltik": ["modest", "timid"], "galvantula": ["timid"], "ferroseed": ["impish", "relaxed", "adamant"], "ferrothorn": ["relaxed", "sassy"], "klink": ["adamant", "jolly"], "klang": ["adamant", "jolly"], "klinklang": ["adamant"], "tynamo": ["modest", "timid"], "eelektrik": ["modest", "timid"], "eelektross": ["quiet", "modest", "adamant"], "elgyem": ["brave", "quiet", "relaxed", "sassy"], "beheeyem": ["quiet"], "litwick": ["modest", "timid"], "lampent": ["modest", "timid"], "chandelure": ["timid", "modest"], "axew": ["adamant", "jolly"], "fraxure": ["adamant", "jolly"], "haxorus": ["jolly", "adamant"], "cubchoo": ["adamant", "jolly"], "beartic": ["adamant"], "cryogonal": ["timid", "calm"], "shelmet": ["modest", "timid"], "accelgor": ["timid"], "stunfisk": ["bold", "calm"], "mienfoo": ["adamant", "jolly"], "mienshao": ["jolly", "naive"], "druddigon": ["adamant"], "golett": ["adamant", "jolly"], "golurk": ["adamant"], "pawniard": ["adamant", "jolly"], "bisharp": ["adamant", "jolly"], "bouffalant": ["adamant"], "rufflet": ["adamant", "jolly"], "braviary": ["jolly", "adamant"], "vullaby": ["impish", "relaxed", "adamant"], "mandibuzz": ["bold", "impish"], "heatmor": ["naive", "hasty"], "durant": ["jolly"], "deino": ["modest", "timid"], "zweilous": ["adamant", "jolly"], "hydreigon": ["timid", "modest"], "larvesta": ["modest", "timid"], "volcarona": ["timid", "modest"], "cobalion": ["jolly", "timid"], "terrakion": ["jolly", "adamant"], "virizion": ["jolly", "timid"], "tornadus": ["timid", "naive"], "thundurus": ["timid", "naive"], "reshiram": ["timid", "modest"], "zekrom": ["adamant", "jolly"], "landorus": ["jolly", "naive"], "kyurem": ["timid", "modest", "hasty"], "keldeo": ["timid", "modest"], "meloetta": ["timid", "modest", "naive"], "genesect": ["naive", "hasty", "timid"]};
+
+    function evaluateCapturedCreature(caught) {
+        if (!caught) return null;
+        const speciesId = String(caught.speciesId || (caught.name ? caught.name.toLowerCase() : "")).toLowerCase();
+        const nature = String(caught.nature || "").toLowerCase();
+        const ivs = caught.ivs || {};
+        const ivHp = Number(ivs.hp || 0);
+        const ivAtk = Number(ivs.atk || 0);
+        const ivDef = Number(ivs.def || 0);
+        const ivSpa = Number(ivs.spa || 0);
+        const ivSpd = Number(ivs.spd || 0);
+        const ivSpe = Number(ivs.spe || 0);
+        const ivTotal = ivHp + ivAtk + ivDef + ivSpa + ivSpd + ivSpe;
+        const ivPct = Math.round((ivTotal / 186) * 1000) / 10;
+
+        const bestList = BEST_NATURES_GEN1_TO_5[speciesId] || ["adamant", "jolly", "modest", "timid", "bold", "calm", "impish", "careful"];
+        const isBestNature = bestList.includes(nature);
+
+        let grade = "C";
+        if (ivTotal >= 158 || (isBestNature && ivTotal >= 140)) {
+            grade = "S";
+        } else if (ivTotal >= 130) {
+            grade = "A";
+        } else if (ivTotal >= 93) {
+            grade = "B";
+        }
+
+        return {
+            id: caught.id || caught.creatureId,
+            speciesId,
+            name: caught.name || speciesId,
+            level: caught.level || 1,
+            isShiny: !!caught.isShiny,
+            nature,
+            isBestNature,
+            bestNatures: bestList,
+            ivTotal,
+            ivPct,
+            grade,
+            ivs: { hp: ivHp, atk: ivAtk, def: ivDef, spa: ivSpa, spd: ivSpd, spe: ivSpe }
+        };
+    }
+
     const TYPE_CHART = {
         normal: { rock: 0.5, ghost: 0, steel: 0.5 },
         fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
@@ -416,11 +566,14 @@ function initMainWorldEngine() {
             if (p[chosen] > 0) return chosen;
         }
 
-        if (missingHp > 200 && p["max-potion"] > 0) return "max-potion";
-        if (missingHp > 80 && p["hyper-potion"] > 0) return "hyper-potion";
-        if (missingHp > 30 && p["super-potion"] > 0) return "super-potion";
+        // Smart Escalation with official formulas:
+        // potion = 20 HP, super-potion = 60 HP, hyper-potion = 120 HP, max-potion = 100% max HP
+        if (missingHp > 180 && p["max-potion"] > 0) return "max-potion";
+        if (missingHp >= 120 && p["hyper-potion"] > 0) return "hyper-potion";
+        if (missingHp >= 60 && p["super-potion"] > 0) return "super-potion";
         if (p["potion"] > 0) return "potion";
 
+        // Fallbacks
         if (p["super-potion"] > 0) return "super-potion";
         if (p["hyper-potion"] > 0) return "hyper-potion";
         if (p["max-potion"] > 0) return "max-potion";
@@ -538,6 +691,7 @@ function handleGameMessage(msg) {
             if (d.map) {
                 currentMap = d.map;
                 loadMapCollision(currentMap);
+                setTimeout(() => { sendEvent("map:preview", { mapId: currentMap }); }, 600);
             }
 
             // Extract initial entities & player position from snapshot
@@ -686,8 +840,25 @@ function handleGameMessage(msg) {
                 loadMapCollision(currentMap);
             }
             if (d.x !== undefined && d.y !== undefined) playerPos = { x: Number(d.x), y: Number(d.y) };
-            logEvent(`🗺️ Transição de mapa para: ${currentMap}`, "info");
+            logEvent(`🗺️ Transição de mapa para: ${getMapFriendlyName(currentMap)}`, "info");
+            setTimeout(() => { sendEvent("map:preview", { mapId: currentMap }); }, 300);
             emitTelemetry();
+        }
+
+        // Map Preview (Area Spawns)
+        else if (t === "map:preview") {
+            if (d && Array.isArray(d.species)) {
+                currentMapSpecies = d.species.map(sp => ({
+                    speciesId: sp.speciesId,
+                    name: sp.name || sp.speciesId,
+                    minLevel: sp.minLevel || 1,
+                    maxLevel: sp.maxLevel || 1,
+                    frequency: sp.frequency || "common",
+                    caught: !!sp.caught,
+                    seen: !!sp.seen
+                }));
+                emitTelemetry();
+            }
         }
 
         // Battle Start
@@ -842,7 +1013,20 @@ function handleGameMessage(msg) {
             const foeName = (enemyMon && (enemyMon.name || enemyMon.species)) || "Criatura";
 
             if (captured) {
-                logEvent(`✨ ${foeName} capturado com sucesso!`, "success");
+                if (d.caught) {
+                    const evalData = evaluateCapturedCreature(d.caught);
+                    if (evalData) {
+                        lastCapturedMon = evalData;
+                        const star = evalData.isShiny ? " ✨" : "";
+                        const natMsg = evalData.isBestNature ? `Nature: ${evalData.nature} (⭐ TOP NATURE!)` : `Nature: ${evalData.nature}`;
+                        const tierMsg = `IV: ${evalData.ivTotal}/186 (${evalData.ivPct}% - Grau ${evalData.grade})`;
+                        logEvent(`🎉 [CAPTURA] ${evalData.name}${star} Lv${evalData.level}! ${natMsg}, ${tierMsg}`, evalData.grade === "S" ? "success" : "info");
+                    } else {
+                        logEvent(`✨ ${foeName} capturado com sucesso!`, "success");
+                    }
+                } else {
+                    logEvent(`✨ ${foeName} capturado com sucesso!`, "success");
+                }
                 progress.captures = (progress.captures || 0) + 1;
             } else if (victory) {
                 logEvent(`⚔️ Vitória sobre ${foeName}!`, "success");
@@ -929,15 +1113,40 @@ function handleGameMessage(msg) {
         const isUncaught = foeSpecies ? !collection[foeSpecies] : false;
 
         // Determine if current wild foe qualifies for capture
+        const foeSpeciesId = (enemyMon && (enemyMon.speciesId || foeSpecies.toLowerCase())) || "";
+
+        // Determine if current wild foe qualifies for capture & area whitelist
         let isCaptureTarget = false;
-        if (botConfig.catch_hp_pct > 0) {
+        let shouldFleeUnselected = false;
+
+        if (Array.isArray(botConfig.target_species) && botConfig.target_species.length > 0) {
+            // Whitelist mode active for current area
+            if (botConfig.target_species.includes(foeSpeciesId) || (isShiny && botConfig.catch_only_shiny)) {
+                isCaptureTarget = true;
+            } else {
+                isCaptureTarget = false;
+                if (botConfig.unselected_action === "flee") {
+                    shouldFleeUnselected = true;
+                }
+            }
+        } else {
+            // General catch rules mode
             if (botConfig.catch_only_shiny) {
                 isCaptureTarget = isShiny;
             } else if (botConfig.catch_only_uncaught) {
                 isCaptureTarget = isUncaught;
             } else {
-                isCaptureTarget = true;
+                isCaptureTarget = (botConfig.catch_hp_pct > 0);
             }
+        }
+
+        // Flee immediately if configured to flee from unselected species in this area
+        if (shouldFleeUnselected) {
+            logEvent(`🏃 Fugindo de ${foeSpecies} (${foeSpeciesId} não está na lista de alvos da área)...`, "info");
+            const fleeBtn = document.querySelector('.hud-throw-flee') || document.querySelector('button[data-testid$="-flee"]');
+            if (fleeBtn) fleeBtn.click();
+            sendEvent("battle:flee", { battleId: currentBattleId });
+            return;
         }
 
         // 1. Flee emergency

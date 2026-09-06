@@ -10,6 +10,8 @@
 let botEnabled = true;
 let currentConfig = null;
 let lastTelemetry = null;
+let currentTargetSpecies = [];
+let lastRenderedMapId = "";
 
 // DOM Elements
 const gameView = document.getElementById('game-view');
@@ -103,8 +105,17 @@ function handleTelemetry(data) {
     }
 
     // Shard / Map indicator
-    if (data.currentMap && shardIndicator) {
-        shardIndicator.textContent = `Mapa: ${data.currentMap}`;
+    if (shardIndicator) {
+        const mapTitle = data.currentMapName || data.currentMap || "Mapa Desconhecido";
+        shardIndicator.textContent = `📍 ${mapTitle}`;
+    }
+
+    // Area Spawns & Map Badge
+    updateAreaSpawnsUI(data);
+
+    // Last Capture Evaluation
+    if (data.lastCapturedMon) {
+        updateLastCaptureUI(data.lastCapturedMon);
     }
 
     // Radar & Entities
@@ -263,6 +274,147 @@ function updateEntitiesList(entities, playerPos) {
     entitiesList.innerHTML = html;
 }
 
+// --- 3.1 AREA SPAWNS & CAPTURE TARGETS UI ---
+
+function updateAreaSpawnsUI(data) {
+    const badgeEl = document.getElementById('current-map-badge');
+    const listEl = document.getElementById('area-species-list');
+    const unselectedRadar = document.getElementById('cfg-unselected-action-radar');
+
+    if (badgeEl) {
+        badgeEl.textContent = data.currentMapName || data.currentMap || "Aguardando Mapa...";
+    }
+
+    if (unselectedRadar && currentConfig && currentConfig.unselected_action) {
+        unselectedRadar.value = currentConfig.unselected_action;
+    }
+
+    if (!listEl) return;
+
+    const mapId = data.currentMap || "";
+    const species = Array.isArray(data.availableSpecies) ? data.availableSpecies : [];
+
+    if (species.length === 0) {
+        if (!mapId) {
+            listEl.innerHTML = '<div style="color:var(--text-dim); font-size:0.75rem;">Aguardando conexão com o jogo...</div>';
+        } else {
+            listEl.innerHTML = '<div style="color:var(--text-dim); font-size:0.75rem;">Nenhuma criatura selvagem nesta área.</div>';
+        }
+        return;
+    }
+
+    // Only re-render list if map changed or list was empty to preserve scroll/input state
+    if (mapId !== lastRenderedMapId || listEl.children.length <= 1) {
+        lastRenderedMapId = mapId;
+
+        let html = '';
+        for (const sp of species) {
+            const sid = sp.speciesId || "";
+            const isChecked = currentTargetSpecies.length === 0 || currentTargetSpecies.includes(sid);
+            const freqBadge = sp.frequency ? `<span style="font-size:0.68rem; padding:1px 5px; border-radius:3px; background:rgba(30,41,59,0.8); color:var(--cyan);">${sp.frequency}</span>` : '';
+            const caughtIco = sp.caught ? `<span title="Registrado na Pokédex" style="font-size:0.72rem;">📕</span>` : '';
+
+            html += `
+                <label style="display:flex; justify-content:space-between; align-items:center; background:rgba(15,23,42,0.5); padding:3px 7px; border-radius:4px; cursor:pointer; font-size:0.76rem;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" value="${escapeHtml(sid)}" ${isChecked ? 'checked' : ''} onchange="onAreaSpeciesToggle('${escapeHtml(sid)}', this.checked)">
+                        <span style="color:var(--text-bright); font-weight:500;">${escapeHtml(sp.name || sid)}</span>
+                        ${caughtIco}
+                    </div>
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <span style="color:var(--text-dim); font-size:0.70rem;">Lv${sp.minLevel}-${sp.maxLevel}</span>
+                        ${freqBadge}
+                    </div>
+                </label>
+            `;
+        }
+        listEl.innerHTML = html;
+    }
+}
+
+function onAreaSpeciesToggle(speciesId, isChecked) {
+    if (!speciesId) return;
+    const allCheckboxes = Array.from(document.querySelectorAll('#area-species-list input[type="checkbox"]'));
+    const checkedValues = allCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+
+    // If all are checked, we can store empty array to mean 'all' or explicit list
+    currentTargetSpecies = checkedValues;
+    saveAreaSettings();
+}
+
+function selectAllAreaSpecies(selectAll) {
+    const allCheckboxes = Array.from(document.querySelectorAll('#area-species-list input[type="checkbox"]'));
+    allCheckboxes.forEach(cb => { cb.checked = !!selectAll; });
+    currentTargetSpecies = selectAll ? allCheckboxes.map(cb => cb.value) : [];
+    saveAreaSettings();
+}
+
+function onRadarUnselectedActionChange(val) {
+    const configSelect = document.getElementById('cfg-unselected-action');
+    if (configSelect) configSelect.value = val;
+    saveAreaSettings();
+}
+
+async function saveAreaSettings() {
+    const unselectedAction = getVal('cfg-unselected-action-radar') || getVal('cfg-unselected-action') || 'battle';
+    if (!currentConfig) currentConfig = {};
+    currentConfig.target_species = currentTargetSpecies;
+    currentConfig.unselected_action = unselectedAction;
+
+    // Persist
+    if (window.electronAPI && window.electronAPI.saveConfig) {
+        await window.electronAPI.saveConfig(currentConfig);
+    }
+    if (gameView) {
+        gameView.send('host-command', { cmd: 'update-config', payload: currentConfig });
+    }
+    const actionDesc = unselectedAction === 'flee' ? 'Fugir Imediatamente' : 'Batalhar por XP';
+    appendLog(`🎯 Alvos da área atualizados: ${currentTargetSpecies.length > 0 ? currentTargetSpecies.join(', ') : 'Todos'} | Não selecionados: ${actionDesc}`, 'info');
+}
+
+// --- 3.2 LAST CAPTURE EVALUATION UI ---
+
+function updateLastCaptureUI(mon) {
+    if (!mon) return;
+    const gradeBadge = document.getElementById('last-cap-grade');
+    const bodyEl = document.getElementById('last-cap-body');
+
+    if (gradeBadge) {
+        gradeBadge.textContent = `Grau ${mon.grade || 'C'}`;
+        if (mon.grade === 'S') {
+            gradeBadge.style.background = 'var(--emerald)';
+            gradeBadge.style.color = '#000';
+        } else if (mon.grade === 'A') {
+            gradeBadge.style.background = 'var(--cyan)';
+            gradeBadge.style.color = '#000';
+        } else {
+            gradeBadge.style.background = 'var(--slate)';
+            gradeBadge.style.color = 'var(--text-bright)';
+        }
+    }
+
+    if (bodyEl) {
+        const star = mon.isShiny ? ' ✨SHINY' : '';
+        const bestNatBadge = mon.isBestNature 
+            ? `<span style="color:var(--emerald); font-weight:bold;">${mon.nature} (⭐ TOP NATURE!)</span>`
+            : `<span style="color:var(--cyan);">${mon.nature}</span>`;
+        
+        bodyEl.innerHTML = `
+            <div style="font-size:0.82rem; font-weight:600; color:var(--text-bright); margin-bottom:3px;">
+                ${escapeHtml(mon.name)}${star} <span style="color:var(--text-dim); font-size:0.72rem;">Lv${mon.level}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+                <span>Nature: ${bestNatBadge}</span>
+                <span style="font-family:var(--font-mono); color:var(--text-bright);">IV: <b>${mon.ivTotal}</b>/186 (${mon.ivPct}%)</span>
+            </div>
+            <div style="font-size:0.70rem; font-family:var(--font-mono); color:var(--text-dim); display:flex; gap:6px;">
+                <span>HP:${mon.ivs.hp}</span> <span>ATK:${mon.ivs.atk}</span> <span>DEF:${mon.ivs.def}</span>
+                <span>SPA:${mon.ivs.spa}</span> <span>SPD:${mon.ivs.spd}</span> <span>SPE:${mon.ivs.spe}</span>
+            </div>
+        `;
+    }
+}
+
 // --- 4. COMBAT VISUALIZATION ---
 
 function updateCombatUI(data) {
@@ -413,6 +565,11 @@ function applyConfigToInputs(cfg) {
     setVal('cfg-flee', Math.round((cfg.flee_hp_pct || 0.30) * 100));
     setVal('cfg-potion', Math.round((cfg.potion_hp_pct || 0.35) * 100));
     setVal('cfg-potion-mode', cfg.potion_mode || 'smart');
+    setVal('cfg-unselected-action', cfg.unselected_action || 'battle');
+    setVal('cfg-unselected-action-radar', cfg.unselected_action || 'battle');
+    if (Array.isArray(cfg.target_species)) {
+        currentTargetSpecies = cfg.target_species;
+    }
     setCheck('cfg-revive-battle', cfg.use_revive_battle !== false);
     setCheck('cfg-revive-overworld', cfg.use_revive_overworld !== false);
     setCheck('cfg-auto-heal-center', cfg.auto_heal_center !== false);
@@ -445,6 +602,9 @@ async function saveBotSettings() {
         catch_only_uncaught: getCheck('cfg-only-uncaught'),
         ball_priority: getVal('cfg-ball-priority') || 'balanced',
         move_selection_mode: getVal('cfg-move-mode') || 'smart',
+        target_species: currentTargetSpecies || [],
+        unselected_action: getVal('cfg-unselected-action') || getVal('cfg-unselected-action-radar') || 'battle',
+        min_iv_alert: 130,
         roam_step_delay_ms: parseInt(getVal('cfg-roam-delay'), 10) || 300,
         auto_roam: getCheck('cfg-auto-roam'),
         auto_idle: getCheck('cfg-auto-idle'),
@@ -530,3 +690,7 @@ window.switchPanel = switchPanel;
 window.minimizeToTray = minimizeToTray;
 window.saveBotSettings = saveBotSettings;
 window.clearLogs = clearLogs;
+window.onAreaSpeciesToggle = onAreaSpeciesToggle;
+window.selectAllAreaSpecies = selectAllAreaSpecies;
+window.onRadarUnselectedActionChange = onRadarUnselectedActionChange;
+window.saveAreaSettings = saveAreaSettings;

@@ -77,6 +77,27 @@
                             <div style="color:var(--text-dim);">Aguardando telemetria de mapa...</div>
                         </div>
                     </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">📍 Spawns da Área</span>
+                            <span id="current-map-badge" class="badge" style="background:var(--cyan); color:#000; font-weight:600; font-size:0.72rem; padding:2px 6px; border-radius:4px;">Aguardando Mapa...</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0 6px 0;">
+                            <span style="font-size:0.75rem; color:var(--text-muted);">Não Selecionados:</span>
+                            <select id="cfg-unselected-action-radar" class="form-control" style="width:130px; padding:2px 6px; font-size:0.75rem;" onchange="onRadarUnselectedActionChange(this.value)">
+                                <option value="battle">⚔️ Lutar por XP</option>
+                                <option value="flee">🏃 Fugir Imediato</option>
+                            </select>
+                        </div>
+                        <div id="area-species-list" style="margin-top:6px; display:flex; flex-direction:column; gap:4px; max-height:130px; overflow-y:auto; padding-right:4px;">
+                            <div style="color:var(--text-dim); font-size:0.75rem;">Aguardando detecção de mapa...</div>
+                        </div>
+                        <div style="display:flex; gap:6px; margin-top:8px;">
+                            <button type="button" class="tb-btn" style="flex:1; font-size:0.72rem; padding:4px;" onclick="selectAllAreaSpecies(true)">Marcar Todos</button>
+                            <button type="button" class="tb-btn" style="flex:1; font-size:0.72rem; padding:4px;" onclick="selectAllAreaSpecies(false)">Desmarcar</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- PANEL: COMBAT -->
@@ -107,6 +128,16 @@
                             <div class="hp-bar-bg">
                                 <div class="hp-bar-fill" id="combat-player-hp-bar" style="width: 100%;"></div>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="card" id="card-last-capture">
+                        <div class="card-header">
+                            <span class="card-title">🎯 Avaliação da Última Captura</span>
+                            <span id="last-cap-grade" class="badge" style="background:var(--cyan); color:#000; font-weight:bold; font-size:0.75rem; padding:2px 6px; border-radius:4px;">Sem Capturas</span>
+                        </div>
+                        <div id="last-cap-body" style="font-size:0.78rem; line-height:1.5; color:var(--text-muted); margin-top:6px;">
+                            Aguardando captura para avaliar IVs e Nature competitiva.
                         </div>
                     </div>
 
@@ -194,9 +225,16 @@
                             <div class="form-item">
                                 <label>Prioridade de Esferas</label>
                                 <select id="cfg-ball-priority" class="form-control" style="width:135px;">
-                                    <option value="balanced">Balanceada (por HP)</option>
+                                    <option value="balanced">Balanceada (Super 3x por HP)</option>
                                     <option value="economy">Econômica (Poké 1º)</option>
-                                    <option value="force_highest">Forçar Ultra Ball</option>
+                                    <option value="force_highest">Forçar Ultra / Super Ball</option>
+                                </select>
+                            </div>
+                            <div class="form-item">
+                                <label>Não Selecionados na Área</label>
+                                <select id="cfg-unselected-action" class="form-control" style="width:135px;">
+                                    <option value="battle">⚔️ Lutar por XP</option>
+                                    <option value="flee">🏃 Fugir Imediato</option>
                                 </select>
                             </div>
                             <div class="form-item">
@@ -218,10 +256,10 @@
                                 <label>Modo de Poção</label>
                                 <select id="cfg-potion-mode" class="form-control" style="width:135px;">
                                     <option value="smart">Inteligente (Déficit)</option>
-                                    <option value="potion">Potion (+20)</option>
-                                    <option value="super-potion">Super Potion (+50)</option>
-                                    <option value="hyper-potion">Hyper Potion (+200)</option>
-                                    <option value="max-potion">Max Potion (100%)</option>
+                                    <option value="potion">Potion (+20 HP)</option>
+                                    <option value="super-potion">Super Potion (+60 HP)</option>
+                                    <option value="hyper-potion">Hyper Potion (+120 HP)</option>
+                                    <option value="max-potion">Max Potion (100% HP)</option>
                                 </select>
                             </div>
                             <div class="form-item">

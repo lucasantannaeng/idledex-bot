@@ -7,8 +7,8 @@ import json
 import os
 import sys
 import urllib.parse
-from dataclasses import dataclass, asdict
-from typing import Optional, Dict, Any
+from dataclasses import dataclass, asdict, field
+from typing import Optional, Dict, Any, List
 
 
 def get_app_dir() -> str:
@@ -87,6 +87,9 @@ class BotConfig:
     catch_only_uncaught: bool = False
     ball_priority: str = "balanced"  # balanced, economy, force_highest
     move_selection_mode: str = "smart"  # smart, max_damage, first
+    target_species: List[str] = field(default_factory=list)
+    unselected_action: str = "battle"  # battle, flee
+    min_iv_alert: int = 130
     roam_step_delay_ms: int = 300
     auto_idle: bool = True
     auto_roam: bool = True

@@ -138,3 +138,45 @@
     - Pokémon Center auto-heal toggle (`auto_heal_center`).
     - Movement step delay (`roam_step_delay_ms`).
 
+## 9. Reverse Engineering: Area Spawns Whitelist, Tactical XP/Flee Engine & IV/Nature Mechanics (Phase 12)
+- **User-Calibrated Formulas**:
+  - `super-ball` / `great-ball`: Set to **3x** multiplier (increased from base 2x).
+  - `super-potion`: Restores **60 HP** (fixed).
+  - `hyper-potion`: Restores **120 HP** (fixed).
+  - Deficit-based smart healing updated:
+    - Deficit < 35 HP $\rightarrow$ `potion` (20 HP).
+    - 35 HP $\le$ Deficit < 90 HP $\rightarrow$ `super-potion` (60 HP).
+    - 90 HP $\le$ Deficit < 250 HP $\rightarrow$ `hyper-potion` (120 HP).
+    - Deficit $\ge$ 250 HP $\rightarrow$ `max-potion` (100%).
+- **Current Map & Dynamic Spawn Discovery**:
+  - Mapped all 150 official route names (`mte` dictionary in bundle) and friendly zone names (`fte` dictionary) into `ROUTE_NAMES` and `MAP_NAMES`.
+  - The client automatically queries the server with `{ t: "map:preview", d: { mapId } }` upon entering any map or on `welcome`.
+  - The server responds with `{ t: "map:preview", d: { mapId, creatures: [...] } }`, returning the list of available species for that route with `{ speciesId, name, minLevel, maxLevel, frequency, caught, seen }`.
+  - The bot intercepts this payload and renders a live interactive species checklist on the Radar panel with route friendly names (e.g., "Rota 1 — Floresta Nascente").
+- **Area Target Whitelist & Tactical Behavior Selector**:
+  - Config parameters added: `target_species: string[]` and `unselected_action: "flee" | "battle"`.
+  - If the wild Pokémon encountered is marked in the whitelist:
+    - The bot executes normal capture logic (lowering HP and throwing balls).
+  - If the wild Pokémon is NOT in the whitelist:
+    - If `unselected_action === "flee"`: The bot immediately sends `{ t: "battle:flee", d: { battleId } }` and clicks the Flee button, preserving balls and time.
+    - If `unselected_action === "battle"`: The bot battles normally with maximum damage attack to knock out the wild Pokémon and farm XP, ignoring capture thresholds.
+- **Server-Side IV & Nature Concealment Architecture (Anti-Sniffer / Anti-Cheat)**:
+  - Deep inspection of `index-C3hpUun1.js` (specifically classes `mr`, `Fr`, `mc`, `replays`, and socket handlers):
+    - In `battle:start`, the foe creature object strictly delivers: `{ name, speciesId, level, hp, maxHp, isShiny, rarity, eventTier, creatureId, formSpeciesId, formSuffix, mega }`.
+    - IVs (`ivs`), Nature (`nature`), EVs, and base offensive/defensive stats are **deliberately omitted** from incoming packets during battle. The server computes damage and RNG server-side.
+    - **Conclusion**: It is technically impossible for any external bot or packet sniffer to know the wild Pokémon's IVs or Nature before throwing the ball, as this data does not exist in the client memory until captured.
+- **Instant Post-Capture Evaluation Engine & Gen 1 to Gen 5 Competitive Database**:
+  - Immediately upon capture (`battle:end` with `result === "capture"`), the server sends the full creature record in `e.d.caught` containing `{ nature, ivs: { hp, atk, def, spa, spd, spe } }`.
+  - Created a comprehensive competitive database of 648 species across Gen 1 to Gen 5 (Kanto, Johto, Hoenn, Sinnoh, Unova) based on Smogon/VGC competitive tier lists, mapping each species to its optimal natures (e.g., Pikachu: Timid/Hasty; Gengar: Timid/Modest; Tyranitar: Adamant/Jolly; Garchomp: Jolly/Adamant).
+  - Integrated `evaluateCapturedCreature()` in `preload-game.js`:
+    - Sums all 6 IV stats (max 186).
+    - Calculates IV percentage (`(total / 186) * 100`).
+    - Cross-references nature with the competitive optimal list.
+    - Assigns an empirical letter grade:
+      - **S**: IV $\ge$ 85% + Optimal Nature.
+      - **A**: IV $\ge$ 75% OR Optimal Nature.
+      - **B**: IV $\ge$ 60%.
+      - **C**: IV < 60%.
+    - Emits live desktop telemetry and chat notification with detailed stats (e.g. `[CAPTURA] Gengar Nv.32 capturado! IVs: 165/186 (88.7%) | Nature: Timid (⭐ ÓTIMA) | Nota: S`).
+
+

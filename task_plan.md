@@ -92,4 +92,35 @@
 - [x] Develop automated test suite (`scratch/test_decision_suite.js`) verifying all 4 decision domains with exit code 0.
 - [x] Recompile portable desktop application in `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
 
-
+## Phase 12: Area Spawns Whitelist, Tactical XP/Flee Engine, IV/Nature Evaluation & Formula Calibration (v2.2)
+- [x] Apply user-requested formula corrections:
+  - Super Ball / Great Ball multiplier updated to 3x.
+  - Super Potion healing calibrated to fixed 60 HP.
+  - Hyper Potion healing calibrated to fixed 120 HP.
+  - Recalibrate smart deficit escalation thresholds in `preload-game.js`.
+- [x] Reverse engineer map routes & friendly names:
+  - Extract all 150 official route names (`mte`) and special zone maps (`fte`) into `scratch/routes.json`.
+  - Implement `ROUTE_NAMES`, `MAP_NAMES`, and `getMapFriendlyName(mapId)` in `preload-game.js`.
+- [x] Implement dynamic area spawn discovery:
+  - Automatically query `{ t: "map:preview", d: { mapId } }` on map transition and `welcome`.
+  - Intercept server response and stream available wild species array to desktop dashboard.
+- [x] Implement Area Target Whitelist & Tactical Behavior Engine:
+  - Add `target_species: string[]`, `unselected_action: "flee" | "battle"`, and `min_iv_alert` to `config.py` and `electron/main.js`.
+  - Whitelist mode: if wild Pokémon is in target list, execute capture logic.
+  - If unselected and `unselected_action === "flee"`: immediately execute `{ t: "battle:flee" }` and click Flee button.
+  - If unselected and `unselected_action === "battle"`: fight with maximum damage attack to knock out foe and farm XP.
+- [x] Reverse engineer wild IV/Nature mechanics:
+  - Prove server-side omission of IVs and Nature during wild encounters (`battle:start`) to prevent sniffer cheats.
+  - Identify post-capture payload in `battle:end` (`e.d.caught` with full `nature` and `ivs: { hp, atk, def, spa, spd, spe }`).
+- [x] Implement Competitive Nature Database & Post-Capture IV/Nature Evaluation Engine:
+  - Compile 648 species across Gen 1 to Gen 5 (Kanto, Johto, Hoenn, Sinnoh, Unova) with optimal competitive natures (`scratch/best_natures.json`).
+  - Calculate total IV sum (/186), IV percentage, check optimal nature, and assign letter grade (S, A, B, C).
+  - Stream evaluation immediately to Desktop UI and chat log upon capture.
+- [x] Redesign Desktop UI (`app/index.html`, `app/app.js`):
+  - Add "📍 Spawns da Área" card in Radar panel with route badge, unselected action selector, and interactive species checklist with "Marcar Todos" / "Desmarcar" buttons.
+  - Add "🎯 Avaliação da Última Captura" card in Combat panel displaying IV sum, percentage, nature badge, and letter grade.
+  - Update Potion descriptions to +60 HP and +120 HP, and Super Ball to 3x in Config panel.
+- [x] Verify implementation:
+  - Run comprehensive automated test suite (`scratch/test_v22_suite.js`) passing 100% with exit code 0.
+- [x] Package portable standalone distribution:
+  - Recompile `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack`.
