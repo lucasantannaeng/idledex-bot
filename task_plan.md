@@ -69,3 +69,13 @@
 - [x] Enforce alternating grass patrol within tall grass tiles to maximize wild encounters.
 - [x] Fix unpause state transition to never send movement packets while in battle.
 - [x] Recompile portable executable in `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
+
+## Phase 10: Multiplayer Isolation, Keyboard Input Integration & Unfreezing
+- [x] Diagnose multiplayer battle broadcast crosstalk in IdleDex server architecture (`index-C3hpUun1.js` line 79 `ha(r)`).
+- [x] Implement strict battle ownership filter `isMyBattle(d)` in `preload-game.js` (`d.ownerId === playerId || d.foeOwnerId === playerId`).
+- [x] Filter all combat events (`battle:turn`, `battle:control`, `battle:end`) strictly by active `currentBattleId` to ignore foreign battles, defeats, and captures.
+- [x] Integrate native KeyboardEvent simulation (`window.dispatchEvent`) matching the game's `w1e` keyboard controller (`ArrowUp`/`ArrowDown`/`ArrowLeft`/`ArrowRight`), executing local client prediction, camera follow, and sprite movement.
+- [x] Restrict entity enemy detection to `wild:` or `foe:` prefixes, preventing the bot from targeting other human players (`user:`).
+- [x] Validate isolation and BFS engine with unit test suites (`scratch/test_engine.js` and `scratch/test_isolation.js`).
+- [x] Recompile full portable desktop distribution in `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
+
