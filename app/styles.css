@@ -368,12 +368,28 @@ body {
     gap: 8px;
 }
 
+.form-section-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--cyan);
+    letter-spacing: 0.5px;
+    margin-top: 10px;
+    margin-bottom: 2px;
+    padding-bottom: 3px;
+    border-bottom: 1px dashed rgba(30, 41, 59, 0.8);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
 .form-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
     font-size: 0.8rem;
 }
+
 
 .form-control {
     background: #090e1a;

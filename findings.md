@@ -104,3 +104,37 @@
   - Inside grass (`isGrass === true`), the bot paces back and forth between adjacent grass tiles, maximizing wild battle encounters.
 - **Elimination of Toast Spam ("Nenhum marco pronto para resgatar")**:
   - Traced to automatic `pokedex:claim-all` and `gamepass:claim-all` packets sent on `welcome` and `battle:end`. Stripping these automatic calls completely eliminated the unwanted notification toast.
+
+## 8. Reverse Engineering: Complete Mechanics & Granular Variable Control Matrix (Phase 11)
+- **Deep Item Catalog & Formulas in Production Bundle (`index-C3hpUun1.js`)**:
+  - **Pokéballs & Multipliers (`soe` object)**:
+    - `poke-ball`: 1x multiplier.
+    - `great-ball` / `super-ball`: 2x multiplier.
+    - `ultra-ball`: 4x multiplier.
+    - `master-ball`: 100x multiplier (100% guaranteed catch).
+  - **Potions & Healing**:
+    - `potion`: Restores 20 HP.
+    - `super-potion`: Restores 50 HP.
+    - `hyper-potion`: Restores 200 HP.
+    - `max-potion`: Restores 100% of max HP.
+  - **Revives**:
+    - `revive`: Restores fainted Pokémon with 50% HP (`ratioPct: 50`).
+    - `max-revive`: Restores fainted Pokémon with 100% HP (`ratioPct: 100`).
+- **Complete Action Packet Schemas**:
+  - Combat items: `{ t: "battle:item", d: { battleId: string, itemId: string } }` (both balls, potions, and revives during combat if permitted by `canThrow`, `canHeal`, `canRevive`).
+  - Combat switch: `{ t: "battle:switch", d: { battleId: string, creatureId: string } }`.
+  - Out-of-combat item usage: `{ t: "item:use", d: { itemId: string, creatureId: string, quantity: number } }` (used to revive or heal party members between encounters).
+  - Pokémon Center / Nurse Joy Full Heal: `{ t: "heal:full", d: { creatureIds: string[] } }` (heals team members by paying silver or free for novice ranks).
+- **Elemental Move Advantage**:
+  - Moves contain `id`, `name`, `type`, `power`, and `category`.
+  - Integrated full Gen 1-9 type effectiveness chart (`TYPE_CHART`), enabling the bot to multiply move power by 2x for Super Effective advantages and 0.5x for resistances.
+- **Granular Control Architecture**:
+  - Exposed every critical operational variable directly in the UI dashboard and persisted via `config.py` / `config.json`:
+    - Move selection modes (`smart`, `max_damage`, `first`).
+    - Tactical flee threshold (`flee_hp_pct`).
+    - Capture threshold (`catch_hp_pct`), priority modes (`balanced`, `economy`, `force_highest`), and species filters (`catch_only_shiny`, `catch_only_uncaught`).
+    - Potion healing threshold (`potion_hp_pct`) and selection mode (`smart` deficit-based vs fixed tier).
+    - In-battle and overworld Revive toggles (`use_revive_battle`, `use_revive_overworld`).
+    - Pokémon Center auto-heal toggle (`auto_heal_center`).
+    - Movement step delay (`roam_step_delay_ms`).
+

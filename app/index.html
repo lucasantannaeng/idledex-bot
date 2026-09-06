@@ -144,12 +144,23 @@
                 <!-- PANEL: INVENTORY -->
                 <div id="panel-inventory" class="panel">
                     <div class="card">
-                        <div class="card-title" style="margin-bottom:10px;">Suprimentos de Captura</div>
+                        <div class="card-title" style="margin-bottom:10px;">Suprimentos & Esferas</div>
                         <div class="kpi-grid">
                             <div class="kpi-cell"><div class="kpi-num" id="inv-pokeball">0</div><div class="kpi-lbl">Poké Ball</div></div>
                             <div class="kpi-cell"><div class="kpi-num" id="inv-greatball">0</div><div class="kpi-lbl">Great Ball</div></div>
                             <div class="kpi-cell"><div class="kpi-num" id="inv-ultraball">0</div><div class="kpi-lbl">Ultra Ball</div></div>
-                            <div class="kpi-cell"><div class="kpi-num" id="inv-potion" style="color:var(--emerald);">0</div><div class="kpi-lbl">Poções</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-masterball" style="color:var(--purple-400, #c084fc);">0</div><div class="kpi-lbl">Master Ball</div></div>
+                        </div>
+                    </div>
+                    <div class="card" style="margin-top:10px;">
+                        <div class="card-title" style="margin-bottom:10px;">Cura & Revives</div>
+                        <div class="kpi-grid">
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-potion-basic" style="color:var(--emerald);">0</div><div class="kpi-lbl">Potion</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-potion-super" style="color:var(--emerald);">0</div><div class="kpi-lbl">Super P.</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-potion-hyper" style="color:var(--emerald);">0</div><div class="kpi-lbl">Hyper P.</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-potion-max" style="color:var(--emerald);">0</div><div class="kpi-lbl">Max P.</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-revive" style="color:var(--amber, #f59e0b);">0</div><div class="kpi-lbl">Revive</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-max-revive" style="color:var(--amber, #f59e0b);">0</div><div class="kpi-lbl">Max Revive</div></div>
                         </div>
                     </div>
                 </div>
@@ -157,45 +168,107 @@
                 <!-- PANEL: CONFIG -->
                 <div id="panel-config" class="panel">
                     <div class="card">
-                        <div class="card-title" style="margin-bottom:10px;">Parâmetros da Estratégia</div>
+                        <div class="card-title" style="margin-bottom:6px;">Parâmetros da Estratégia</div>
                         <div class="form-group">
+                            <!-- COMBATE -->
+                            <div class="form-section-title">⚔️ Duelo & Combate</div>
+                            <div class="form-item">
+                                <label>Seleção de Golpes</label>
+                                <select id="cfg-move-mode" class="form-control" style="width:135px;">
+                                    <option value="smart">Inteligente</option>
+                                    <option value="max_damage">Dano Máximo</option>
+                                    <option value="first">Primeiro Golpe</option>
+                                </select>
+                            </div>
+                            <div class="form-item">
+                                <label>Fugir se HP Próprio &lt; (%)</label>
+                                <input type="number" id="cfg-flee" class="form-control" style="width:65px;" min="5" max="60">
+                            </div>
+
+                            <!-- CAPTURA -->
+                            <div class="form-section-title">🎯 Captura & Esferas</div>
+                            <div class="form-item">
+                                <label>Capturar se HP Inimigo &lt; (%)</label>
+                                <input type="number" id="cfg-catch" class="form-control" style="width:65px;" min="10" max="90">
+                            </div>
+                            <div class="form-item">
+                                <label>Prioridade de Esferas</label>
+                                <select id="cfg-ball-priority" class="form-control" style="width:135px;">
+                                    <option value="balanced">Balanceada (por HP)</option>
+                                    <option value="economy">Econômica (Poké 1º)</option>
+                                    <option value="force_highest">Forçar Ultra Ball</option>
+                                </select>
+                            </div>
+                            <div class="form-item">
+                                <label>Capturar Apenas Shinies ✨</label>
+                                <input type="checkbox" id="cfg-only-shiny">
+                            </div>
+                            <div class="form-item">
+                                <label>Capturar Apenas Não Registrados</label>
+                                <input type="checkbox" id="cfg-only-uncaught">
+                            </div>
+
+                            <!-- CURA & REVIVE -->
+                            <div class="form-section-title">🧪 Poções & Revive</div>
+                            <div class="form-item">
+                                <label>Curar se HP Próprio &lt; (%)</label>
+                                <input type="number" id="cfg-potion" class="form-control" style="width:65px;" min="5" max="60">
+                            </div>
+                            <div class="form-item">
+                                <label>Modo de Poção</label>
+                                <select id="cfg-potion-mode" class="form-control" style="width:135px;">
+                                    <option value="smart">Inteligente (Déficit)</option>
+                                    <option value="potion">Potion (+20)</option>
+                                    <option value="super-potion">Super Potion (+50)</option>
+                                    <option value="hyper-potion">Hyper Potion (+200)</option>
+                                    <option value="max-potion">Max Potion (100%)</option>
+                                </select>
+                            </div>
+                            <div class="form-item">
+                                <label>Usar Revive em Batalha</label>
+                                <input type="checkbox" id="cfg-revive-battle">
+                            </div>
+                            <div class="form-item">
+                                <label>Usar Revive Fora de Combate</label>
+                                <input type="checkbox" id="cfg-revive-overworld">
+                            </div>
+                            <div class="form-item">
+                                <label>Auto-Heal no Centro Pokémon</label>
+                                <input type="checkbox" id="cfg-auto-heal-center">
+                            </div>
+
+                            <!-- NAVEGAÇÃO & ECONOMIA -->
+                            <div class="form-section-title">🗺️ Mapa & Economia</div>
+                            <div class="form-item">
+                                <label>Auto-Patrulha na Grama</label>
+                                <input type="checkbox" id="cfg-auto-roam">
+                            </div>
+                            <div class="form-item">
+                                <label>Delay entre Passos (ms)</label>
+                                <input type="number" id="cfg-roam-delay" class="form-control" style="width:65px;" min="150" max="1000" step="50">
+                            </div>
                             <div class="form-item">
                                 <label>Modo Estratégico</label>
-                                <select id="cfg-strategy" class="form-control">
+                                <select id="cfg-strategy" class="form-control" style="width:135px;">
                                     <option value="balanced">Equilibrado (50/50)</option>
                                     <option value="collection">Foco Coleção</option>
                                     <option value="monetize">Monetização</option>
                                 </select>
                             </div>
                             <div class="form-item">
-                                <label>Mínimo IV para Coleção</label>
-                                <input type="number" id="cfg-iv-col" class="form-control" style="width:75px;" min="100" max="186">
+                                <label>Mínimo IV Coleção</label>
+                                <input type="number" id="cfg-iv-col" class="form-control" style="width:65px;" min="100" max="186">
                             </div>
                             <div class="form-item">
-                                <label>IV para Descarte/Venda</label>
-                                <input type="number" id="cfg-iv-sell" class="form-control" style="width:75px;" min="100" max="186">
-                            </div>
-                            <div class="form-item">
-                                <label>Fugir se HP Próprio &lt; (%)</label>
-                                <input type="number" id="cfg-flee" class="form-control" style="width:75px;" min="5" max="60">
-                            </div>
-                            <div class="form-item">
-                                <label>Poção se HP Próprio &lt; (%)</label>
-                                <input type="number" id="cfg-potion" class="form-control" style="width:75px;" min="5" max="60">
-                            </div>
-                            <div class="form-item">
-                                <label>Capturar se HP Inimigo &lt; (%)</label>
-                                <input type="number" id="cfg-catch" class="form-control" style="width:75px;" min="10" max="90">
-                            </div>
-                            <div class="form-item">
-                                <label>Auto-Patrulha no Mapa</label>
-                                <input type="checkbox" id="cfg-auto-roam">
+                                <label>IV Descarte/Venda</label>
+                                <input type="number" id="cfg-iv-sell" class="form-control" style="width:65px;" min="100" max="186">
                             </div>
                             <div class="form-item">
                                 <label>Auto-Idle Nativo</label>
                                 <input type="checkbox" id="cfg-auto-idle">
                             </div>
-                            <button onclick="saveBotSettings()" class="tb-btn primary" style="margin-top:10px; width:100%; padding:8px;">
+
+                            <button onclick="saveBotSettings()" class="tb-btn primary" style="margin-top:12px; width:100%; padding:9px;">
                                 💾 Salvar Ajustes
                             </button>
                         </div>

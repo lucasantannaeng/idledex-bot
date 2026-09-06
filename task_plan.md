@@ -79,3 +79,17 @@
 - [x] Validate isolation and BFS engine with unit test suites (`scratch/test_engine.js` and `scratch/test_isolation.js`).
 - [x] Recompile full portable desktop distribution in `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
 
+## Phase 11: Deep Reverse Engineering & Full Variable Control Matrix
+- [x] Download and reverse engineer the complete production bundle (`index-C3hpUun1.js`), extracting all item definitions, multipliers, formulas, and schemas.
+- [x] Reverse engineer ball capture multipliers (`soe` table: Poke 1x, Great 2x, Ultra 4x, Master 100x).
+- [x] Reverse engineer potion healing values (`potion` 20, `super-potion` 50, `hyper-potion` 200, `max-potion` 100%) and smart deficit escalation algorithm.
+- [x] Reverse engineer revives (`revive` 50% HP, `max-revive` 100% HP) for in-battle duel items and overworld `item:use`.
+- [x] Reverse engineer Pokémon Center / Nurse Joy auto-heal protocol (`heal:full` with `{ creatureIds }`).
+- [x] Implement elemental type effectiveness chart (`TYPE_CHART`) for smart move selection with weakness exploitation (2x) and resistance avoidance.
+- [x] Expand `config.py` with granular parameters (`potion_mode`, `use_revive_battle`, `use_revive_overworld`, `auto_heal_center`, `catch_only_shiny`, `catch_only_uncaught`, `ball_priority`, `move_selection_mode`, `roam_step_delay_ms`).
+- [x] Update `preload-game.js` with comprehensive decision tree and full inventory cataloging (balls, potions, revives).
+- [x] Redesign UI settings panel (`app/index.html`, `app/styles.css`, `app/app.js`) into 4 dedicated sections (Combate, Captura, Poções & Revive, Mapa & Economia) with expanded inventory KPI grid.
+- [x] Develop automated test suite (`scratch/test_decision_suite.js`) verifying all 4 decision domains with exit code 0.
+- [x] Recompile portable desktop application in `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
+
+

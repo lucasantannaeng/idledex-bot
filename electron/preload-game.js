@@ -35,8 +35,17 @@ function initMainWorldEngine() {
         iv_collection_threshold: 150,
         iv_sell_threshold: 120,
         flee_hp_pct: 0.30,
-        potion_hp_pct: 0.30,
+        potion_hp_pct: 0.35,
+        potion_mode: 'smart', // 'smart', 'potion', 'super-potion', 'hyper-potion', 'max-potion'
+        use_revive_battle: true,
+        use_revive_overworld: true,
+        auto_heal_center: true,
         catch_hp_pct: 0.50,
+        catch_only_shiny: false,
+        catch_only_uncaught: false,
+        ball_priority: 'balanced', // 'balanced', 'economy', 'force_highest'
+        move_selection_mode: 'smart', // 'smart', 'max_damage', 'first'
+        roam_step_delay_ms: 300,
         auto_idle: true,
         auto_roam: true,
     };
@@ -74,8 +83,14 @@ function initMainWorldEngine() {
     let grassTiles = [];
     let loadingMap = false;
 
+    let canRevive = true;
     let progress = { rank: 1, xp: 0, wins: 0, losses: 0, captures: 0, shinies: 0 };
-    let inventory = { ball: { pokeball: 0, greatball: 0, ultraball: 0 }, potion: 0 };
+    let inventory = {
+        ball: { pokeball: 0, greatball: 0, ultraball: 0, masterball: 0 },
+        potions: { potion: 0, "super-potion": 0, "hyper-potion": 0, "max-potion": 0 },
+        revives: { revive: 0, "max-revive": 0 },
+        potion: 0
+    };
     let wallet = { coins: 0, crystals: 0 };
     let collection = {};
     let team = [];
@@ -354,28 +369,162 @@ function initMainWorldEngine() {
         }
     }
 
+    
+    // --- ELEMENTAL TYPE CHART & SMART COMBAT ENGINE ---
+    const TYPE_CHART = {
+        normal: { rock: 0.5, ghost: 0, steel: 0.5 },
+        fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
+        water: { fire: 2, water: 0.5, grass: 0.5, ground: 2, rock: 2, dragon: 0.5 },
+        electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0, flying: 2, dragon: 0.5 },
+        grass: { fire: 0.5, water: 2, grass: 0.5, poison: 0.5, ground: 2, flying: 0.5, bug: 0.5, rock: 2, dragon: 0.5, steel: 0.5 },
+        ice: { fire: 0.5, water: 0.5, grass: 2, ice: 0.5, ground: 2, flying: 2, dragon: 2, steel: 0.5 },
+        fighting: { normal: 2, ice: 2, poison: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 2, ghost: 0, dark: 2, steel: 2, fairy: 0.5 },
+        poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0, fairy: 2 },
+        ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0, bug: 0.5, rock: 2, steel: 2 },
+        flying: { electric: 0.5, grass: 2, fighting: 2, bug: 2, rock: 0.5, steel: 0.5 },
+        psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0, steel: 0.5 },
+        bug: { fire: 0.5, grass: 2, fighting: 0.5, poison: 0.5, flying: 0.5, psychic: 2, ghost: 0.5, dark: 2, steel: 0.5, fairy: 0.5 },
+        rock: { fire: 2, ice: 2, fighting: 0.5, ground: 0.5, flying: 2, bug: 2, steel: 0.5 },
+        ghost: { normal: 0, psychic: 2, ghost: 2, dark: 0.5 },
+        dragon: { dragon: 2, steel: 0.5, fairy: 0 },
+        dark: { fighting: 0.5, psychic: 2, ghost: 2, dark: 0.5, fairy: 0.5 },
+        steel: { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5, fairy: 2 },
+        fairy: { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 }
+    };
+
+    function getTypeEffectiveness(moveType, foeTypes) {
+        if (!moveType || !foeTypes) return 1.0;
+        const mt = String(moveType).toLowerCase();
+        const targets = Array.isArray(foeTypes) ? foeTypes : [foeTypes];
+        let multiplier = 1.0;
+        for (const ft of targets) {
+            if (!ft) continue;
+            const ftStr = String(ft).toLowerCase();
+            if (TYPE_CHART[mt] && TYPE_CHART[mt][ftStr] !== undefined) {
+                multiplier *= TYPE_CHART[mt][ftStr];
+            }
+        }
+        return multiplier;
+    }
+
+    function getBestPotion(currentHp, maxHp) {
+        const missingHp = Math.max(0, maxHp - currentHp);
+        const p = inventory.potions || {};
+
+        if (botConfig.potion_mode && botConfig.potion_mode !== "smart") {
+            const chosen = botConfig.potion_mode;
+            if (p[chosen] > 0) return chosen;
+        }
+
+        if (missingHp > 200 && p["max-potion"] > 0) return "max-potion";
+        if (missingHp > 80 && p["hyper-potion"] > 0) return "hyper-potion";
+        if (missingHp > 30 && p["super-potion"] > 0) return "super-potion";
+        if (p["potion"] > 0) return "potion";
+
+        if (p["super-potion"] > 0) return "super-potion";
+        if (p["hyper-potion"] > 0) return "hyper-potion";
+        if (p["max-potion"] > 0) return "max-potion";
+        return null;
+    }
+
+    function getBestRevive() {
+        const r = inventory.revives || {};
+        if (r["revive"] > 0) return "revive";
+        if (r["max-revive"] > 0) return "max-revive";
+        return null;
+    }
+
+    function getBestBall(foeHpPct, isShiny, isUncaught) {
+        const b = inventory.ball || {};
+
+        if (isShiny && b.masterball > 0) return "master-ball";
+
+        if (botConfig.ball_priority === "force_highest") {
+            if (b.ultraball > 0) return "ultra-ball";
+            if (b.greatball > 0) return "great-ball";
+            if (b.pokeball > 0) return "poke-ball";
+            if (b.masterball > 0) return "master-ball";
+            return null;
+        }
+
+        if (botConfig.ball_priority === "economy") {
+            if (b.pokeball > 0) return "poke-ball";
+            if (b.greatball > 0) return "great-ball";
+            if (b.ultraball > 0) return "ultra-ball";
+            if (b.masterball > 0) return "master-ball";
+            return null;
+        }
+
+        if (foeHpPct <= 0.20 && b.ultraball > 0) return "ultra-ball";
+        if (foeHpPct <= 0.35 && b.greatball > 0) return "great-ball";
+        if (b.pokeball > 0) return "poke-ball";
+        if (b.greatball > 0) return "great-ball";
+        if (b.ultraball > 0) return "ultra-ball";
+        if (b.masterball > 0) return "master-ball";
+
+        return null;
+    }
+
+    function selectBattleMove(foeTypes, foeHpPct, isCaptureTarget) {
+        if (!battleMoves || battleMoves.length === 0) return null;
+
+        const scoredMoves = battleMoves.map(m => {
+            const basePower = m.power || 0;
+            const eff = getTypeEffectiveness(m.type, foeTypes);
+            const score = basePower * eff;
+            return { ...m, eff, score };
+        });
+
+        if (botConfig.move_selection_mode === "first") {
+            return scoredMoves[0];
+        }
+
+        if (isCaptureTarget && foeHpPct <= (botConfig.catch_hp_pct + 0.25)) {
+            const damagingMoves = scoredMoves.filter(m => (m.power || 0) > 0);
+            if (damagingMoves.length > 0) {
+                damagingMoves.sort((a, b) => a.score - b.score);
+                return damagingMoves[0];
+            }
+        }
+
+        scoredMoves.sort((a, b) => b.score - a.score);
+        return scoredMoves[0];
+    }
+
     function updateInventory(data) {
         const items = Array.isArray(data) ? data : (data.items || []);
-        const balls = { pokeball: 0, greatball: 0, ultraball: 0 };
-        let potions = 0;
+        const balls = { pokeball: 0, greatball: 0, ultraball: 0, masterball: 0 };
+        const potions = { potion: 0, "super-potion": 0, "hyper-potion": 0, "max-potion": 0 };
+        const revives = { revive: 0, "max-revive": 0 };
+        let totalPotions = 0;
+
         for (const item of items) {
             if (!item) continue;
             const kind = String(item.kind || "").toLowerCase();
             const iid = String(item.id || item.itemId || "").toLowerCase();
             const qty = Number(item.quantity || item.qty || 1);
+
             if (kind.includes("ball") || iid.includes("ball")) {
-                if (iid.includes("ultra")) balls.ultraball += qty;
-                else if (iid.includes("great")) balls.greatball += qty;
+                if (iid.includes("master")) balls.masterball += qty;
+                else if (iid.includes("ultra")) balls.ultraball += qty;
+                else if (iid.includes("great") || iid.includes("super-ball")) balls.greatball += qty;
                 else balls.pokeball += qty;
-            } else if (kind.includes("potion") || iid.includes("potion") || kind.includes("heal")) {
-                potions += qty;
+            } else if (kind.includes("potion") || iid.includes("potion")) {
+                totalPotions += qty;
+                if (iid.includes("max")) potions["max-potion"] += qty;
+                else if (iid.includes("hyper")) potions["hyper-potion"] += qty;
+                else if (iid.includes("super")) potions["super-potion"] += qty;
+                else potions.potion += qty;
+            } else if (kind.includes("revive") || iid.includes("revive")) {
+                if (iid.includes("max")) revives["max-revive"] += qty;
+                else revives.revive += qty;
             }
         }
-        inventory = { ball: balls, potion: potions };
+
+        inventory = { ball: balls, potions, revives, potion: totalPotions };
         emitTelemetry();
     }
-
-    function handleGameMessage(msg) {
+function handleGameMessage(msg) {
         if (!msg) return;
         const t = msg.t || msg.type;
         const d = msg.d !== undefined ? msg.d : msg;
@@ -654,6 +803,7 @@ function initMainWorldEngine() {
             if (d.leaderMoves && Array.isArray(d.leaderMoves) && d.leaderMoves.length > 0) battleMoves = d.leaderMoves;
             if (d.canThrow !== undefined) canThrowBall = d.canThrow;
             if (d.canHeal !== undefined) canUsePotion = d.canHeal;
+            if (d.canRevive !== undefined) canRevive = d.canRevive;
             battleWindowOpen = (d.open !== false);
 
             emitTelemetry();
@@ -732,12 +882,63 @@ function initMainWorldEngine() {
         }
     }
 
-    // Process battle actions strictly using the active battleId and real DOM clicks
+    function checkOutOfBattleMaintenance() {
+        if (!activeWs || activeWs.readyState !== WebSocket.OPEN || inBattle || !botConfig.enabled) return;
+
+        // 1. Auto Revive in Overworld
+        if (botConfig.use_revive_overworld && Array.isArray(team) && team.length > 0) {
+            const faintedMember = team.find(m => m && (m.hp === 0 || m.isFainted));
+            if (faintedMember) {
+                const chosenRevive = getBestRevive();
+                if (chosenRevive) {
+                    logEvent(`💊 Revivendo ${faintedMember.name || 'Pokémon'} fora de combate com ${chosenRevive}...`, "info");
+                    sendEvent("item:use", { itemId: chosenRevive, creatureId: faintedMember.id, quantity: 1 });
+                    return;
+                }
+            }
+        }
+
+        // 2. Auto Heal at Pokémon Center / Nurse Joy
+        if (botConfig.auto_heal_center && Array.isArray(team) && team.length > 0) {
+            const totalHp = team.reduce((acc, m) => acc + (m.hp || 0), 0);
+            const totalMaxHp = team.reduce((acc, m) => acc + (m.maxHp || 100), 0);
+            const teamHpPct = totalMaxHp > 0 ? (totalHp / totalMaxHp) : 1.0;
+            const allFainted = team.every(m => m.hp === 0);
+
+            const hasPotions = (inventory.potion || 0) > 0;
+            const hasRevives = (inventory.revives && (inventory.revives.revive > 0 || inventory.revives["max-revive"] > 0));
+
+            if (allFainted || (teamHpPct <= 0.25 && !hasPotions && !hasRevives)) {
+                logEvent(`🏥 Acionando Centro Pokémon para cura global da equipe (HP Equipe: ${Math.round(teamHpPct * 100)}%)...`, "info");
+                sendEvent("heal:full", { creatureIds: team.map(m => m.id) });
+            }
+        }
+    }
+
+    // Process battle actions strictly using active battleId, full variable matrix and real DOM clicks
     function processBattleTurn() {
         if (!activeWs || activeWs.readyState !== WebSocket.OPEN || !currentBattleId || !inBattle || !botConfig.enabled) return;
 
         const myHpPct = (myMon && myMon.hpPercent !== undefined) ? myMon.hpPercent : 1.0;
         const foeHpPct = (enemyMon && enemyMon.hpPercent !== undefined) ? enemyMon.hpPercent : 1.0;
+        const myCurrentHp = (myMon && myMon.hp !== undefined) ? myMon.hp : Math.round(myHpPct * 100);
+        const myMaxHp = (myMon && myMon.maxHp !== undefined) ? myMon.maxHp : 100;
+
+        const isShiny = !!(enemyMon && (enemyMon.isShiny || enemyMon.shiny));
+        const foeSpecies = (enemyMon && (enemyMon.species || enemyMon.name)) || "";
+        const isUncaught = foeSpecies ? !collection[foeSpecies] : false;
+
+        // Determine if current wild foe qualifies for capture
+        let isCaptureTarget = false;
+        if (botConfig.catch_hp_pct > 0) {
+            if (botConfig.catch_only_shiny) {
+                isCaptureTarget = isShiny;
+            } else if (botConfig.catch_only_uncaught) {
+                isCaptureTarget = isUncaught;
+            } else {
+                isCaptureTarget = true;
+            }
+        }
 
         // 1. Flee emergency
         if (myHpPct <= botConfig.flee_hp_pct) {
@@ -748,75 +949,69 @@ function initMainWorldEngine() {
             return;
         }
 
-        // 2. Heal with potion
-        if (myHpPct <= botConfig.potion_hp_pct && inventory.potion > 0 && canUsePotion) {
-            logEvent("🧪 Utilizando poção de cura no combate...", "info");
-            const potionBtn = document.querySelector('button[data-item-id="potion"]') || document.querySelector('.hud-throw-ball[data-item-id*="potion"]');
-            if (potionBtn) potionBtn.click();
-            sendEvent("battle:item", { battleId: currentBattleId, itemId: "potion" });
-            return;
-        }
-
-        // 3. Catch wild creature with tiered balls
-        if (foeHpPct <= botConfig.catch_hp_pct && canThrowBall) {
-            let chosenBall = "poke-ball";
-            if (inventory.ball.ultraball > 0 && foeHpPct <= 0.20) chosenBall = "ultra-ball";
-            else if (inventory.ball.greatball > 0 && foeHpPct <= 0.35) chosenBall = "great-ball";
-            else if (inventory.ball.pokeball > 0) chosenBall = "poke-ball";
-            else if (inventory.ball.greatball > 0) chosenBall = "great-ball";
-            else if (inventory.ball.ultraball > 0) chosenBall = "ultra-ball";
-
-            logEvent(`🎯 Arremessando ${chosenBall} (HP Inimigo: ${Math.round(foeHpPct * 100)}%)`, "info");
-            const ballBtn = document.querySelector(`button[data-item-id="${chosenBall}"]`) || document.querySelector('.hud-throw-ball[data-item-id]');
-            if (ballBtn) ballBtn.click();
-            sendEvent("battle:item", { battleId: currentBattleId, itemId: chosenBall });
-            return;
-        }
-
-        // 4. Attack move with capture protection
-        // Dual inspection: memory moves + DOM move buttons
-        const domMoveButtons = Array.from(document.querySelectorAll('.hud-duel-move[data-move-id]'));
-        
-        let chosenMoveId = null;
-        let chosenMoveName = "Ataque";
-        let chosenMovePower = "?";
-
-        if (battleMoves && battleMoves.length > 0) {
-            // Sort moves by power descending
-            const sortedMoves = [...battleMoves].sort((a, b) => (b.power || 0) - (a.power || 0));
-            let chosenMove = sortedMoves[0];
-
-            // If foe is target for capture and close to catch threshold, choose weaker move to not KO
-            if (botConfig.catch_hp_pct > 0 && foeHpPct <= (botConfig.catch_hp_pct + 0.25)) {
-                const weakerMoves = sortedMoves.filter(m => (m.power || 0) > 0).reverse();
-                if (weakerMoves.length > 0) {
-                    chosenMove = weakerMoves[0];
+        // 2. Revive fallen teammates during battle (if enabled & permitted by duel state)
+        if (botConfig.use_revive_battle && canRevive && Array.isArray(team)) {
+            const faintedMember = team.find(m => m && (m.hp === 0 || m.isFainted));
+            if (faintedMember) {
+                const chosenRevive = getBestRevive();
+                if (chosenRevive) {
+                    logEvent(`💊 Revivendo ${faintedMember.name || 'Pokémon'} em combate com ${chosenRevive}...`, "info");
+                    const revBtn = document.querySelector(`button[data-item-id="${chosenRevive}"]`);
+                    if (revBtn) revBtn.click();
+                    sendEvent("battle:item", { battleId: currentBattleId, itemId: chosenRevive });
+                    return;
                 }
             }
+        }
 
-            chosenMoveId = chosenMove.id;
-            chosenMoveName = chosenMove.name || chosenMove.id;
-            chosenMovePower = chosenMove.power || "?";
-        } else if (domMoveButtons.length > 0) {
-            // Fallback: extract move ID directly from DOM buttons
+        // 3. Heal with potion (Smart Escalation / Configured Tier)
+        if (myHpPct <= botConfig.potion_hp_pct && canUsePotion) {
+            const chosenPotion = getBestPotion(myCurrentHp, myMaxHp);
+            if (chosenPotion) {
+                logEvent(`🧪 Utilizando ${chosenPotion} no combate (HP: ${Math.round(myHpPct * 100)}%)...`, "info");
+                const potionBtn = document.querySelector(`button[data-item-id="${chosenPotion}"]`) || document.querySelector('.hud-throw-ball[data-item-id*="potion"]');
+                if (potionBtn) potionBtn.click();
+                sendEvent("battle:item", { battleId: currentBattleId, itemId: chosenPotion });
+                return;
+            }
+        }
+
+        // 4. Catch wild creature with chosen ball
+        if (isCaptureTarget && foeHpPct <= botConfig.catch_hp_pct && canThrowBall) {
+            const chosenBall = getBestBall(foeHpPct, isShiny, isUncaught);
+            if (chosenBall) {
+                logEvent(`🎯 Arremessando ${chosenBall} (HP Inimigo: ${Math.round(foeHpPct * 100)}%${isShiny ? ' ✨SHINY' : ''})`, "info");
+                const ballBtn = document.querySelector(`button[data-item-id="${chosenBall}"]`) || document.querySelector('.hud-throw-ball[data-item-id]');
+                if (ballBtn) ballBtn.click();
+                sendEvent("battle:item", { battleId: currentBattleId, itemId: chosenBall });
+                return;
+            }
+        }
+
+        // 5. Attack move with elemental type advantage & capture protection
+        const domMoveButtons = Array.from(document.querySelectorAll('.hud-duel-move[data-move-id]'));
+        const foeTypes = (enemyMon && (enemyMon.types || enemyMon.type)) || [];
+        const chosenMove = selectBattleMove(foeTypes, foeHpPct, isCaptureTarget);
+
+        let chosenMoveId = chosenMove ? chosenMove.id : null;
+        let chosenMoveName = chosenMove ? (chosenMove.name || chosenMove.id) : "Ataque";
+        let chosenMovePower = chosenMove ? (chosenMove.power || "?") : "?";
+
+        if (!chosenMoveId && domMoveButtons.length > 0) {
             const firstBtn = domMoveButtons[0];
             chosenMoveId = firstBtn.getAttribute('data-move-id');
             chosenMoveName = firstBtn.innerText ? firstBtn.innerText.split('\n')[0] : "Ataque";
         }
 
         if (chosenMoveId) {
-            logEvent(`⚔️ Desferindo ${chosenMoveName} (Poder: ${chosenMovePower})`, "info");
+            const effMsg = (chosenMove && chosenMove.eff && chosenMove.eff > 1) ? " [SUPER EFETIVO!]" : "";
+            logEvent(`⚔️ Desferindo ${chosenMoveName} (Poder: ${chosenMovePower})${effMsg}`, "info");
 
-            // 1) Click the matching DOM button if present
             const targetBtn = document.querySelector(`button[data-move-id="${chosenMoveId}"]`) || domMoveButtons[0];
-            if (targetBtn) {
-                targetBtn.click();
-            }
+            if (targetBtn) targetBtn.click();
 
-            // 2) Send authoritative WebSocket packet
             sendEvent("battle:move", { battleId: currentBattleId, moveId: chosenMoveId });
         } else {
-            // Fallback click on any available duel move button in DOM
             const anyBtn = document.querySelector('.hud-duel-moves button:not([disabled])') || document.querySelector('.hud-duel-move');
             if (anyBtn) {
                 logEvent("⚔️ Acionando golpe disponível no HUD de batalha...", "info");
@@ -825,7 +1020,6 @@ function initMainWorldEngine() {
         }
     }
 
-    // Step player character via real keyboard events and WebSocket packet
     function stepInDirection(dir) {
         const keyMap = {
             N: "ArrowUp",
@@ -931,7 +1125,7 @@ function initMainWorldEngine() {
                 }
                 emitTelemetry();
             }
-        }, 300);
+        }, botConfig.roam_step_delay_ms || 300);
     }
 
     // Native WebSocket Hook in Main World

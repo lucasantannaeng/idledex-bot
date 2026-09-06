@@ -323,10 +323,21 @@ function updateStatsUI(progress, wallet) {
 
 function updateInventoryUI(inventory) {
     const balls = inventory.ball || {};
+    const potions = inventory.potions || {};
+    const revives = inventory.revives || {};
+
     setText('inv-pokeball', (balls.pokeball ?? 0).toLocaleString('pt-BR'));
     setText('inv-greatball', (balls.greatball ?? 0).toLocaleString('pt-BR'));
     setText('inv-ultraball', (balls.ultraball ?? 0).toLocaleString('pt-BR'));
-    setText('inv-potion', (inventory.potion ?? 0).toLocaleString('pt-BR'));
+    setText('inv-masterball', (balls.masterball ?? 0).toLocaleString('pt-BR'));
+
+    setText('inv-potion-basic', (potions.potion ?? 0).toLocaleString('pt-BR'));
+    setText('inv-potion-super', (potions['super-potion'] ?? 0).toLocaleString('pt-BR'));
+    setText('inv-potion-hyper', (potions['hyper-potion'] ?? 0).toLocaleString('pt-BR'));
+    setText('inv-potion-max', (potions['max-potion'] ?? 0).toLocaleString('pt-BR'));
+
+    setText('inv-revive', (revives.revive ?? 0).toLocaleString('pt-BR'));
+    setText('inv-max-revive', (revives['max-revive'] ?? 0).toLocaleString('pt-BR'));
 }
 
 function setText(id, text) {
@@ -400,8 +411,19 @@ function applyConfigToInputs(cfg) {
     setVal('cfg-iv-col', cfg.iv_collection_threshold || 150);
     setVal('cfg-iv-sell', cfg.iv_sell_threshold || 120);
     setVal('cfg-flee', Math.round((cfg.flee_hp_pct || 0.30) * 100));
-    setVal('cfg-potion', Math.round((cfg.potion_hp_pct || 0.30) * 100));
+    setVal('cfg-potion', Math.round((cfg.potion_hp_pct || 0.35) * 100));
+    setVal('cfg-potion-mode', cfg.potion_mode || 'smart');
+    setCheck('cfg-revive-battle', cfg.use_revive_battle !== false);
+    setCheck('cfg-revive-overworld', cfg.use_revive_overworld !== false);
+    setCheck('cfg-auto-heal-center', cfg.auto_heal_center !== false);
+
     setVal('cfg-catch', Math.round((cfg.catch_hp_pct || 0.50) * 100));
+    setCheck('cfg-only-shiny', !!cfg.catch_only_shiny);
+    setCheck('cfg-only-uncaught', !!cfg.catch_only_uncaught);
+    setVal('cfg-ball-priority', cfg.ball_priority || 'balanced');
+    setVal('cfg-move-mode', cfg.move_selection_mode || 'smart');
+    setVal('cfg-roam-delay', cfg.roam_step_delay_ms || 300);
+
     setCheck('cfg-auto-roam', cfg.auto_roam !== false);
     setCheck('cfg-auto-idle', cfg.auto_idle !== false);
 }
@@ -413,8 +435,17 @@ async function saveBotSettings() {
         iv_collection_threshold: parseInt(getVal('cfg-iv-col'), 10) || 150,
         iv_sell_threshold: parseInt(getVal('cfg-iv-sell'), 10) || 120,
         flee_hp_pct: (parseInt(getVal('cfg-flee'), 10) || 30) / 100,
-        potion_hp_pct: (parseInt(getVal('cfg-potion'), 10) || 30) / 100,
+        potion_hp_pct: (parseInt(getVal('cfg-potion'), 10) || 35) / 100,
+        potion_mode: getVal('cfg-potion-mode') || 'smart',
+        use_revive_battle: getCheck('cfg-revive-battle'),
+        use_revive_overworld: getCheck('cfg-revive-overworld'),
+        auto_heal_center: getCheck('cfg-auto-heal-center'),
         catch_hp_pct: (parseInt(getVal('cfg-catch'), 10) || 50) / 100,
+        catch_only_shiny: getCheck('cfg-only-shiny'),
+        catch_only_uncaught: getCheck('cfg-only-uncaught'),
+        ball_priority: getVal('cfg-ball-priority') || 'balanced',
+        move_selection_mode: getVal('cfg-move-mode') || 'smart',
+        roam_step_delay_ms: parseInt(getVal('cfg-roam-delay'), 10) || 300,
         auto_roam: getCheck('cfg-auto-roam'),
         auto_idle: getCheck('cfg-auto-idle'),
     };
@@ -433,6 +464,7 @@ async function saveBotSettings() {
 
     appendLog('💾 Parâmetros de estratégia salvos e aplicados ao jogo!', 'success');
 }
+
 
 function getVal(id) {
     const el = document.getElementById(id);

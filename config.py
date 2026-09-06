@@ -77,11 +77,21 @@ class BotConfig:
     iv_collection_threshold: int = 150
     iv_sell_threshold: int = 120
     flee_hp_pct: float = 0.30
-    potion_hp_pct: float = 0.30
+    potion_hp_pct: float = 0.35
+    potion_mode: str = "smart"  # smart, potion, super-potion, hyper-potion, max-potion
+    use_revive_battle: bool = True
+    use_revive_overworld: bool = True
+    auto_heal_center: bool = True
     catch_hp_pct: float = 0.50
+    catch_only_shiny: bool = False
+    catch_only_uncaught: bool = False
+    ball_priority: str = "balanced"  # balanced, economy, force_highest
+    move_selection_mode: str = "smart"  # smart, max_damage, first
+    roam_step_delay_ms: int = 300
     auto_idle: bool = True
     auto_roam: bool = True
     discord_webhook: str = ""
+
 
     @classmethod
     def load(cls, path: str = CONFIG_FILE_PATH) -> "BotConfig":
