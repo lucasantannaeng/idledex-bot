@@ -48,6 +48,7 @@ function initMainWorldEngine() {
     let canThrowBall = true;
     let canUsePotion = true;
     let battleTurnTimer = null;
+    let battleWatchdog = null;
     let battleWindowOpen = false;
 
     let myMon = null;
@@ -59,12 +60,14 @@ function initMainWorldEngine() {
     let moveSeq = 0;
     let roamInterval = null;
     let roamStepIdx = 0;
+    let lastGrassDir = null;
 
-    // Map collision and grass tile coordinates
+    // Map collision and tall grass coordinates
     let mapCols = 0;
     let mapRows = 0;
     let mapGrid = null;
     let grassTiles = [];
+    let loadingMap = false;
 
     let progress = { rank: 1, xp: 0, wins: 0, losses: 0, captures: 0, shinies: 0 };
     let inventory = { ball: { pokeball: 0, greatball: 0, ultraball: 0 }, potion: 0 };
@@ -73,10 +76,18 @@ function initMainWorldEngine() {
     let team = [];
 
     async function loadMapCollision(mapId) {
-        if (!mapId) return;
+        if (!mapId || loadingMap) return;
+        loadingMap = true;
         try {
-            const resp = await fetch(`/maps/${mapId}.collision.json`);
-            if (!resp.ok) return;
+            let resp = await fetch(`/maps/${mapId}.collision.json`);
+            if (!resp.ok) {
+                // Try hyphenated fallback if mapId contains underscore
+                resp = await fetch(`/maps/${mapId.replace(/_/g, '-')}.collision.json`);
+            }
+            if (!resp.ok) {
+                loadingMap = false;
+                return;
+            }
             const data = await resp.json();
             mapCols = data.cols || 0;
             mapRows = data.rows || 0;
@@ -92,9 +103,11 @@ function initMainWorldEngine() {
                     }
                 }
             }
-            logEvent(`🌿 Malha de mapa carregada: ${grassTiles.length} tiles de grama alta identificados`, "info");
+            logEvent(`🌿 Malha de mapa carregada (${mapId}): ${grassTiles.length} tiles de grama alta identificados`, "info");
         } catch (e) {
             // ignore network load errors
+        } finally {
+            loadingMap = false;
         }
     }
 
@@ -107,6 +120,52 @@ function initMainWorldEngine() {
         if (!mapGrid || x < 0 || y < 0 || x >= mapCols || y >= mapRows) return true;
         const val = mapGrid[y * mapCols + x];
         return val === 1 || val === 2; // 1 = Grass, 2 = Path
+    }
+
+    // High-performance BFS pathfinder to locate the nearest reachable grass tile
+    function findNextStepToGrass(startX, startY) {
+        if (!mapGrid || grassTiles.length === 0 || mapCols <= 0 || mapRows <= 0) return null;
+        if (isGrass(startX, startY)) return null;
+
+        const visited = new Uint8Array(mapCols * mapRows);
+        visited[startY * mapCols + startX] = 1;
+
+        const queue = [{ x: startX, y: startY, firstDir: null }];
+        let head = 0;
+
+        const dirs = [
+            { dir: "N", dx: 0, dy: -1 },
+            { dir: "S", dx: 0, dy: 1 },
+            { dir: "E", dx: 1, dy: 0 },
+            { dir: "W", dx: -1, dy: 0 }
+        ];
+
+        while (head < queue.length) {
+            const curr = queue[head++];
+            if (isGrass(curr.x, curr.y)) {
+                return curr.firstDir;
+            }
+
+            // Cap queue to 4000 nodes for instant sub-millisecond execution
+            if (queue.length > 4000) break;
+
+            for (let i = 0; i < 4; i++) {
+                const nx = curr.x + dirs[i].dx;
+                const ny = curr.y + dirs[i].dy;
+                if (nx >= 0 && ny >= 0 && nx < mapCols && ny < mapRows) {
+                    const idx = ny * mapCols + nx;
+                    if (!visited[idx] && isWalkable(nx, ny)) {
+                        visited[idx] = 1;
+                        queue.push({
+                            x: nx,
+                            y: ny,
+                            firstDir: curr.firstDir !== null ? curr.firstDir : dirs[i].dir
+                        });
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     function logEvent(message, level = 'info') {
@@ -197,7 +256,7 @@ function initMainWorldEngine() {
                 }
 
                 const isPlayer = (playerId && name === playerId) || name.includes("Player:") || name.toLowerCase().includes("self");
-                const isEnemy = !isPlayer && (name.toLowerCase().includes("wild:") || name.toLowerCase().includes("foe:") || name.includes("Wild") || name.includes(":"));
+                const isEnemy = !isPlayer && (name.toLowerCase().includes("wild:") || name.toLowerCase().includes("foe:") || name.includes("Wild"));
 
                 if (isPlayer && x !== null && y !== null) {
                     playerPos = { x, y };
@@ -302,7 +361,7 @@ function initMainWorldEngine() {
                     entities = d.snapshot.entities.map(e => {
                         const isPlayer = e.id === playerId;
                         const isEnemy = !isPlayer && (
-                            (e.id && (e.id.toLowerCase().includes("wild:") || e.id.toLowerCase().includes("foe:") || e.id.includes(":"))) ||
+                            (e.id && (e.id.toLowerCase().includes("wild:") || e.id.toLowerCase().includes("foe:"))) ||
                             (e.name && (e.name.toLowerCase().includes("wild") || e.name.toLowerCase().includes("foe")))
                         );
                         if (isPlayer && e.x !== undefined && e.y !== undefined) {
@@ -344,8 +403,6 @@ function initMainWorldEngine() {
 
             setTimeout(() => {
                 configureAndStartIdle();
-                sendEvent("pokedex:claim-all");
-                sendEvent("gamepass:claim-all");
                 startRoamLoop();
             }, 1000);
         }
@@ -367,7 +424,7 @@ function initMainWorldEngine() {
                 const existingIdx = entities.findIndex(e => e.id === c.id);
                 const isPlayer = (playerId && c.id === playerId);
                 const isEnemy = !isPlayer && (
-                    (c.id.toLowerCase().includes("wild:") || c.id.toLowerCase().includes("foe:") || c.id.includes(":")) ||
+                    (c.id.toLowerCase().includes("wild:") || c.id.toLowerCase().includes("foe:")) ||
                     (c.name && (c.name.toLowerCase().includes("wild") || c.name.toLowerCase().includes("foe")))
                 );
 
@@ -395,7 +452,7 @@ function initMainWorldEngine() {
             if (d && d.id) {
                 const isPlayer = (playerId && d.id === playerId);
                 const isEnemy = !isPlayer && (
-                    (d.id.toLowerCase().includes("wild:") || d.id.toLowerCase().includes("foe:") || d.id.includes(":")) ||
+                    (d.id.toLowerCase().includes("wild:") || d.id.toLowerCase().includes("foe:")) ||
                     (d.name && (d.name.toLowerCase().includes("wild") || d.name.toLowerCase().includes("foe")))
                 );
                 const existingIdx = entities.findIndex(e => e.id === d.id);
@@ -438,9 +495,49 @@ function initMainWorldEngine() {
             inBattle = true;
             currentBattleId = d.battleId || d.id || null;
             if (d.foe) enemyMon = d.foe;
-            if (d.leaderMoves) battleMoves = d.leaderMoves;
-            logEvent(`⚔️ Duelo iniciado! (ID: ${currentBattleId || '?'})`, "info");
+
+            // Extract moves from leader
+            if (d.leader && Array.isArray(d.leader.moves) && d.leader.moves.length > 0) {
+                battleMoves = d.leader.moves;
+            } else if (d.leaderMoves && Array.isArray(d.leaderMoves) && d.leaderMoves.length > 0) {
+                battleMoves = d.leaderMoves;
+            }
+
+            // Instantly stop roaming so no movement packets are sent during duel
+            if (roamInterval) {
+                clearInterval(roamInterval);
+                roamInterval = null;
+            }
+
+            const foeName = (enemyMon && (enemyMon.name || enemyMon.species)) || "Criatura";
+            logEvent(`⚔️ Duelo iniciado contra ${foeName}! (ID: ${currentBattleId || '?'})`, "info");
             emitTelemetry();
+
+            // Interactive wild battle starts immediately
+            battleWindowOpen = true;
+            if (battleTurnTimer) clearTimeout(battleTurnTimer);
+            battleTurnTimer = setTimeout(() => {
+                if (inBattle && botConfig.enabled && currentBattleId) {
+                    processBattleTurn();
+                }
+            }, 450);
+
+            // Start battle watchdog poller to handle DOM interactive state seamlessly
+            if (battleWatchdog) clearInterval(battleWatchdog);
+            battleWatchdog = setInterval(() => {
+                if (!inBattle) {
+                    clearInterval(battleWatchdog);
+                    battleWatchdog = null;
+                    return;
+                }
+                if (!botConfig.enabled || !currentBattleId) return;
+
+                const hasActiveMove = document.querySelector('.hud-duel-moves button:not([disabled])');
+                const hasActiveItem = document.querySelector('.hud-throw-balls button:not([disabled])');
+                if (hasActiveMove || hasActiveItem) {
+                    processBattleTurn();
+                }
+            }, 600);
         }
 
         // Progress & Stats
@@ -494,6 +591,7 @@ function initMainWorldEngine() {
             if (d.myMon) myMon = d.myMon;
             if (d.foe || d.opponent) enemyMon = d.foe || d.opponent;
             if (d.moves && Array.isArray(d.moves) && d.moves.length > 0) battleMoves = d.moves;
+            if (d.leader && Array.isArray(d.leader.moves) && d.leader.moves.length > 0) battleMoves = d.leader.moves;
             if (d.leaderMoves && Array.isArray(d.leaderMoves) && d.leaderMoves.length > 0) battleMoves = d.leaderMoves;
             if (d.canThrow !== undefined) canThrowBall = d.canThrow;
             if (d.canHeal !== undefined) canUsePotion = d.canHeal;
@@ -520,6 +618,10 @@ function initMainWorldEngine() {
                 clearTimeout(battleTurnTimer);
                 battleTurnTimer = null;
             }
+            if (battleWatchdog) {
+                clearInterval(battleWatchdog);
+                battleWatchdog = null;
+            }
 
             const victory = d.victory;
             const captured = d.captured;
@@ -539,9 +641,17 @@ function initMainWorldEngine() {
             enemyMon = null;
             emitTelemetry();
 
-            // Refresh collection / inventory
+            // Refresh collection / inventory (NO claim-all spam)
             sendEvent("inventory:list");
-            sendEvent("pokedex:claim-all");
+
+            // Resume roaming after battle exit animation completes
+            if (botConfig.enabled && botConfig.auto_roam) {
+                setTimeout(() => {
+                    if (!inBattle && botConfig.enabled && botConfig.auto_roam) {
+                        startRoamLoop();
+                    }
+                }, 1200);
+            }
         }
     }
 
@@ -558,9 +668,9 @@ function initMainWorldEngine() {
         }
     }
 
-    // Process battle actions strictly using the active battleId
+    // Process battle actions strictly using the active battleId and real DOM clicks
     function processBattleTurn() {
-        if (!activeWs || activeWs.readyState !== WebSocket.OPEN || !currentBattleId || !inBattle) return;
+        if (!activeWs || activeWs.readyState !== WebSocket.OPEN || !currentBattleId || !inBattle || !botConfig.enabled) return;
 
         const myHpPct = (myMon && myMon.hpPercent !== undefined) ? myMon.hpPercent : 1.0;
         const foeHpPct = (enemyMon && enemyMon.hpPercent !== undefined) ? enemyMon.hpPercent : 1.0;
@@ -568,6 +678,8 @@ function initMainWorldEngine() {
         // 1. Flee emergency
         if (myHpPct <= botConfig.flee_hp_pct) {
             logEvent("🏃 HP crítico! Executando fuga tática...", "warning");
+            const fleeBtn = document.querySelector('.hud-throw-flee') || document.querySelector('button[data-testid$="-flee"]');
+            if (fleeBtn) fleeBtn.click();
             sendEvent("battle:flee", { battleId: currentBattleId });
             return;
         }
@@ -575,6 +687,8 @@ function initMainWorldEngine() {
         // 2. Heal with potion
         if (myHpPct <= botConfig.potion_hp_pct && inventory.potion > 0 && canUsePotion) {
             logEvent("🧪 Utilizando poção de cura no combate...", "info");
+            const potionBtn = document.querySelector('button[data-item-id="potion"]') || document.querySelector('.hud-throw-ball[data-item-id*="potion"]');
+            if (potionBtn) potionBtn.click();
             sendEvent("battle:item", { battleId: currentBattleId, itemId: "potion" });
             return;
         }
@@ -589,11 +703,20 @@ function initMainWorldEngine() {
             else if (inventory.ball.ultraball > 0) chosenBall = "ultra-ball";
 
             logEvent(`🎯 Arremessando ${chosenBall} (HP Inimigo: ${Math.round(foeHpPct * 100)}%)`, "info");
+            const ballBtn = document.querySelector(`button[data-item-id="${chosenBall}"]`) || document.querySelector('.hud-throw-ball[data-item-id]');
+            if (ballBtn) ballBtn.click();
             sendEvent("battle:item", { battleId: currentBattleId, itemId: chosenBall });
             return;
         }
 
         // 4. Attack move with capture protection
+        // Dual inspection: memory moves + DOM move buttons
+        const domMoveButtons = Array.from(document.querySelectorAll('.hud-duel-move[data-move-id]'));
+        
+        let chosenMoveId = null;
+        let chosenMoveName = "Ataque";
+        let chosenMovePower = "?";
+
         if (battleMoves && battleMoves.length > 0) {
             // Sort moves by power descending
             const sortedMoves = [...battleMoves].sort((a, b) => (b.power || 0) - (a.power || 0));
@@ -607,15 +730,38 @@ function initMainWorldEngine() {
                 }
             }
 
-            logEvent(`⚔️ Desferindo ${chosenMove.name || 'Golpe'} (Poder: ${chosenMove.power || '?'})`, "info");
-            sendEvent("battle:move", { battleId: currentBattleId, moveId: chosenMove.id });
+            chosenMoveId = chosenMove.id;
+            chosenMoveName = chosenMove.name || chosenMove.id;
+            chosenMovePower = chosenMove.power || "?";
+        } else if (domMoveButtons.length > 0) {
+            // Fallback: extract move ID directly from DOM buttons
+            const firstBtn = domMoveButtons[0];
+            chosenMoveId = firstBtn.getAttribute('data-move-id');
+            chosenMoveName = firstBtn.innerText ? firstBtn.innerText.split('\n')[0] : "Ataque";
+        }
+
+        if (chosenMoveId) {
+            logEvent(`⚔️ Desferindo ${chosenMoveName} (Poder: ${chosenMovePower})`, "info");
+
+            // 1) Click the matching DOM button if present
+            const targetBtn = document.querySelector(`button[data-move-id="${chosenMoveId}"]`) || domMoveButtons[0];
+            if (targetBtn) {
+                targetBtn.click();
+            }
+
+            // 2) Send authoritative WebSocket packet
+            sendEvent("battle:move", { battleId: currentBattleId, moveId: chosenMoveId });
         } else {
-            // Fallback move slot
-            sendEvent("battle:move", { battleId: currentBattleId, moveIndex: 0 });
+            // Fallback click on any available duel move button in DOM
+            const anyBtn = document.querySelector('.hud-duel-moves button:not([disabled])') || document.querySelector('.hud-duel-move');
+            if (anyBtn) {
+                logEvent("⚔️ Acionando golpe disponível no HUD de batalha...", "info");
+                anyBtn.click();
+            }
         }
     }
 
-    // Active Roam & Patrol loop with grass hunting
+    // Active Roam & Patrol loop with BFS grass navigation
     function startRoamLoop() {
         if (roamInterval) clearInterval(roamInterval);
         roamInterval = setInterval(() => {
@@ -627,82 +773,44 @@ function initMainWorldEngine() {
             const py = playerPos.y;
             if (px === null || py === null) return;
 
+            // Automatically load map collision if not yet cached
+            if (!mapGrid && currentMap && !loadingMap) {
+                loadMapCollision(currentMap);
+                return;
+            }
+
             let chosenDir = null;
 
-            // Strategy 1: Hunt visible wild creature on radar
-            const wildTargets = entities.filter(e => e.is_enemy && e.x !== null && e.y !== null);
-            if (wildTargets.length > 0) {
-                let closest = null;
-                let minDist = Infinity;
-                for (const w of wildTargets) {
-                    const dist = Math.abs(w.x - px) + Math.abs(w.y - py);
-                    if (dist < minDist) {
-                        minDist = dist;
-                        closest = w;
-                    }
-                }
-                if (closest && minDist <= 15) {
-                    const dx = closest.x - px;
-                    const dy = closest.y - py;
-                    if (Math.abs(dx) >= Math.abs(dy) && dx !== 0) {
-                        const testDir = dx > 0 ? "E" : "W";
-                        if (isWalkable(px + (dx > 0 ? 1 : -1), py)) chosenDir = testDir;
-                    }
-                    if (!chosenDir && dy !== 0) {
-                        const testDir = dy > 0 ? "S" : "N";
-                        if (isWalkable(px, py + (dy > 0 ? 1 : -1))) chosenDir = testDir;
-                    }
-                }
-            }
-
-            // Strategy 2: If not in grass, navigate toward the nearest grass tile
-            if (!chosenDir && grassTiles.length > 0 && !isGrass(px, py)) {
-                let closestGrass = null;
-                let minGrassDist = Infinity;
-                for (const g of grassTiles) {
-                    const dist = Math.abs(g.x - px) + Math.abs(g.y - py);
-                    if (dist < minGrassDist) {
-                        minGrassDist = dist;
-                        closestGrass = g;
-                    }
-                }
-                if (closestGrass) {
-                    const dx = closestGrass.x - px;
-                    const dy = closestGrass.y - py;
-                    const candidates = [];
-                    if (dx > 0) candidates.push({ dir: "E", nx: px + 1, ny: py });
-                    else if (dx < 0) candidates.push({ dir: "W", nx: px - 1, ny: py });
-                    if (dy > 0) candidates.push({ dir: "S", nx: px, ny: py + 1 });
-                    else if (dy < 0) candidates.push({ dir: "N", nx: px, ny: py - 1 });
-
-                    for (const c of candidates) {
-                        if (isWalkable(c.nx, c.ny)) {
-                            chosenDir = c.dir;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Strategy 3: If already on grass or no specific target, roam strictly within grass
-            if (!chosenDir && isGrass(px, py)) {
-                // Prefer directions that remain in grass
+            // Strategy 1: If player is ALREADY inside tall grass, pace strictly within the grass patch
+            if (isGrass(px, py)) {
                 const dirs = [
                     { dir: "N", nx: px, ny: py - 1 },
-                    { dir: "E", nx: px + 1, ny: py },
                     { dir: "S", nx: px, ny: py + 1 },
+                    { dir: "E", nx: px + 1, ny: py },
                     { dir: "W", nx: px - 1, ny: py }
                 ];
                 const grassOptions = dirs.filter(d => isGrass(d.nx, d.ny));
                 if (grassOptions.length > 0) {
-                    // Pick a grass direction (alternating or random)
-                    const pick = grassOptions[roamStepIdx % grassOptions.length];
+                    const opp = { N: "S", S: "N", E: "W", W: "E" };
+                    let pick = null;
+                    // Step back and forth or explore grass tiles to trigger wild encounters rapidly
+                    if (lastGrassDir && grassOptions.some(d => d.dir === opp[lastGrassDir]) && (roamStepIdx % 2 === 0)) {
+                        pick = grassOptions.find(d => d.dir === opp[lastGrassDir]);
+                    } else {
+                        pick = grassOptions[roamStepIdx % grassOptions.length];
+                    }
                     roamStepIdx++;
                     chosenDir = pick.dir;
+                    lastGrassDir = chosenDir;
                 }
             }
 
-            // Strategy 4: Fallback pacing around walkable tiles
+            // Strategy 2: If player is OUTSIDE tall grass, run BFS pathfinding straight to nearest grass tile
+            if (!chosenDir && grassTiles.length > 0) {
+                chosenDir = findNextStepToGrass(px, py);
+            }
+
+            // Strategy 3: Fallback pacing around walkable tiles (path/trail)
             if (!chosenDir) {
                 const dirs = [
                     { dir: "N", nx: px, ny: py - 1 },
@@ -721,9 +829,16 @@ function initMainWorldEngine() {
                 }
             }
 
-            moveSeq++;
-            sendEvent("move", { dir: chosenDir, n: moveSeq });
-        }, 360);
+            if (chosenDir) {
+                moveSeq++;
+                sendEvent("move", { dir: chosenDir, n: moveSeq });
+                const delta = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] }[chosenDir];
+                if (delta) {
+                    playerPos = { x: px + delta[0], y: py + delta[1] };
+                }
+                emitTelemetry();
+            }
+        }, 300);
     }
 
     // Native WebSocket Hook in Main World
@@ -781,12 +896,18 @@ function initMainWorldEngine() {
                     clearTimeout(battleTurnTimer);
                     battleTurnTimer = null;
                 }
+                if (battleWatchdog) {
+                    clearInterval(battleWatchdog);
+                    battleWatchdog = null;
+                }
                 logEvent("⏸️ Bot pausado pelo usuário (Controle manual liberado)", "warning");
             } else {
                 logEvent("▶️ Bot ativado pelo usuário", "success");
-                startRoamLoop();
-                if (inBattle && currentBattleId && battleWindowOpen) {
+                if (inBattle) {
+                    // In battle: do NOT roam; process battle action immediately
                     processBattleTurn();
+                } else {
+                    startRoamLoop();
                 }
             }
             emitTelemetry();

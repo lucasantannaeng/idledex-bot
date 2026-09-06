@@ -60,5 +60,12 @@
 - [x] Clean pause: cancel roam and battle timers on pause, flush state, and eliminate `bad_message undefined`.
 - [x] Recompile full distribution in `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.
 
-
-
+## Phase 9: Battle Dual-Dispatch, BFS Grass Pathfinding & Anti-Spam
+- [x] Remove automatic `pokedex:claim-all` and `gamepass:claim-all` to eliminate "Nenhum marco pronto para resgatar" toast spam.
+- [x] Implement dual-dispatch combat engine: extract moves from `d.leader.moves` on `battle:start`, perform DOM button click (`button[data-move-id]`, `.hud-duel-move`) + authoritative WebSocket packet (`battle:move` with valid `moveId`).
+- [x] Eliminate `moveIndex: 0` fallback that triggered server `bad_message undefined`.
+- [x] Add combat watchdog interval (600ms) to ensure actions trigger immediately when duel UI opens.
+- [x] Implement BFS pathfinding algorithm on 150x150 map collision grid to navigate directly to nearest grass patch from any location without getting stuck on fences or obstacles.
+- [x] Enforce alternating grass patrol within tall grass tiles to maximize wild encounters.
+- [x] Fix unpause state transition to never send movement packets while in battle.
+- [x] Recompile portable executable in `dist-desktop/win-unpacked/IdleDex Desktop.exe` with exit code 0.

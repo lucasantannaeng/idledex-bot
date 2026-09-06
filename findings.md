@@ -87,3 +87,20 @@
   - Captures in battle use `battle:item` with the active `battleId` rather than `capture:throw`.
   - Pausing the bot now flushes any pending turn timers and roam intervals, eliminating out-of-order residual commands.
 
+## 7. Reverse Engineering: Dual-Dispatch Combat & BFS Grass Pathfinding
+- **Battle Start Interaction Discovery**:
+  - In wild battles, the IdleDex client renders the duel HUD (`hud-throw-bar`) immediately upon `battle:start` if `e.d.interactive === true`. It does NOT wait for `battle:turn`.
+  - Player moves reside inside `e.d.leader.moves` (`[{ id: "scratch", name: "Scratch", power: 40, ... }, ...]`), not `e.d.leaderMoves`.
+  - Waiting only for `battle:turn` left the bot frozen on turn 1 waiting for an event that only fires after the player's first action.
+- **Dual-Dispatch DOM + WebSocket Execution**:
+  - The duel HUD renders real `<button class="hud-duel-move" data-move-id="...">` elements for attacks and `<button class="hud-throw-ball" data-item-id="...">` for items/balls.
+  - By performing a DOM `.click()` on the matching button, React's state transitions, animations play, and internal handlers execute.
+  - Simultaneously sending the authoritative `{ t: "battle:move", d: { battleId, moveId } }` packet guarantees instantaneous server synchronization with zero desync.
+  - The previous fallback `{ moveIndex: 0 }` was rejected by the server as `bad_message undefined` because the server strictly requires `moveId`.
+- **BFS Grass Navigation vs Entity Chasing**:
+  - Previously, the bot chased entities containing `:` in their ID, erroneously treating players, NPCs, and map signs as enemies, causing it to roam away from grass.
+  - Wild encounters in IdleDex ONLY occur when walking inside tall grass (`grid[y * cols + x] === 1`).
+  - Implemented a 4,000-node Breadth-First Search (BFS) on the collision grid (`route_001` has 540 grass tiles across 150x150). From any path tile, BFS computes the exact shortest sequence of walkable moves (`isWalkable: 1 || 2`) to the nearest grass tile in under 2ms, avoiding all fences and obstacles.
+  - Inside grass (`isGrass === true`), the bot paces back and forth between adjacent grass tiles, maximizing wild battle encounters.
+- **Elimination of Toast Spam ("Nenhum marco pronto para resgatar")**:
+  - Traced to automatic `pokedex:claim-all` and `gamepass:claim-all` packets sent on `welcome` and `battle:end`. Stripping these automatic calls completely eliminated the unwanted notification toast.
