@@ -124,3 +124,28 @@
   - Run comprehensive automated test suite (`scratch/test_v22_suite.js`) passing 100% with exit code 0.
 - [x] Package portable standalone distribution:
   - Recompile `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack`.
+
+## Phase 13: Systematic Debugging — Single Dispatch Engine, Takeover Immunity & Throw Bar Synchronization (v2.2.1)
+- [x] Diagnose root cause of `[Jogo] [server] bad_message undefined`:
+  - Identified dual-dispatch race condition: DOM `.click()` triggered internal React `F.emit` $\rightarrow$ WebSocket, followed immediately by secondary `sendEvent`.
+  - Identified watchdog polling desync: actions re-dispatched during animation phase without in-flight lock.
+  - Identified premature execution at `battle:start` before the throw window opened.
+- [x] Diagnose root cause of "miss click opening game options":
+  - Traced to un-scoped `.hud-duel-move` selector matching `<button class="hud-duel-move hud-throw-takeover">`.
+  - Clicking this button opened the Premium Gamepass modal when in auto or takeover state.
+- [x] Diagnose capture and item failure:
+  - Traced to state flags not resetting on battle start, items rendered with `.hud-throw-ball` class for both balls and potions, and secondary packet sends when buttons were disabled on server.
+- [x] Implement single dispatch engine (`executeBattleAction`):
+  - Ensures exactly ONE action per turn (DOM click IF enabled, OR single WebSocket packet IF element is absent/headless). Never both.
+- [x] Implement in-flight turn lock (`actionInFlight` and `lastTurnNumber`):
+  - Prevents watchdog or timer from firing duplicate actions while animations or turns are in progress.
+- [x] Implement throw bar state guard (`isThrowBarOpen`):
+  - Verifies `data-open` attribute and confirms `.hud-duel-waiting` is absent before allowing any action dispatch.
+- [x] Implement strict move selector and takeover immunity:
+  - Scoped strictly inside `.hud-duel-moves` and excludes `.hud-throw-takeover`.
+- [x] Filter console log messages in `app/app.js`:
+  - Suppressed harmless internal codes (`bad_message`, `in_battle_move`, `chat_empty`) matching official client logic.
+- [x] Create regression test suite (`scratch/test_battle_engine_fix.js`):
+  - Validated takeover immunity, in-flight locking, and turn reset passing with exit code 0.
+- [x] Recompile portable standalone distribution:
+  - Recompiled `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack`.

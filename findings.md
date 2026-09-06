@@ -179,4 +179,27 @@
       - **C**: IV < 60%.
     - Emits live desktop telemetry and chat notification with detailed stats (e.g. `[CAPTURA] Gengar Nv.32 capturado! IVs: 165/186 (88.7%) | Nature: Timid (⭐ ÓTIMA) | Nota: S`).
 
+## 10. Systematic Debugging: `bad_message undefined`, "Miss Click" Modal & Action Lifecycles (Phase 13)
+- **Symptom 1: `[Jogo] [server] bad_message undefined`**:
+  - **Root Cause A (Dual-Dispatch Race Condition)**: In `preload-game.js`, action dispatches called `button.click()` AND `sendEvent(...)` sequentially. In the official game engine (`index-C3hpUun1.js`), `button.click()` calls React's `onPick` which already calls `F.emit("battle:...", ...)` $\rightarrow$ `socket.send()`. Calling `sendEvent` immediately afterwards dispatched a second WebSocket packet for the exact same turn (<1ms apart). The server accepted the first command, committed the turn, and rejected the second packet with `{ t: "error", d: { code: "bad_message" } }`.
+  - **Root Cause B (Watchdog Poller Desync)**: The `battleWatchdog` polled every 600ms without an in-flight guard (`actionInFlight`). During attack animations (lasting up to 1500ms), the watchdog saw that the battle was still active and re-invoked `processBattleTurn()`, spamming additional actions while the server was awaiting animation acknowledgment.
+  - **Root Cause C (Premature Dispatch on `battle:start`)**: On `battle:start`, the client is still loading actor sprites (`r.ready = fm(...)`) and the throw window is NOT open (`throwOpen: false`). A blind `setTimeout(450ms)` called `processBattleTurn()` before `battle:turn` arrived or before the throw window opened.
+- **Symptom 2: "Opções do jogo são abertas como se fosse um miss click"**:
+  - **Root Cause**: On line 1224 of `preload-game.js`, the fallback move selector used `document.querySelector('.hud-duel-moves button:not([disabled])') || document.querySelector('.hud-duel-move')`.
+  - In `index-C3hpUun1.js`, when a battle is in auto or takeover state, the HUD renders:
+    `<button class="hud-duel-move hud-throw-takeover" data-testid="hud-throw-takeover">`.
+  - Because this button has class `hud-duel-move`, the bot's un-scoped query clicked the takeover button!
+  - Clicking `.hud-throw-takeover` checks if the player owns the premium pass (`m = cv(r)`). If not (`!m`), it opens the Gamepass / Takeover Store purchase modal in the center of the screen!
+- **Symptom 3: Captura e uso de itens não funcionando**:
+  - **Root Cause**: In wild battles, the throw bar (`.hud-throw-bar`) only renders balls and potions if `canThrow` and `canHeal` are true, and renders them disabled if `quantity <= 0` or if the throw window is not open (`!data-open`).
+  - `canThrowBall` and `canUsePotion` were initialized to `true` and never reset on battle start.
+  - When the bot attempted to throw a ball or use a potion that was disabled in the DOM, the click failed silently, and the secondary `sendEvent` was rejected by the server because the action was not permitted on that turn.
+- **Architectural Solution (Single Dispatch & Throw Window Guard)**:
+  1. **Single Dispatch Engine (`executeBattleAction`)**: Dispatches via DOM button click IF present and enabled, OR via single WebSocket packet IF element is absent/headless. Never calls both.
+  2. **In-Flight Turn Lock (`actionInFlight` & `lastTurnNumber`)**: Locks dispatch immediately upon firing an action. Unlocked ONLY when a new turn arrives from the server (`d.turn !== lastTurnNumber` or `d.open === true`).
+  3. **Throw Bar State Guard (`isThrowBarOpen`)**: Checks that `.hud-throw-bar` has `data-open` and does NOT have `.hud-duel-waiting`. No actions are dispatched during animations.
+  4. **Strict Move Selector & Takeover Immunity**: Move selection is scoped strictly inside `.hud-duel-moves` and explicitly excludes `.hud-throw-takeover` (`button.hud-duel-move:not([disabled]):not(.hud-throw-takeover)`).
+  5. **Console Log Filter**: In `app/app.js`, filtered out `bad_message`, `in_battle_move`, and `chat_empty` matching the official client's suppression logic (`!["bad_message","in_battle_move","chat_empty"].includes(t.code)`).
+
+
 

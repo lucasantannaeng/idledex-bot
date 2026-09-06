@@ -58,6 +58,8 @@ function initMainWorldEngine() {
 
     let activeWs = null;
     let inBattle = false;
+    let actionInFlight = false;
+    let lastTurnNumber = -1;
     let currentBattleId = null;
     let battleMoves = [];
     let canThrowBall = true;
@@ -889,16 +891,15 @@ function handleGameMessage(msg) {
             logEvent(`⚔️ Duelo iniciado contra ${foeName}! (ID: ${currentBattleId || '?'})`, "info");
             emitTelemetry();
 
-            // Interactive wild battle starts immediately
-            battleWindowOpen = true;
-            if (battleTurnTimer) clearTimeout(battleTurnTimer);
-            battleTurnTimer = setTimeout(() => {
-                if (inBattle && botConfig.enabled && currentBattleId) {
-                    processBattleTurn();
-                }
-            }, 450);
+            // Reset turn locks and state for new battle
+            actionInFlight = false;
+            canThrowBall = false;
+            canUsePotion = false;
+            canRevive = false;
+            lastTurnNumber = -1;
+            battleWindowOpen = false;
 
-            // Start battle watchdog poller to handle DOM interactive state seamlessly
+            // Start battle watchdog poller to handle DOM interactive state cleanly without duplicate dispatches
             if (battleWatchdog) clearInterval(battleWatchdog);
             battleWatchdog = setInterval(() => {
                 if (!inBattle) {
@@ -906,14 +907,12 @@ function handleGameMessage(msg) {
                     battleWatchdog = null;
                     return;
                 }
-                if (!botConfig.enabled || !currentBattleId) return;
+                if (!botConfig.enabled || !currentBattleId || actionInFlight) return;
 
-                const hasActiveMove = document.querySelector('.hud-duel-moves button:not([disabled])');
-                const hasActiveItem = document.querySelector('.hud-throw-balls button:not([disabled])');
-                if (hasActiveMove || hasActiveItem) {
+                if (isThrowBarOpen()) {
                     processBattleTurn();
                 }
-            }, 600);
+            }, 350);
         }
 
         // Progress & Stats
@@ -972,10 +971,18 @@ function handleGameMessage(msg) {
             if (d.moves && Array.isArray(d.moves) && d.moves.length > 0) battleMoves = d.moves;
             if (d.leader && Array.isArray(d.leader.moves) && d.leader.moves.length > 0) battleMoves = d.leader.moves;
             if (d.leaderMoves && Array.isArray(d.leaderMoves) && d.leaderMoves.length > 0) battleMoves = d.leaderMoves;
-            if (d.canThrow !== undefined) canThrowBall = d.canThrow;
-            if (d.canHeal !== undefined) canUsePotion = d.canHeal;
-            if (d.canRevive !== undefined) canRevive = d.canRevive;
+            if (d.canThrow !== undefined) canThrowBall = !!d.canThrow;
+            if (d.canHeal !== undefined) canUsePotion = !!d.canHeal;
+            if (d.canRevive !== undefined) canRevive = !!d.canRevive;
             battleWindowOpen = (d.open !== false);
+
+            // Unlock action dispatch on new turn from server
+            if (d.turn !== undefined && d.turn !== lastTurnNumber) {
+                lastTurnNumber = d.turn;
+                actionInFlight = false;
+            } else if (d.open === true) {
+                actionInFlight = false;
+            }
 
             emitTelemetry();
 
@@ -983,9 +990,11 @@ function handleGameMessage(msg) {
 
             if (battleTurnTimer) clearTimeout(battleTurnTimer);
             battleTurnTimer = setTimeout(() => {
-                if (!inBattle || !botConfig.enabled || !currentBattleId) return;
-                processBattleTurn();
-            }, 320);
+                if (!inBattle || !botConfig.enabled || !currentBattleId || actionInFlight) return;
+                if (isThrowBarOpen()) {
+                    processBattleTurn();
+                }
+            }, 300);
         }
 
         // Combat Finished
@@ -999,6 +1008,11 @@ function handleGameMessage(msg) {
             battleWindowOpen = false;
             currentBattleId = null;
             battleMoves = [];
+            actionInFlight = false;
+            canThrowBall = false;
+            canUsePotion = false;
+            canRevive = false;
+            lastTurnNumber = -1;
             if (battleTurnTimer) {
                 clearTimeout(battleTurnTimer);
                 battleTurnTimer = null;
@@ -1099,9 +1113,48 @@ function handleGameMessage(msg) {
         }
     }
 
+    
+    // Check if the duel throw/combat bar is open and ready to accept turn input
+    function isThrowBarOpen() {
+        const throwBar = document.querySelector('.hud-throw-bar');
+        if (!throwBar) {
+            // Fallback: check if move buttons are mounted and enabled
+            const enabledMoves = document.querySelectorAll('.hud-duel-moves button:not([disabled])');
+            return enabledMoves.length > 0;
+        }
+        if (throwBar.classList.contains('hud-duel-waiting')) return false;
+        return throwBar.hasAttribute('data-open') || !!document.querySelector('.hud-duel-moves button:not([disabled])');
+    }
+
+    // Execute battle action with single-dispatch guarantee (either DOM click OR WebSocket send, never both)
+    function executeBattleAction(actionType, payload, domSelector) {
+        if (actionInFlight) return false;
+
+        let clicked = false;
+        if (domSelector) {
+            const btn = document.querySelector(domSelector);
+            if (btn && !btn.disabled) {
+                actionInFlight = true;
+                btn.click();
+                clicked = true;
+            }
+        }
+
+        if (!clicked && payload) {
+            actionInFlight = true;
+            sendEvent(actionType, payload);
+        }
+
+        return true;
+    }
+
     // Process battle actions strictly using active battleId, full variable matrix and real DOM clicks
     function processBattleTurn() {
         if (!activeWs || activeWs.readyState !== WebSocket.OPEN || !currentBattleId || !inBattle || !botConfig.enabled) return;
+        if (actionInFlight) return; // Prevent duplicate commands for the current turn
+
+        // Ensure throw window is open and animations finished
+        if (!isThrowBarOpen()) return;
 
         const myHpPct = (myMon && myMon.hpPercent !== undefined) ? myMon.hpPercent : 1.0;
         const foeHpPct = (enemyMon && enemyMon.hpPercent !== undefined) ? enemyMon.hpPercent : 1.0;
@@ -1143,62 +1196,52 @@ function handleGameMessage(msg) {
         // Flee immediately if configured to flee from unselected species in this area
         if (shouldFleeUnselected) {
             logEvent(`🏃 Fugindo de ${foeSpecies} (${foeSpeciesId} não está na lista de alvos da área)...`, "info");
-            const fleeBtn = document.querySelector('.hud-throw-flee') || document.querySelector('button[data-testid$="-flee"]');
-            if (fleeBtn) fleeBtn.click();
-            sendEvent("battle:flee", { battleId: currentBattleId });
+            executeBattleAction("battle:flee", { battleId: currentBattleId }, '.hud-throw-balls .hud-throw-flee:not([disabled])');
             return;
         }
 
         // 1. Flee emergency
         if (myHpPct <= botConfig.flee_hp_pct) {
             logEvent("🏃 HP crítico! Executando fuga tática...", "warning");
-            const fleeBtn = document.querySelector('.hud-throw-flee') || document.querySelector('button[data-testid$="-flee"]');
-            if (fleeBtn) fleeBtn.click();
-            sendEvent("battle:flee", { battleId: currentBattleId });
+            executeBattleAction("battle:flee", { battleId: currentBattleId }, '.hud-throw-balls .hud-throw-flee:not([disabled])');
             return;
         }
 
-        // 2. Revive fallen teammates during battle (if enabled & permitted by duel state)
-        if (botConfig.use_revive_battle && canRevive && Array.isArray(team)) {
-            const faintedMember = team.find(m => m && (m.hp === 0 || m.isFainted));
-            if (faintedMember) {
-                const chosenRevive = getBestRevive();
-                if (chosenRevive) {
-                    logEvent(`💊 Revivendo ${faintedMember.name || 'Pokémon'} em combate com ${chosenRevive}...`, "info");
-                    const revBtn = document.querySelector(`button[data-item-id="${chosenRevive}"]`);
-                    if (revBtn) revBtn.click();
-                    sendEvent("battle:item", { battleId: currentBattleId, itemId: chosenRevive });
+        // 2. Heal with potion (Smart Escalation / Configured Tier)
+        if (myHpPct <= botConfig.potion_hp_pct && canUsePotion) {
+            const chosenPotion = getBestPotion(myCurrentHp, myMaxHp);
+            if (chosenPotion) {
+                const potionSelector = `.hud-throw-balls button.hud-throw-ball[data-item-id="${chosenPotion}"]:not([disabled])`;
+                const potionBtn = document.querySelector(potionSelector);
+                if (potionBtn) {
+                    logEvent(`🧪 Utilizando ${chosenPotion} no combate (HP: ${Math.round(myHpPct * 100)}%)...`, "info");
+                    executeBattleAction("battle:item", { battleId: currentBattleId, itemId: chosenPotion }, potionSelector);
                     return;
+                } else {
+                    // Potion button disabled or not rendered: fall through to attack
+                    logEvent(`🧪 ${chosenPotion} não disponível no HUD neste turno...`, "info");
                 }
             }
         }
 
-        // 3. Heal with potion (Smart Escalation / Configured Tier)
-        if (myHpPct <= botConfig.potion_hp_pct && canUsePotion) {
-            const chosenPotion = getBestPotion(myCurrentHp, myMaxHp);
-            if (chosenPotion) {
-                logEvent(`🧪 Utilizando ${chosenPotion} no combate (HP: ${Math.round(myHpPct * 100)}%)...`, "info");
-                const potionBtn = document.querySelector(`button[data-item-id="${chosenPotion}"]`) || document.querySelector('.hud-throw-ball[data-item-id*="potion"]');
-                if (potionBtn) potionBtn.click();
-                sendEvent("battle:item", { battleId: currentBattleId, itemId: chosenPotion });
-                return;
-            }
-        }
-
-        // 4. Catch wild creature with chosen ball
+        // 3. Catch wild creature with chosen ball
         if (isCaptureTarget && foeHpPct <= botConfig.catch_hp_pct && canThrowBall) {
             const chosenBall = getBestBall(foeHpPct, isShiny, isUncaught);
             if (chosenBall) {
-                logEvent(`🎯 Arremessando ${chosenBall} (HP Inimigo: ${Math.round(foeHpPct * 100)}%${isShiny ? ' ✨SHINY' : ''})`, "info");
-                const ballBtn = document.querySelector(`button[data-item-id="${chosenBall}"]`) || document.querySelector('.hud-throw-ball[data-item-id]');
-                if (ballBtn) ballBtn.click();
-                sendEvent("battle:item", { battleId: currentBattleId, itemId: chosenBall });
-                return;
+                const ballSelector = `.hud-throw-balls button.hud-throw-ball[data-item-id="${chosenBall}"]:not([disabled]):not(.hud-throw-flee)`;
+                const ballBtn = document.querySelector(ballSelector);
+                if (ballBtn) {
+                    logEvent(`🎯 Arremessando ${chosenBall} (HP Inimigo: ${Math.round(foeHpPct * 100)}%${isShiny ? ' ✨SHINY' : ''})`, "info");
+                    executeBattleAction("battle:item", { battleId: currentBattleId, itemId: chosenBall }, ballSelector);
+                    return;
+                } else {
+                    // Ball button disabled or not rendered: fall through to attack
+                    logEvent(`🎯 ${chosenBall} não disponível para arremesso neste turno...`, "info");
+                }
             }
         }
 
-        // 5. Attack move with elemental type advantage & capture protection
-        const domMoveButtons = Array.from(document.querySelectorAll('.hud-duel-move[data-move-id]'));
+        // 4. Attack move with elemental type advantage & capture protection
         const foeTypes = (enemyMon && (enemyMon.types || enemyMon.type)) || [];
         const chosenMove = selectBattleMove(foeTypes, foeHpPct, isCaptureTarget);
 
@@ -1206,26 +1249,27 @@ function handleGameMessage(msg) {
         let chosenMoveName = chosenMove ? (chosenMove.name || chosenMove.id) : "Ataque";
         let chosenMovePower = chosenMove ? (chosenMove.power || "?") : "?";
 
-        if (!chosenMoveId && domMoveButtons.length > 0) {
-            const firstBtn = domMoveButtons[0];
-            chosenMoveId = firstBtn.getAttribute('data-move-id');
-            chosenMoveName = firstBtn.innerText ? firstBtn.innerText.split('\n')[0] : "Ataque";
-        }
+        // Search strictly inside .hud-duel-moves (never touching .hud-throw-takeover!)
+        const targetBtnSelector = chosenMoveId
+            ? `.hud-duel-moves button.hud-duel-move[data-move-id="${chosenMoveId}"]:not([disabled]):not(.hud-throw-takeover)`
+            : null;
+        const fallbackBtnSelector = '.hud-duel-moves button.hud-duel-move:not([disabled]):not(.hud-throw-takeover)';
 
-        if (chosenMoveId) {
+        const targetBtn = targetBtnSelector ? document.querySelector(targetBtnSelector) : null;
+        const fallbackBtn = document.querySelector(fallbackBtnSelector);
+        const btnToClick = targetBtn || fallbackBtn;
+
+        if (btnToClick) {
+            const actualMoveId = btnToClick.getAttribute('data-move-id') || chosenMoveId;
+            const actualName = btnToClick.innerText ? btnToClick.innerText.split('\n')[0] : chosenMoveName;
             const effMsg = (chosenMove && chosenMove.eff && chosenMove.eff > 1) ? " [SUPER EFETIVO!]" : "";
-            logEvent(`⚔️ Desferindo ${chosenMoveName} (Poder: ${chosenMovePower})${effMsg}`, "info");
+            logEvent(`⚔️ Desferindo ${actualName} (Poder: ${chosenMovePower})${effMsg}`, "info");
 
-            const targetBtn = document.querySelector(`button[data-move-id="${chosenMoveId}"]`) || domMoveButtons[0];
-            if (targetBtn) targetBtn.click();
-
-            sendEvent("battle:move", { battleId: currentBattleId, moveId: chosenMoveId });
-        } else {
-            const anyBtn = document.querySelector('.hud-duel-moves button:not([disabled])') || document.querySelector('.hud-duel-move');
-            if (anyBtn) {
-                logEvent("⚔️ Acionando golpe disponível no HUD de batalha...", "info");
-                anyBtn.click();
-            }
+            executeBattleAction("battle:move", { battleId: currentBattleId, moveId: actualMoveId }, targetBtnSelector || fallbackBtnSelector);
+        } else if (chosenMoveId) {
+            // Fallback WebSocket dispatch if duel is open but buttons not rendered in DOM
+            logEvent(`⚔️ Desferindo ${chosenMoveName} via comando direto...`, "info");
+            executeBattleAction("battle:move", { battleId: currentBattleId, moveId: chosenMoveId }, null);
         }
     }
 

@@ -63,6 +63,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         });
 
         gameView.addEventListener('console-message', (e) => {
+            // Suppress internal harmless server codes matching upstream client logic
+            if (e.message.includes('bad_message') || e.message.includes('in_battle_move') || e.message.includes('chat_empty')) {
+                return;
+            }
             if (e.message.includes('[IdleDex') || e.message.includes('WebSocket') || e.level >= 2) {
                 appendLog(`[Jogo] ${e.message}`, e.level >= 2 ? 'warning' : 'info');
             }
