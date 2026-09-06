@@ -54,6 +54,11 @@ function initMainWorldEngine() {
     let myMon = null;
     let enemyMon = null;
     let playerId = null;
+    try {
+        const cachedId = sessionStorage.getItem('idledex_playerId');
+        if (cachedId) playerId = cachedId;
+    } catch (e) {}
+
     let currentMap = "";
     let playerPos = { x: null, y: null };
     let entities = [];
@@ -74,6 +79,26 @@ function initMainWorldEngine() {
     let wallet = { coins: 0, crystals: 0 };
     let collection = {};
     let team = [];
+
+    // Check if a battle packet belongs to the local player
+    function isMyBattle(d) {
+        if (!d) return false;
+        if (playerId) {
+            const p = String(playerId);
+            if (d.ownerId && String(d.ownerId) === p) return true;
+            if (d.foeOwnerId && String(d.foeOwnerId) === p) return true;
+            return false;
+        }
+        // If playerId is not yet set, inspect if this is an interactive battle for us
+        if (d.interactive === true) {
+            if (d.ownerId) {
+                playerId = String(d.ownerId);
+                try { sessionStorage.setItem('idledex_playerId', playerId); } catch (e) {}
+            }
+            return true;
+        }
+        return false;
+    }
 
     async function loadMapCollision(mapId) {
         if (!mapId || loadingMap) return;
@@ -225,6 +250,9 @@ function initMainWorldEngine() {
             if (flags & 0x01) {
                 ack = view.getUint32(offset, true);
                 offset += 4;
+                if (ack !== undefined) {
+                    moveSeq = Math.max(moveSeq, Number(ack));
+                }
             }
 
             if (offset + 2 > data.length) return null;
@@ -255,8 +283,13 @@ function initMainWorldEngine() {
                     dir = ["N", "E", "S", "W"][data[offset++]] || "S";
                 }
 
-                const isPlayer = (playerId && name === playerId) || name.includes("Player:") || name.toLowerCase().includes("self");
-                const isEnemy = !isPlayer && (name.toLowerCase().includes("wild:") || name.toLowerCase().includes("foe:") || name.includes("Wild"));
+                const idStr = String(name || "").toLowerCase();
+                const isPlayer = (playerId && String(name) === String(playerId)) || idStr.includes("self") || idStr.includes("player:");
+                const isEnemy = !isPlayer && (
+                    idStr.startsWith("wild:") ||
+                    idStr.startsWith("foe:") ||
+                    idStr.includes("wild")
+                );
 
                 if (isPlayer && x !== null && y !== null) {
                     playerPos = { x, y };
@@ -349,7 +382,10 @@ function initMainWorldEngine() {
 
         // Welcome Packet — Official IdleDex Initial State
         if (t === "welcome") {
-            if (d.playerId) playerId = d.playerId;
+            if (d.playerId) {
+                playerId = String(d.playerId);
+                try { sessionStorage.setItem('idledex_playerId', playerId); } catch (e) {}
+            }
             if (d.map) {
                 currentMap = d.map;
                 loadMapCollision(currentMap);
@@ -359,13 +395,17 @@ function initMainWorldEngine() {
             if (d.snapshot) {
                 if (Array.isArray(d.snapshot.entities)) {
                     entities = d.snapshot.entities.map(e => {
-                        const isPlayer = e.id === playerId;
+                        const idStr = String(e.id || "").toLowerCase();
+                        const nameStr = String(e.name || "").toLowerCase();
+                        const isPlayer = (playerId && String(e.id) === String(playerId)) || nameStr.includes("self");
                         const isEnemy = !isPlayer && (
-                            (e.id && (e.id.toLowerCase().includes("wild:") || e.id.toLowerCase().includes("foe:"))) ||
-                            (e.name && (e.name.toLowerCase().includes("wild") || e.name.toLowerCase().includes("foe")))
+                            idStr.startsWith("wild:") ||
+                            idStr.startsWith("foe:") ||
+                            nameStr.startsWith("wild") ||
+                            nameStr.startsWith("foe")
                         );
                         if (isPlayer && e.x !== undefined && e.y !== undefined) {
-                            playerPos = { x: e.x, y: e.y };
+                            playerPos = { x: Number(e.x), y: Number(e.y) };
                         }
                         return {
                             id: e.id,
@@ -409,25 +449,32 @@ function initMainWorldEngine() {
 
         // Authoritative Game State Updates (Player and Entity positions)
         else if (t === "state") {
+            if (d.ack !== undefined) {
+                moveSeq = Math.max(moveSeq, Number(d.ack));
+            }
+
             const rawEntities = d.entities || [];
             for (const c of rawEntities) {
                 if (!c || !c.id) continue;
 
+                const isPlayer = (playerId && String(c.id) === String(playerId));
+
                 // Self Position Update
-                if (playerId && c.id === playerId) {
-                    if (c.x !== undefined && c.y !== undefined) {
-                        playerPos = { x: c.x, y: c.y };
-                    }
+                if (isPlayer && c.x !== undefined && c.y !== undefined) {
+                    playerPos = { x: Number(c.x), y: Number(c.y) };
                 }
 
                 // Entity Delta Update
-                const existingIdx = entities.findIndex(e => e.id === c.id);
-                const isPlayer = (playerId && c.id === playerId);
+                const idStr = String(c.id || "").toLowerCase();
+                const nameStr = String(c.name || "").toLowerCase();
                 const isEnemy = !isPlayer && (
-                    (c.id.toLowerCase().includes("wild:") || c.id.toLowerCase().includes("foe:")) ||
-                    (c.name && (c.name.toLowerCase().includes("wild") || c.name.toLowerCase().includes("foe")))
+                    idStr.startsWith("wild:") ||
+                    idStr.startsWith("foe:") ||
+                    nameStr.startsWith("wild") ||
+                    nameStr.startsWith("foe")
                 );
 
+                const existingIdx = entities.findIndex(e => e.id === c.id);
                 const updated = {
                     id: c.id,
                     name: c.name || (existingIdx >= 0 ? entities[existingIdx].name : c.id),
@@ -450,10 +497,14 @@ function initMainWorldEngine() {
         // Entity Enters Visible Range
         else if (t === "entity:enter") {
             if (d && d.id) {
-                const isPlayer = (playerId && d.id === playerId);
+                const idStr = String(d.id || "").toLowerCase();
+                const nameStr = String(d.name || "").toLowerCase();
+                const isPlayer = (playerId && String(d.id) === String(playerId));
                 const isEnemy = !isPlayer && (
-                    (d.id.toLowerCase().includes("wild:") || d.id.toLowerCase().includes("foe:")) ||
-                    (d.name && (d.name.toLowerCase().includes("wild") || d.name.toLowerCase().includes("foe")))
+                    idStr.startsWith("wild:") ||
+                    idStr.startsWith("foe:") ||
+                    nameStr.startsWith("wild") ||
+                    nameStr.startsWith("foe")
                 );
                 const existingIdx = entities.findIndex(e => e.id === d.id);
                 const entry = {
@@ -485,13 +536,18 @@ function initMainWorldEngine() {
                 currentMap = d.map;
                 loadMapCollision(currentMap);
             }
-            if (d.x !== undefined && d.y !== undefined) playerPos = { x: d.x, y: d.y };
+            if (d.x !== undefined && d.y !== undefined) playerPos = { x: Number(d.x), y: Number(d.y) };
             logEvent(`🗺️ Transição de mapa para: ${currentMap}`, "info");
             emitTelemetry();
         }
 
         // Battle Start
         else if (t === "battle:start") {
+            // CRITICAL MULTI-PLAYER FIX: Ignore battles started by other players on the map!
+            if (!isMyBattle(d)) {
+                return;
+            }
+
             inBattle = true;
             currentBattleId = d.battleId || d.id || null;
             if (d.foe) enemyMon = d.foe;
@@ -586,8 +642,11 @@ function initMainWorldEngine() {
 
         // Combat Turn & Control
         else if (t === "battle:turn" || t === "battle:control") {
-            inBattle = true;
-            if (d.battleId) currentBattleId = d.battleId;
+            // CRITICAL MULTI-PLAYER FIX: Ignore turns from other players' battles!
+            if (!inBattle || !currentBattleId || d.battleId !== currentBattleId) {
+                return;
+            }
+
             if (d.myMon) myMon = d.myMon;
             if (d.foe || d.opponent) enemyMon = d.foe || d.opponent;
             if (d.moves && Array.isArray(d.moves) && d.moves.length > 0) battleMoves = d.moves;
@@ -610,6 +669,11 @@ function initMainWorldEngine() {
 
         // Combat Finished
         else if (t === "battle:end") {
+            // CRITICAL MULTI-PLAYER FIX: Ignore battle end events from other players!
+            if (!inBattle || !currentBattleId || d.battleId !== currentBattleId) {
+                return;
+            }
+
             inBattle = false;
             battleWindowOpen = false;
             currentBattleId = null;
@@ -761,6 +825,26 @@ function initMainWorldEngine() {
         }
     }
 
+    // Step player character via real keyboard events and WebSocket packet
+    function stepInDirection(dir) {
+        const keyMap = {
+            N: "ArrowUp",
+            S: "ArrowDown",
+            E: "ArrowRight",
+            W: "ArrowLeft"
+        };
+        const key = keyMap[dir];
+        if (key) {
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: key, key: key, bubbles: true }));
+            setTimeout(() => {
+                window.dispatchEvent(new KeyboardEvent('keyup', { code: key, key: key, bubbles: true }));
+            }, 80);
+        }
+
+        moveSeq++;
+        sendEvent("move", { dir, n: moveSeq });
+    }
+
     // Active Roam & Patrol loop with BFS grass navigation
     function startRoamLoop() {
         if (roamInterval) clearInterval(roamInterval);
@@ -769,9 +853,19 @@ function initMainWorldEngine() {
                 return;
             }
 
+            // Fallback position from player entity if playerPos not yet initialized
+            if (playerPos.x === null || playerPos.y === null) {
+                const self = entities.find(e => e.is_player || (playerId && String(e.id) === String(playerId)));
+                if (self && self.x !== null && self.y !== null) {
+                    playerPos = { x: self.x, y: self.y };
+                }
+            }
+
             const px = playerPos.x;
             const py = playerPos.y;
-            if (px === null || py === null) return;
+            if (px === null || py === null) {
+                return;
+            }
 
             // Automatically load map collision if not yet cached
             if (!mapGrid && currentMap && !loadingMap) {
@@ -830,8 +924,7 @@ function initMainWorldEngine() {
             }
 
             if (chosenDir) {
-                moveSeq++;
-                sendEvent("move", { dir: chosenDir, n: moveSeq });
+                stepInDirection(chosenDir);
                 const delta = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] }[chosenDir];
                 if (delta) {
                     playerPos = { x: px + delta[0], y: py + delta[1] };
