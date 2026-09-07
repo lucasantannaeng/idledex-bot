@@ -9,6 +9,7 @@ const fs = require('fs');
 
 // Enable Remote Debugging Protocol on port 9222 for live automated simulation & inspection
 app.commandLine.appendSwitch('remote-debugging-port', '9222');
+app.commandLine.appendSwitch('remote-allow-origins', '*');
 
 let mainWindow = null;
 let tray = null;

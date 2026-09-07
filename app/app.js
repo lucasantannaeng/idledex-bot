@@ -125,7 +125,16 @@ function handleTelemetry(data) {
     // Radar & Entities
     if (data.playerPos && data.playerPos.x !== null) {
         if (radarCoords) {
-            const grassTag = data.onGrass ? " 🌿 [Grama Alta]" : "";
+            let grassTag = "";
+            if (data.onGrass) {
+                const biome = String(data.currentMapBiome || "").toLowerCase();
+                if (biome.includes("cave")) grassTag = " 🪨 [Caverna Selvagem]";
+                else if (biome.includes("volcano")) grassTag = " 🌋 [Solo Vulcânico]";
+                else if (biome.includes("beach") || biome.includes("desert")) grassTag = " 🏖️ [Areia Selvagem]";
+                else if (biome.includes("snow") || biome.includes("glacier")) grassTag = " ❄️ [Neve Alta]";
+                else if (biome.includes("lake") || biome.includes("water") || biome.includes("swamp")) grassTag = " 🌾 [Juncos / Margem]";
+                else grassTag = " 🌿 [Grama Alta]";
+            }
             radarCoords.textContent = `Pos: (${data.playerPos.x}, ${data.playerPos.y})${grassTag}`;
         }
         drawRadar(data.entities || [], data.playerPos);

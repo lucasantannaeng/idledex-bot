@@ -214,3 +214,33 @@
   - Executed visual simulation driver (`scratch/live_simulation_driver.js`) with 6 distinct profiles live on user desktop.
   - App actively running in foreground with remote debugging port 9222 active and zero errors.
 
+## Phase 19: Detecção Precisa de Grama Alta & Eliminação de Falsos Positivos (v2.4.5)
+- [x] Investigação e Engenharia Reversa do Motor de Colisão (`index-C3hpUun1.js`):
+  - Comprovada semântica do grid de colisão: `Grass: 1`, `Path: 2`.
+  - Reversa da máscara de sobreposição superior (`art.fringeMask`): decodificação base64 para `Uint8Array` e teste bitwise `(fringeMask[r >> 3] & (1 << (r & 7))) !== 0` onde `r = y * cols + x`.
+  - Identificada causa raiz dos falsos positivos: 21% a 29% dos tiles com valor `1` em mapas arborizados são copas de árvores elevadas (`fringeMask`), telhados e marquises.
+  - Identificado ruído de pincel no level design: dezenas de spots com 1 único tile ou 2 tiles isolados junto a troncos e bordas intransitáveis.
+  - Corrigido `isWalkable(x, y)`: out-of-bounds agora retorna `false` (idêntico ao motor oficial `t2e.isWalkableAt`).
+- [x] Implementação do Algoritmo de Calibração em `electron/preload-game.js`:
+  - Implementadas funções `decodeFringeMask(b64)` e `isFringe(x, y)`.
+  - Em `loadMapCollision(mapId)`: pré-filtragem de tiles `mapGrid[idx] === 1 && !isFringe(x, y)` seguida de clusterização floodfill 2D.
+  - Poda de ruído: agrupamentos com tamanho `< 4` são descartados, retendo apenas aglomerados genuínos de grama alta ($\ge 4$ tiles) em `cleanGrassGrid` e `grassTiles`.
+  - Atualizado `isGrass(x, y)` para consultar estritamente `cleanGrassGrid` dentro dos limites do mapa.
+  - Atualizado `startRoamLoop()`: verifica `isWalkable(d.nx, d.ny) && isGrass(d.nx, d.ny)` e valida `isWalkable(px + delta[0], py + delta[1])` antes de dar o passo, eliminando desync contra obstáculos.
+  - Inclusão de `currentMapBiome` na telemetria.
+- [x] Indicador de Terreno Contextual por Bioma no Radar (`app/app.js`):
+  - Substituída a legenda estática `🌿 [Grama Alta]` por tags contextuais baseadas em `currentMapBiome`:
+    - `cave`: `🪨 [Caverna Selvagem]`
+    - `volcano`: `🌋 [Solo Vulcânico]`
+    - `beach` / `desert`: `🏖️ [Areia Selvagem]`
+    - `snow` / `glacier`: `❄️ [Neve Alta]`
+    - `lake` / `water` / `swamp`: `🌾 [Juncos / Margem]`
+    - `forest` / padrão: `🌿 [Grama Alta]`
+- [x] Verificação e Testes Automatizados:
+  - Criada suíte de testes `scratch/verify_grass_accuracy.js` testando 4 rotas reais (Route 1, 5, 10, 15).
+  - 100% de aprovação (0 tiles sob copas de árvore, ruídos podados, manchas reais preservadas).
+  - Executadas com sucesso todas as suítes de regressão (captura, auto-travel, economia, decisões).
+- [x] Sincronização e Validação em Execução:
+  - Sincronizados arquivos atualizados para `dist-desktop/win-unpacked/resources/app/`.
+  - App mantido aberto e visível no desktop do usuário com CDP ativo na porta 9222.
+

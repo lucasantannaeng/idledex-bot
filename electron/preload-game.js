@@ -93,11 +93,14 @@ function initMainWorldEngine() {
     let roamStepIdx = 0;
     let lastGrassDir = null;
 
-    // Map collision and tall grass coordinates
+    // Map collision, fringe mask, and validated tall grass coordinates
     let mapCols = 0;
     let mapRows = 0;
     let mapGrid = null;
+    let mapFringeMask = null;
+    let cleanGrassGrid = null;
     let grassTiles = [];
+    let currentMapBiome = "forest";
     let loadingMap = false;
 
     let canRevive = true;
@@ -220,6 +223,24 @@ function initMainWorldEngine() {
         return false;
     }
 
+    function decodeFringeMask(b64) {
+        if (!b64) return null;
+        try {
+            const raw = atob(b64);
+            const arr = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+            return arr;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function isFringe(x, y) {
+        if (!mapFringeMask || x < 0 || y < 0 || x >= mapCols || y >= mapRows) return false;
+        const r = y * mapCols + x;
+        return (mapFringeMask[r >> 3] & (1 << (r & 7))) !== 0;
+    }
+
     async function loadMapCollision(mapId) {
         if (!mapId || loadingMap) return;
         loadingMap = true;
@@ -236,19 +257,67 @@ function initMainWorldEngine() {
             const data = await resp.json();
             mapCols = data.cols || 0;
             mapRows = data.rows || 0;
+            currentMapBiome = data.biome || "forest";
             mapGrid = data.grid ? new Uint8Array(data.grid) : null;
+            mapFringeMask = decodeFringeMask(data.art && data.art.fringeMask);
+            cleanGrassGrid = (mapGrid && mapCols > 0) ? new Uint8Array(mapCols * mapRows) : null;
             grassTiles = [];
-            if (mapGrid && mapCols > 0) {
+
+            if (mapGrid && mapCols > 0 && mapRows > 0) {
+                // Step 1: Pre-filter tiles that are value 1 and NOT covered by fringe (tree canopies / roofs)
+                const candidateGrass = new Uint8Array(mapCols * mapRows);
                 for (let y = 0; y < mapRows; y++) {
                     for (let x = 0; x < mapCols; x++) {
-                        // 1 = Grass (l_.Grass)
-                        if (mapGrid[y * mapCols + x] === 1) {
-                            grassTiles.push({ x, y });
+                        const idx = y * mapCols + x;
+                        if (mapGrid[idx] === 1 && !isFringe(x, y)) {
+                            candidateGrass[idx] = 1;
+                        }
+                    }
+                }
+
+                // Step 2: Floodfill component clustering to prune isolated brush artifacts (< 4 contiguous tiles)
+                const visited = new Uint8Array(mapCols * mapRows);
+                for (let y = 0; y < mapRows; y++) {
+                    for (let x = 0; x < mapCols; x++) {
+                        const startIdx = y * mapCols + x;
+                        if (candidateGrass[startIdx] === 1 && !visited[startIdx]) {
+                            const comp = [];
+                            const queue = [{ x, y }];
+                            visited[startIdx] = 1;
+
+                            while (queue.length > 0) {
+                                const curr = queue.shift();
+                                comp.push(curr);
+                                const neighbors = [
+                                    { nx: curr.x + 1, ny: curr.y },
+                                    { nx: curr.x - 1, ny: curr.y },
+                                    { nx: curr.x, ny: curr.y + 1 },
+                                    { nx: curr.x, ny: curr.y - 1 }
+                                ];
+                                for (const n of neighbors) {
+                                    if (n.nx >= 0 && n.nx < mapCols && n.ny >= 0 && n.ny < mapRows) {
+                                        const nIdx = n.ny * mapCols + n.nx;
+                                        if (candidateGrass[nIdx] === 1 && !visited[nIdx]) {
+                                            visited[nIdx] = 1;
+                                            queue.push({ x: n.nx, y: n.ny });
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Keep authentic tall grass patches (size >= 4 tiles)
+                            if (comp.length >= 4) {
+                                for (const tile of comp) {
+                                    const cIdx = tile.y * mapCols + tile.x;
+                                    cleanGrassGrid[cIdx] = 1;
+                                    grassTiles.push(tile);
+                                }
+                            }
                         }
                     }
                 }
             }
-            logEvent(`🌿 Malha de mapa carregada (${mapId}): ${grassTiles.length} tiles de grama alta identificados`, "info");
+            logEvent(`🌿 Malha de mapa calibrada (${mapId}): ${grassTiles.length} tiles de encontro genuínos identificados (ruídos e copas de árvores podados)`, "info");
         } catch (e) {
             // ignore network load errors
         } finally {
@@ -257,12 +326,12 @@ function initMainWorldEngine() {
     }
 
     function isGrass(x, y) {
-        if (!mapGrid || x < 0 || y < 0 || x >= mapCols || y >= mapRows) return false;
-        return mapGrid[y * mapCols + x] === 1;
+        if (!cleanGrassGrid || x < 0 || y < 0 || x >= mapCols || y >= mapRows) return false;
+        return cleanGrassGrid[y * mapCols + x] === 1;
     }
 
     function isWalkable(x, y) {
-        if (!mapGrid || x < 0 || y < 0 || x >= mapCols || y >= mapRows) return true;
+        if (!mapGrid || x < 0 || y < 0 || x >= mapCols || y >= mapRows) return false;
         const val = mapGrid[y * mapCols + x];
         return val === 1 || val === 2; // 1 = Grass, 2 = Path
     }
@@ -338,6 +407,7 @@ function initMainWorldEngine() {
                         playerId,
                         currentMap,
                         currentMapName: getMapFriendlyName(currentMap),
+                        currentMapBiome,
                         availableSpecies: currentMapSpecies,
                         lastCapturedMon,
                         playerPos,
@@ -1779,7 +1849,7 @@ function handleGameMessage(msg) {
                     { dir: "E", nx: px + 1, ny: py },
                     { dir: "W", nx: px - 1, ny: py }
                 ];
-                const grassOptions = dirs.filter(d => isGrass(d.nx, d.ny));
+                const grassOptions = dirs.filter(d => isWalkable(d.nx, d.ny) && isGrass(d.nx, d.ny));
                 if (grassOptions.length > 0) {
                     const opp = { N: "S", S: "N", E: "W", W: "E" };
                     let pick = null;
@@ -1820,12 +1890,12 @@ function handleGameMessage(msg) {
             }
 
             if (chosenDir) {
-                stepInDirection(chosenDir);
                 const delta = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] }[chosenDir];
-                if (delta) {
+                if (delta && isWalkable(px + delta[0], py + delta[1])) {
+                    stepInDirection(chosenDir);
                     playerPos = { x: px + delta[0], y: py + delta[1] };
+                    emitTelemetry();
                 }
-                emitTelemetry();
             }
         }, botConfig.roam_step_delay_ms || 300);
     }

@@ -332,3 +332,31 @@
     - Atualiza timestamp para respeitar cooldown de 3 minutos.
     - Retoma automaticamente a patrulha BFS na grama alta.
     - Watchdog de 25 segundos garante recuperação automática em caso de qualquer pacote perdido.
+
+## 16. Reverse Engineering & Architecture: Detecção Precisa de Grama Alta & Eliminação de Falsos Positivos (Phase 19 / v2.4.5)
+- **Desconstrução do Motor Oficial de Colisão (`index-C3hpUun1.js`)**:
+  - `const l_ = { Grass: 1, Path: 2 };`
+  - `function lue(t) { return t === l_.Grass || t === l_.Path; }`
+  - No motor oficial, tanto o valor `1` quanto o valor `2` são transitáveis (`isWalkableAt`), mas o valor `1` é sobrecarregado: ele serve tanto para **grama alta selvagem** quanto para tiles sob **copas de árvores** onde o jogador pode caminhar por baixo de folhagens decorativas e beirais de telhados.
+- **Estrutura e Decodificação do `fringeMask`**:
+  - Em `/maps/${mapId}.collision.json`, a seção `art` contém uma chave `fringeMask` codificada em Base64.
+  - O motor decodifica essa string Base64 em um `Uint8Array` usando `atob()` e `charCodeAt`.
+  - Verificação de fringe:
+    ```javascript
+    function isFringe(x, y) {
+        if (!mapFringeMask || x < 0 || y < 0 || x >= mapCols || y >= mapRows) return false;
+        const r = y * mapCols + x;
+        return (mapFringeMask[r >> 3] & (1 << (r & 7))) !== 0;
+    }
+    ```
+  - **Descoberta Empírica**: Em rotas arborizadas (ex: Rota 15, Rota 1, Rota 10), entre **21.8% e 29.3%** dos tiles marcados com `1` têm `isFringe(x, y) === true`. Ou seja, eram copas de árvores que o bot detectava erroneamente como grama alta!
+- **Eliminação de Ruído de Pincel (Floodfill 2D Cluster Filtering)**:
+  - Mesmo após descartar `fringeMask`, o level design do jogo contém resíduos de 1 ou 2 tiles isolados (ex: 77 spots de 1 tile na Rota 15) que não representam patches reais de grama alta, mas sim detalhes decorativos de chão.
+  - Implementada clusterização floodfill 2D (DFS/BFS) dos candidatos:
+    - Identifica componentes contíguos de 4 direções (N, S, L, O).
+    - Patches com tamanho $< 4$ tiles são descartados como ruído.
+    - Patches com tamanho $\ge 4$ tiles são preservados como áreas autênticas de encontro em `cleanGrassGrid` e `grassTiles`.
+- **Rigor de Limites (`isWalkable`)**:
+  - `isWalkable` retornava `true` para coordenadas fora do mapa. Corrigido para retornar estritamente `false` quando `x < 0 || x >= mapCols || y < 0 || y >= mapRows`, alinhando-se a `t2e.isWalkableAt`.
+- **Diferenciação Visual por Bioma**:
+  - Em mapas de caverna (como Rota 5), o chão de batalha tem bioma `cave` e colisão `1`. No radar, a etiqueta agora indica contextualmente `🪨 [Caverna Selvagem]`, `🌋 [Solo Vulcânico]`, `🏖️ [Areia Selvagem]`, `❄️ [Neve Alta]`, ou `🌿 [Grama Alta]` conforme `currentMapBiome`.
