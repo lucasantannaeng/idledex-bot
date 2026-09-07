@@ -101,7 +101,7 @@ function initMainWorldEngine() {
     let canRevive = true;
     let progress = { rank: 1, xp: 0, wins: 0, losses: 0, captures: 0, shinies: 0 };
     let inventory = {
-        ball: { pokeball: 0, greatball: 0, ultraball: 0, masterball: 0 },
+        ball: { pokeball: 0, greatball: 0, superball: 0, ultraball: 0, masterball: 0 },
         potions: { potion: 0, "super-potion": 0, "hyper-potion": 0, "max-potion": 0 },
         revives: { revive: 0, "max-revive": 0 },
         boosts: { "shiny-boost": 0, "xp-share-boost": 0, "capture-boost": 0, "map-boost": 0 },
@@ -412,7 +412,7 @@ function initMainWorldEngine() {
     // --- OFFICIAL BALL & POTION CATALOGS (v2.2 & v2.4) ---
     const BALL_CATALOG = {
         "poke-ball": { name: "Poké Ball", multiplier: 1 },
-        "great-ball": { name: "Great Ball", multiplier: 3 },
+        "great-ball": { name: "Great Ball", multiplier: 2 },
         "super-ball": { name: "Super Ball", multiplier: 3 },
         "ultra-ball": { name: "Ultra Ball", multiplier: 4 },
         "master-ball": { name: "Master Ball", multiplier: 100 }
@@ -427,9 +427,7 @@ function initMainWorldEngine() {
 
     function canonicalItemId(itemId) {
         if (!itemId) return itemId;
-        const lower = String(itemId).toLowerCase();
-        if (lower === "super-ball") return "great-ball";
-        return lower;
+        return String(itemId).toLowerCase().trim();
     }
 
     // --- OFFICIAL ROUTE NAMES (1-150) & MAP TRANSLATION ---
@@ -624,48 +622,58 @@ function initMainWorldEngine() {
 
     function getBestBall(foeHpPct, isShiny, isUncaught) {
         const b = inventory.ball || {};
-        const greatCount = (b.greatball || 0) + (b["super-ball"] || 0);
+        const pokeballCount = b.pokeball || 0;
+        const greatCount = b.greatball || 0;
+        const superCount = b.superball || 0;
+        const ultraCount = b.ultraball || 0;
+        const masterCount = b.masterball || 0;
 
-        if (isShiny && b.masterball > 0) return "master-ball";
+        if (isShiny && masterCount > 0) return "master-ball";
 
         if (botConfig.ball_priority === "force_highest") {
-            if (b.ultraball > 0) return "ultra-ball";
+            if (ultraCount > 0) return "ultra-ball";
+            if (superCount > 0) return "super-ball";
             if (greatCount > 0) return "great-ball";
-            if (b.pokeball > 0) return "poke-ball";
-            if (b.masterball > 0) return "master-ball";
+            if (pokeballCount > 0) return "poke-ball";
+            if (masterCount > 0) return "master-ball";
             return null;
         }
 
         if (botConfig.ball_priority === "economy") {
-            if (b.pokeball > 0) return "poke-ball";
+            if (pokeballCount > 0) return "poke-ball";
             if (greatCount > 0) return "great-ball";
-            if (b.ultraball > 0) return "ultra-ball";
-            if (b.masterball > 0) return "master-ball";
+            if (superCount > 0) return "super-ball";
+            if (ultraCount > 0) return "ultra-ball";
+            if (masterCount > 0) return "master-ball";
             return null;
         }
 
         // Smart priority: Shiny gets best ball available immediately
         if (isShiny) {
-            if (b.masterball > 0) return "master-ball";
-            if (b.ultraball > 0) return "ultra-ball";
+            if (masterCount > 0) return "master-ball";
+            if (ultraCount > 0) return "ultra-ball";
+            if (superCount > 0) return "super-ball";
             if (greatCount > 0) return "great-ball";
-            if (b.pokeball > 0) return "poke-ball";
+            if (pokeballCount > 0) return "poke-ball";
             return null;
         }
 
-        if (foeHpPct <= 0.20 && b.ultraball > 0) return "ultra-ball";
-        if (foeHpPct <= 0.35 && greatCount > 0) return "great-ball";
-        if (b.pokeball > 0) return "poke-ball";
+        // Tiered multiplier thresholds: Ultra (4x) <= 15%, Super (3x) <= 30%, Great (2x) <= 50%, Poké (1x)
+        if (foeHpPct <= 0.15 && ultraCount > 0) return "ultra-ball";
+        if (foeHpPct <= 0.30 && superCount > 0) return "super-ball";
+        if (foeHpPct <= 0.50 && greatCount > 0) return "great-ball";
+        if (pokeballCount > 0) return "poke-ball";
         if (greatCount > 0) return "great-ball";
-        if (b.ultraball > 0) return "ultra-ball";
-        if (b.masterball > 0) return "master-ball";
+        if (superCount > 0) return "super-ball";
+        if (ultraCount > 0) return "ultra-ball";
+        if (masterCount > 0) return "master-ball";
 
         return null;
     }
 
     function getTotalBalls() {
         const b = (inventory && inventory.ball) || {};
-        return (b.pokeball || 0) + (b.greatball || 0) + (b["super-ball"] || 0) + (b.ultraball || 0) + (b.masterball || 0);
+        return (b.pokeball || 0) + (b.greatball || 0) + (b.superball || 0) + (b.ultraball || 0) + (b.masterball || 0);
     }
 
     function selectBattleMove(foeTypes, foeHpPct, isCaptureTarget) {
@@ -724,7 +732,7 @@ function initMainWorldEngine() {
 
     function updateInventory(data) {
         const items = Array.isArray(data) ? data : (data.items || []);
-        const balls = { pokeball: 0, greatball: 0, ultraball: 0, masterball: 0 };
+        const balls = { pokeball: 0, greatball: 0, superball: 0, ultraball: 0, masterball: 0 };
         const potions = { potion: 0, "super-potion": 0, "hyper-potion": 0, "max-potion": 0 };
         const revives = { revive: 0, "max-revive": 0 };
         const boosts = { "shiny-boost": 0, "xp-share-boost": 0, "capture-boost": 0, "map-boost": 0 };
@@ -739,7 +747,8 @@ function initMainWorldEngine() {
             if (kind.includes("ball") || iid.includes("ball")) {
                 if (iid.includes("master")) balls.masterball += qty;
                 else if (iid.includes("ultra")) balls.ultraball += qty;
-                else if (iid.includes("great") || iid.includes("super-ball")) balls.greatball += qty;
+                else if (iid.includes("super")) balls.superball += qty;
+                else if (iid.includes("great")) balls.greatball += qty;
                 else balls.pokeball += qty;
             } else if (kind.includes("potion") || iid.includes("potion")) {
                 totalPotions += qty;
@@ -1497,8 +1506,7 @@ function handleGameMessage(msg) {
         if (isCaptureTarget && totalBalls > 0) {
             const chosenBall = getBestBall(foeHpPct, isShiny, isUncaught);
             if (chosenBall && (isDirectThrow || canThrowBall)) {
-                const alias = (chosenBall === "great-ball") ? "super-ball" : ((chosenBall === "super-ball") ? "great-ball" : chosenBall);
-                const ballSelector = `.hud-throw-balls button.hud-throw-ball[data-item-id="${chosenBall}"]:not([disabled]):not(.hud-throw-flee), .hud-throw-balls button.hud-throw-ball[data-item-id="${alias}"]:not([disabled]):not(.hud-throw-flee)`;
+                const ballSelector = `.hud-throw-balls button.hud-throw-ball[data-item-id="${chosenBall}"]:not([disabled]):not(.hud-throw-flee)`;
                 const ballBtn = document.querySelector(ballSelector);
 
                 if (ballBtn) {

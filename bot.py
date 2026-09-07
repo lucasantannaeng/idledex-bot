@@ -324,7 +324,7 @@ class IdleDexBot:
         self.entities: List[Dict[str, Any]] = []
         self.my_mon: Optional[Dict[str, Any]] = None
         self.enemy_mon: Optional[Dict[str, Any]] = None
-        self.inventory: Dict[str, Any] = {"ball": {"pokeball": 0, "greatball": 0, "ultraball": 0}, "potion": 0}
+        self.inventory: Dict[str, Any] = {"ball": {"pokeball": 0, "greatball": 0, "superball": 0, "ultraball": 0, "masterball": 0}, "potion": 0}
         self.collection: Dict[str, Any] = {}
         self.team: List[Dict[str, Any]] = []
         self.wallet: Dict[str, Any] = {"coins": 0, "crystals": 0}
@@ -445,7 +445,7 @@ class IdleDexBot:
 
     def _update_inventory(self, data: Any):
         items = data.get("items", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
-        balls = {"pokeball": 0, "greatball": 0, "ultraball": 0}
+        balls = {"pokeball": 0, "greatball": 0, "superball": 0, "ultraball": 0, "masterball": 0}
         potions = 0
         for item in items:
             if not isinstance(item, dict):
@@ -454,8 +454,12 @@ class IdleDexBot:
             iid = str(item.get("id", item.get("itemId", ""))).lower()
             qty = int(item.get("quantity", item.get("qty", 1)))
             if "ball" in kind or "ball" in iid:
-                if "ultra" in iid:
+                if "master" in iid:
+                    balls["masterball"] += qty
+                elif "ultra" in iid:
                     balls["ultraball"] += qty
+                elif "super" in iid:
+                    balls["superball"] += qty
                 elif "great" in iid:
                     balls["greatball"] += qty
                 else:
@@ -735,9 +739,13 @@ class IdleDexBot:
         if enemy_hp <= self.config.catch_hp_pct:
             balls = self.inventory.get("ball", {})
             chosen_ball = None
-            if enemy_hp < 0.25 and balls.get("ultraball", 0) > 0:
+            if balls.get("masterball", 0) > 0 and enemy_hp < 0.10:
+                chosen_ball = "masterball"
+            elif enemy_hp < 0.15 and balls.get("ultraball", 0) > 0:
                 chosen_ball = "ultraball"
-            elif enemy_hp < 0.40 and balls.get("greatball", 0) > 0:
+            elif enemy_hp < 0.30 and balls.get("superball", 0) > 0:
+                chosen_ball = "superball"
+            elif enemy_hp < 0.50 and balls.get("greatball", 0) > 0:
                 chosen_ball = "greatball"
             elif balls.get("pokeball", 0) > 0:
                 chosen_ball = "pokeball"

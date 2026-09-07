@@ -494,6 +494,7 @@ function updateInventoryUI(inventory) {
 
     setText('inv-pokeball', (balls.pokeball ?? 0).toLocaleString('pt-BR'));
     setText('inv-greatball', (balls.greatball ?? 0).toLocaleString('pt-BR'));
+    setText('inv-superball', (balls.superball ?? 0).toLocaleString('pt-BR'));
     setText('inv-ultraball', (balls.ultraball ?? 0).toLocaleString('pt-BR'));
     setText('inv-masterball', (balls.masterball ?? 0).toLocaleString('pt-BR'));
 
