@@ -244,3 +244,30 @@
   - Added "Boosts & Consumíveis" KPI grid to inventory panel tracking Shiny Boost, XP Share, Capture Boost, and Map Boost.
   - Full bidirectional config persistence between Python (`config.py`), Electron Main (`main.js`), Preload (`preload-game.js`), and Dashboard UI (`app.js`).
 
+## 13. Reverse Engineering & Resolution of Command & Capture Conflicts (Phase 16)
+- **5 Critical Architectural Conflicts Identified**:
+  1. **Concorrência entre Auto-Idle Nativo (`idle:start`) e Motor do Bot**: Quando `auto_idle: true`, o envio de `idle:start` ativava o auto-play no backend do jogo. Quando ativo, o cliente oficial renderiza `hud-throw-bar-auto` e oculta botões de golpes e esferas, forçando takeover manual e disparando rejeições `bad_message undefined` por pacotes duplicados.
+  2. **Fallthrough to Kill no Modo Captura**: Quando o botão DOM da esfera não era encontrado ou o oponente estava acima do limiar de HP configurado, o bot caía para ataque e selecionava o golpe de maior dano (`highest score`). Pokémon líderes de nível alto desferiam One-Shot Kill, matando Shinies e monstros alvos antes de qualquer arremesso.
+  3. **Discrepância de Identificadores de Esferas (`great-ball` vs `super-ball`)**: O bundle oficial de produção usa `great-ball` no backend e nós DOM (`soe`), enquanto traduções usam `super-ball`. Seletores restritos falhavam e caíam para ataque nocivo.
+  4. **Whitelist da Rota Anulando Captura de Espécies Inéditas e Shinies**: Espécies não registradas na Pokédex eram descartadas pela rota com fuga automática (`unselected_action === 'flee'`).
+  5. **Trava de Movimentação por `idleActive`**: O cliente oficial intercepta movimentos manuais quando `idleActive === true` (`tryMove` chamando `idle:set false`), gerando conflito com a patrulha BFS na grama alta.
+- **Architectural Resolutions Applied**:
+  1. **Controle Autoritativo do Bot**: O bot envia explicitamente `idle:stop` ao servidor quando ativado, mantendo a interface oficial no modo `control: manual` com todos os golpes e esferas acessíveis e eliminando concorrência de turnos (`bad_message`).
+  2. **Blindagem Total Zero-Kill Guard (`selectBattleMove`)**:
+     - Shinies (`isShiny`): Retorna `null` (nunca ataca sob hipótese alguma).
+     - Desnível de nível $\ge 5$: Retorna `null` (nunca arrisca ataque com potencial de One-Shot).
+     - HP do oponente $\le 60\%$: Retorna `null` (evita mortes acidentais por golpe crítico).
+     - Golpes fracos: Se necessário enfraquecer alvo resistente de mesmo nível, seleciona estritamente o golpe de menor poder e efetividade.
+  3. **Arremesso Direto Seguro a 100% de HP (`processBattleTurn`)**:
+     - Arremessa esferas no Turno 1 (100% HP) para Shinies, monstros inéditos de nível baixo ($\le 15$), ou alvos com desnível de nível favorável.
+     - Se o botão DOM não estiver montado a tempo, despacha `battle:item` diretamente via WebSocket, nunca caindo para ataque nocivo.
+  4. **Resolução Transparente de Aliases**:
+     - Função `canonicalItemId()` mapeia `super-ball` $\rightarrow$ `great-ball` no WebSocket.
+     - Seletores DOM buscam simultaneamente `[data-item-id="great-ball"]` e `[data-item-id="super-ball"]`.
+     - `BALL_CATALOG` define multiplicador 3x idêntico para ambos.
+  5. **Hierarquia de Prioridades Inviolável**:
+     - **Prioridade 1**: Shinies (`isShiny`). Fuga de rota terminantemente ignorada.
+     - **Prioridade 2**: Não Registrados (`catch_only_uncaught`). Fuga de rota ignorada.
+     - **Prioridade 3**: Whitelist de Área (`target_species`). Aplica-se apenas a criaturas comuns repetidas.
+
+

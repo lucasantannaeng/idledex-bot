@@ -393,16 +393,23 @@ function initMainWorldEngine() {
             }
         };
         sendEvent("idle:config", idlePayload);
-        if (botConfig.auto_idle) {
+
+        // Authoritative Bot Control: Ensure native server-side auto-idle is STOPPED
+        // while the bot's custom autonomous engine is active. This eliminates packet races,
+        // duplicate turn dispatches ('bad_message undefined'), and accidental killing of capture targets.
+        if (botConfig.enabled) {
+            sendEvent("idle:stop");
+            logEvent("🛡️ Controle Autoritativo do Bot ativo (Auto-Idle nativo do servidor desligado)", "info");
+        } else if (botConfig.auto_idle) {
             sendEvent("idle:start");
-            logEvent("⚡ Modo Auto-Idle ativado", "success");
+            logEvent("⚡ Modo Auto-Idle nativo ativado no servidor", "info");
         }
     }
 
     
     // --- ELEMENTAL TYPE CHART & SMART COMBAT ENGINE ---
     
-    // --- OFFICIAL BALL & POTION CATALOGS (v2.2) ---
+    // --- OFFICIAL BALL & POTION CATALOGS (v2.2 & v2.4) ---
     const BALL_CATALOG = {
         "poke-ball": { name: "Poké Ball", multiplier: 1 },
         "great-ball": { name: "Great Ball", multiplier: 3 },
@@ -417,6 +424,13 @@ function initMainWorldEngine() {
         "hyper-potion": { name: "Hyper Poção", healAmount: 120 },
         "max-potion": { name: "Max Poção", healAmount: 9999 }
     };
+
+    function canonicalItemId(itemId) {
+        if (!itemId) return itemId;
+        const lower = String(itemId).toLowerCase();
+        if (lower === "super-ball") return "great-ball";
+        return lower;
+    }
 
     // --- OFFICIAL ROUTE NAMES (1-150) & MAP TRANSLATION ---
     const ROUTE_NAMES = {"route_001": "Rota 1 — Floresta Nascente", "route_002": "Rota 2 — Bosque dos Brotos", "route_003": "Rota 3 — Trilha do Musgo", "route_004": "Rota 4 — Mata dos Cipós", "route_005": "Rota 5 — Caverna Rasa", "route_006": "Rota 6 — Clareira Serena", "route_007": "Rota 7 — Lago Espelhado", "route_008": "Rota 8 — Margem Tranquila", "route_009": "Rota 9 — Areal Brilhante", "route_010": "Rota 10 — Praia Dourada", "route_011": "Rota 11 — Bosque dos Vaga-lumes", "route_012": "Rota 12 — Refúgio Verde", "route_013": "Rota 13 — Copa Alta", "route_014": "Rota 14 — Lago das Garças", "route_015": "Rota 15 — Enseada dos Juncos", "route_016": "Rota 16 — Baía Serena", "route_017": "Rota 17 — Costa das Conchas", "route_018": "Rota 18 — Baía dos Corais", "route_019": "Rota 19 — Gruta dos Morcegos", "route_020": "Rota 20 — Pântano Nebuloso", "route_021": "Rota 21 — Mar Aberto", "route_022": "Rota 22 — Águas Profundas", "route_023": "Rota 23 — Praia dos Caranguejos", "route_024": "Rota 24 — Falésia Costeira", "route_025": "Rota 25 — Charco Raso", "route_026": "Rota 26 — Mangue Denso", "route_027": "Rota 27 — Lamaçal Verde", "route_028": "Rota 28 — Lagoa Funda", "route_029": "Rota 29 — Lago das Correntezas", "route_030": "Rota 30 — Trilha Sufocada", "route_031": "Rota 31 — Mata Fechada", "route_032": "Rota 32 — Selva dos Cipós", "route_033": "Rota 33 — Coração da Mata", "route_034": "Rota 34 — Selva Umbrosa", "route_035": "Rota 35 — Brejo dos Sapos", "route_036": "Rota 36 — Várzea Sombria", "route_037": "Rota 37 — Pântano das Raízes", "route_038": "Rota 38 — Caverna de Pedra", "route_039": "Rota 39 — Túnel Escavado", "route_040": "Rota 40 — Sombra das Árvores", "route_041": "Rota 41 — Caverna Úmida", "route_042": "Rota 42 — Galeria de Quartzo", "route_043": "Rota 43 — Sopé Verdejante", "route_044": "Rota 44 — Recife Submerso", "route_045": "Rota 45 — Trilha da Serra", "route_046": "Rota 46 — Emaranhado Verde", "route_047": "Rota 47 — Mata dos Espinhos", "route_048": "Rota 48 — Selva Profunda", "route_049": "Rota 49 — Represa Antiga", "route_050": "Rota 50 — Costa dos Nenúfares", "route_051": "Rota 51 — Caverna dos Ecos", "route_052": "Rota 52 — Passagem Estreita", "route_053": "Rota 53 — Encosta Gramada", "route_054": "Rota 54 — Campos Nevados", "route_055": "Rota 55 — Trilha Gelada", "route_056": "Rota 56 — Bosque de Inverno", "route_057": "Rota 57 — Planície Branca", "route_058": "Rota 58 — Bosque Impenetrável", "route_059": "Rota 59 — Mata das Sombras", "route_060": "Rota 60 — Charco Profundo", "route_061": "Rota 61 — Nevasca Suave", "route_062": "Rota 62 — Campo dos Flocos", "route_063": "Rota 63 — Colina Congelada", "route_064": "Rota 64 — Vale do Inverno", "route_065": "Rota 65 — Despenhadeiro Gelado", "route_066": "Rota 66 — Colinas Ventosas", "route_067": "Rota 67 — Serra dos Falcões", "route_068": "Rota 68 — Geleira Azul", "route_069": "Rota 69 — Campo de Gelo", "route_070": "Rota 70 — Lago Congelado", "route_071": "Rota 71 — Planalto Polar", "route_072": "Rota 72 — Fenda Glacial", "route_073": "Rota 73 — Banquisa Eterna", "route_074": "Rota 74 — Espelho de Gelo", "route_075": "Rota 75 — Caverna Funda", "route_076": "Rota 76 — Neve Profunda", "route_077": "Rota 77 — Cume Silencioso", "route_078": "Rota 78 — Canal Azul", "route_079": "Rota 79 — Salão das Estalactites", "route_080": "Rota 80 — Ruínas Cobertas", "route_081": "Rota 81 — Caverna Silenciosa", "route_082": "Rota 82 — Mirante Verde", "route_083": "Rota 83 — Passo da Serra", "route_084": "Rota 84 — Encosta Rochosa", "route_085": "Rota 85 — Gruta de Cristal", "route_086": "Rota 86 — Coração da Geleira", "route_087": "Rota 87 — Colunas Antigas", "route_088": "Rota 88 — Pátio Esquecido", "route_089": "Rota 89 — Templo em Ruínas", "route_090": "Rota 90 — Trilha das Raízes", "route_091": "Rota 91 — Sopé do Vulcão", "route_092": "Rota 92 — Campos de Cinza", "route_093": "Rota 93 — Salão dos Ecos", "route_094": "Rota 94 — Muralha Caída", "route_095": "Rota 95 — Campos do Norte", "route_096": "Rota 96 — Tundra Silenciosa", "route_097": "Rota 97 — Maré Baixa", "route_098": "Rota 98 — Costa dos Ventos", "route_099": "Rota 99 — Lago Cristalino", "route_100": "Rota 100 — Aurora Glacial", "route_101": "Rota 101 — Cripta Aberta", "route_102": "Rota 102 — Cidade Perdida", "route_103": "Rota 103 — Altar Partido", "route_104": "Rota 104 — Torre Tombada", "route_105": "Rota 105 — Terra Rachada", "route_106": "Rota 106 — Planície Árida", "route_107": "Rota 107 — Jardim de Corais", "route_108": "Rota 108 — Veio de Minério", "route_109": "Rota 109 — Serra Alta", "route_110": "Rota 110 — Lodaçal Antigo", "route_111": "Rota 111 — Vale da Poeira", "route_112": "Rota 112 — Corrente Escura", "route_113": "Rota 113 — Naufrágio Antigo", "route_114": "Rota 114 — Fossa Marinha", "route_115": "Rota 115 — Cânion Vermelho", "route_116": "Rota 116 — Caverna Cega", "route_117": "Rota 117 — Abismo Interno", "route_118": "Rota 118 — Cordilheira Seca", "route_119": "Rota 119 — Brejo da Névoa", "route_120": "Rota 120 — Pântano Árido", "route_121": "Rota 121 — Encosta Estéril", "route_122": "Rota 122 — Caverna Esquecida", "route_123": "Rota 123 — Fenda sem Fundo", "route_124": "Rota 124 — Vale Escondido", "route_125": "Rota 125 — Serra do Alvorecer", "route_126": "Rota 126 — Deserto dos Ossos", "route_127": "Rota 127 — Dunas Baixas", "route_128": "Rota 128 — Mesa Alta", "route_129": "Rota 129 — Selva Seca", "route_130": "Rota 130 — Última Mata", "route_131": "Rota 131 — Câmara Selada", "route_132": "Rota 132 — Caverna do Fim", "route_133": "Rota 133 — Coração da Pedra", "route_134": "Rota 134 — Serra do Retorno", "route_135": "Rota 135 — Rio de Magma", "route_136": "Rota 136 — Cratera Menor", "route_137": "Rota 137 — Vale Vulcânico", "route_138": "Rota 138 — Encosta Fumegante", "route_139": "Rota 139 — Deserto Profundo", "route_140": "Rota 140 — Floresta Silenciosa", "route_141": "Rota 141 — Chaminé de Cinzas", "route_142": "Rota 142 — Fornalha Natural", "route_143": "Rota 143 — Campos de Obsidiana", "route_144": "Rota 144 — Garganta de Fogo", "route_145": "Rota 145 — Lago de Lava", "route_146": "Rota 146 — Coração do Vulcão", "route_147": "Rota 147 — Borda da Caldeira", "route_148": "Rota 148 — Trono de Lava", "route_149": "Rota 149 — Planície Abissal", "route_150": "Rota 150 — Fundo do Mundo"};
@@ -610,12 +624,13 @@ function initMainWorldEngine() {
 
     function getBestBall(foeHpPct, isShiny, isUncaught) {
         const b = inventory.ball || {};
+        const greatCount = (b.greatball || 0) + (b["super-ball"] || 0);
 
         if (isShiny && b.masterball > 0) return "master-ball";
 
         if (botConfig.ball_priority === "force_highest") {
             if (b.ultraball > 0) return "ultra-ball";
-            if (b.greatball > 0) return "great-ball";
+            if (greatCount > 0) return "great-ball";
             if (b.pokeball > 0) return "poke-ball";
             if (b.masterball > 0) return "master-ball";
             return null;
@@ -623,16 +638,25 @@ function initMainWorldEngine() {
 
         if (botConfig.ball_priority === "economy") {
             if (b.pokeball > 0) return "poke-ball";
-            if (b.greatball > 0) return "great-ball";
+            if (greatCount > 0) return "great-ball";
             if (b.ultraball > 0) return "ultra-ball";
             if (b.masterball > 0) return "master-ball";
             return null;
         }
 
+        // Smart priority: Shiny gets best ball available immediately
+        if (isShiny) {
+            if (b.masterball > 0) return "master-ball";
+            if (b.ultraball > 0) return "ultra-ball";
+            if (greatCount > 0) return "great-ball";
+            if (b.pokeball > 0) return "poke-ball";
+            return null;
+        }
+
         if (foeHpPct <= 0.20 && b.ultraball > 0) return "ultra-ball";
-        if (foeHpPct <= 0.35 && b.greatball > 0) return "great-ball";
+        if (foeHpPct <= 0.35 && greatCount > 0) return "great-ball";
         if (b.pokeball > 0) return "poke-ball";
-        if (b.greatball > 0) return "great-ball";
+        if (greatCount > 0) return "great-ball";
         if (b.ultraball > 0) return "ultra-ball";
         if (b.masterball > 0) return "master-ball";
 
@@ -641,7 +665,7 @@ function initMainWorldEngine() {
 
     function getTotalBalls() {
         const b = (inventory && inventory.ball) || {};
-        return (b.pokeball || 0) + (b.greatball || 0) + (b.ultraball || 0) + (b.masterball || 0);
+        return (b.pokeball || 0) + (b.greatball || 0) + (b["super-ball"] || 0) + (b.ultraball || 0) + (b.masterball || 0);
     }
 
     function selectBattleMove(foeTypes, foeHpPct, isCaptureTarget) {
@@ -654,18 +678,46 @@ function initMainWorldEngine() {
             return { ...m, eff, score };
         });
 
+        // Zero-Kill Guard: Strictly prevent KO against capture targets
+        if (isCaptureTarget) {
+            const isShiny = !!(enemyMon && (enemyMon.isShiny || enemyMon.shiny));
+            if (isShiny) {
+                // NEVER attack a shiny under any circumstance!
+                return null;
+            }
+
+            const myLevel = (myMon && (myMon.level || myMon.lvl)) || 1;
+            const foeLevel = (enemyMon && (enemyMon.level || enemyMon.lvl)) || 1;
+            if ((myLevel - foeLevel) >= 5) {
+                // Severe level advantage: any attack risks a one-shot KO
+                return null;
+            }
+
+            // If foe HP is already low (<= 60%), attacking risks critical hit kill
+            if (foeHpPct <= Math.max(0.60, botConfig.catch_hp_pct)) {
+                return null;
+            }
+
+            // Find weakest damaging move
+            const damagingMoves = scoredMoves.filter(m => (m.power || 0) > 0);
+            if (damagingMoves.length > 0) {
+                damagingMoves.sort((a, b) => a.score - b.score);
+                const weakest = damagingMoves[0];
+                if (weakest.score > 80 && foeLevel <= 15) {
+                    return null; // Too powerful for low-level wild target
+                }
+                return weakest;
+            }
+
+            // Status non-damaging move fallback
+            return scoredMoves[0];
+        }
+
         if (botConfig.move_selection_mode === "first") {
             return scoredMoves[0];
         }
 
-        if (isCaptureTarget && foeHpPct <= (botConfig.catch_hp_pct + 0.25)) {
-            const damagingMoves = scoredMoves.filter(m => (m.power || 0) > 0);
-            if (damagingMoves.length > 0) {
-                damagingMoves.sort((a, b) => a.score - b.score);
-                return damagingMoves[0];
-            }
-        }
-
+        // Standard offensive combat: highest damage score first
         scoredMoves.sort((a, b) => b.score - a.score);
         return scoredMoves[0];
     }
@@ -1295,14 +1347,16 @@ function handleGameMessage(msg) {
     
     // Check if the duel throw/combat bar is open and ready to accept turn input
     function isThrowBarOpen() {
+        if (battleWindowOpen) return true;
         const throwBar = document.querySelector('.hud-throw-bar');
         if (!throwBar) {
-            // Fallback: check if move buttons are mounted and enabled
+            // Fallback: check if move buttons or ball buttons are mounted and enabled
             const enabledMoves = document.querySelectorAll('.hud-duel-moves button:not([disabled])');
-            return enabledMoves.length > 0;
+            const enabledBalls = document.querySelectorAll('.hud-throw-balls button:not([disabled])');
+            return enabledMoves.length > 0 || enabledBalls.length > 0;
         }
         if (throwBar.classList.contains('hud-duel-waiting')) return false;
-        return throwBar.hasAttribute('data-open') || !!document.querySelector('.hud-duel-moves button:not([disabled])');
+        return throwBar.hasAttribute('data-open') || !!document.querySelector('.hud-duel-moves button:not([disabled]), .hud-throw-balls button:not([disabled])');
     }
 
     // Execute battle action with single-dispatch guarantee (either DOM click OR WebSocket send, never both)
@@ -1321,6 +1375,9 @@ function handleGameMessage(msg) {
 
         if (!clicked && payload) {
             actionInFlight = true;
+            if (actionType === "battle:item" && payload.itemId) {
+                payload.itemId = canonicalItemId(payload.itemId);
+            }
             sendEvent(actionType, payload);
         }
 
@@ -1343,17 +1400,28 @@ function handleGameMessage(msg) {
         const isShiny = !!(enemyMon && (enemyMon.isShiny || enemyMon.shiny));
         const foeSpecies = (enemyMon && (enemyMon.species || enemyMon.name)) || "";
         const isUncaught = foeSpecies ? !collection[foeSpecies] : false;
-
-        // Determine if current wild foe qualifies for capture
         const foeSpeciesId = (enemyMon && (enemyMon.speciesId || foeSpecies.toLowerCase())) || "";
+        const foeLevel = (enemyMon && (enemyMon.level || enemyMon.lvl)) || 1;
+        const myLevel = (myMon && (myMon.level || myMon.lvl)) || 1;
 
         // Determine if current wild foe qualifies for capture & area whitelist
         let isCaptureTarget = false;
         let shouldFleeUnselected = false;
 
-        if (Array.isArray(botConfig.target_species) && botConfig.target_species.length > 0) {
-            // Whitelist mode active for current area
-            if (botConfig.target_species.includes(foeSpeciesId) || (isShiny && botConfig.catch_only_shiny)) {
+        // PRIORITY HIERARCHY:
+        // 1. Shiny is absolute #1 priority (never flee, always capture)
+        if (isShiny) {
+            isCaptureTarget = true;
+            shouldFleeUnselected = false;
+        }
+        // 2. Uncaught species is absolute #2 priority when catch_only_uncaught is enabled
+        else if (botConfig.catch_only_uncaught && isUncaught) {
+            isCaptureTarget = true;
+            shouldFleeUnselected = false;
+        }
+        // 3. Area / Route specific whitelist
+        else if (Array.isArray(botConfig.target_species) && botConfig.target_species.length > 0) {
+            if (botConfig.target_species.includes(foeSpeciesId)) {
                 isCaptureTarget = true;
             } else {
                 isCaptureTarget = false;
@@ -1361,8 +1429,9 @@ function handleGameMessage(msg) {
                     shouldFleeUnselected = true;
                 }
             }
-        } else {
-            // General catch rules mode
+        }
+        // 4. General capture rules mode
+        else {
             if (botConfig.catch_only_shiny) {
                 isCaptureTarget = isShiny;
             } else if (botConfig.catch_only_uncaught) {
@@ -1410,32 +1479,59 @@ function handleGameMessage(msg) {
                     executeBattleAction("battle:item", { battleId: currentBattleId, itemId: chosenPotion }, potionSelector);
                     return;
                 } else {
-                    // Potion button disabled or not rendered: fall through to attack
-                    logEvent(`🧪 ${chosenPotion} não disponível no HUD neste turno...`, "info");
+                    executeBattleAction("battle:item", { battleId: currentBattleId, itemId: chosenPotion });
+                    logEvent(`🧪 Despachando ${chosenPotion} via pacote direto...`, "info");
+                    return;
                 }
             }
         }
 
-        // 3. Catch wild creature with chosen ball
-        if (isCaptureTarget && foeHpPct <= botConfig.catch_hp_pct && canThrowBall) {
+        // 3. ZERO-KILL GUARD: Catch wild creature with chosen ball
+        // Direct Throw Conditions (throw immediately from 100% HP without any attack):
+        // - Wild foe is Shiny (NEVER hit a shiny!)
+        // - Large level gap (myLevel - foeLevel >= 5): high risk of one-shot KO
+        // - Wild foe is low level (<= 15) and uncaught
+        // - Wild foe HP already <= catch_hp_pct threshold
+        const isDirectThrow = isShiny || (myLevel - foeLevel >= 5) || (isUncaught && foeLevel <= 15) || (foeHpPct <= botConfig.catch_hp_pct);
+
+        if (isCaptureTarget && totalBalls > 0) {
             const chosenBall = getBestBall(foeHpPct, isShiny, isUncaught);
-            if (chosenBall) {
-                const ballSelector = `.hud-throw-balls button.hud-throw-ball[data-item-id="${chosenBall}"]:not([disabled]):not(.hud-throw-flee)`;
+            if (chosenBall && (isDirectThrow || canThrowBall)) {
+                const alias = (chosenBall === "great-ball") ? "super-ball" : ((chosenBall === "super-ball") ? "great-ball" : chosenBall);
+                const ballSelector = `.hud-throw-balls button.hud-throw-ball[data-item-id="${chosenBall}"]:not([disabled]):not(.hud-throw-flee), .hud-throw-balls button.hud-throw-ball[data-item-id="${alias}"]:not([disabled]):not(.hud-throw-flee)`;
                 const ballBtn = document.querySelector(ballSelector);
+
                 if (ballBtn) {
-                    logEvent(`🎯 Arremessando ${chosenBall} (HP Inimigo: ${Math.round(foeHpPct * 100)}%${isShiny ? ' ✨SHINY' : ''})`, "info");
+                    const tag = isDirectThrow ? ' [ARREMESSO DIRETO]' : '';
+                    logEvent(`🎯 Arremessando ${chosenBall} (HP Inimigo: ${Math.round(foeHpPct * 100)}%${isShiny ? ' ✨SHINY' : ''}${tag})`, "info");
                     executeBattleAction("battle:item", { battleId: currentBattleId, itemId: chosenBall }, ballSelector);
                     return;
-                } else {
-                    // Ball button disabled or not rendered: fall through to attack
-                    logEvent(`🎯 ${chosenBall} não disponível para arremesso neste turno...`, "info");
+                } else if (canThrowBall || isDirectThrow) {
+                    // Fallback WebSocket dispatch: Guaranteed ball throw without falling through to attack!
+                    logEvent(`🎯 [ZERO-KILL GUARD] Despachando ${chosenBall} diretamente via WebSocket (HP Inimigo: ${Math.round(foeHpPct * 100)}%)...`, "info");
+                    executeBattleAction("battle:item", { battleId: currentBattleId, itemId: chosenBall });
+                    return;
                 }
             }
         }
 
-        // 4. Attack move with elemental type advantage & capture protection
+        // 4. Attack move with elemental type advantage & Zero-Kill Guard
         const foeTypes = (enemyMon && (enemyMon.types || enemyMon.type)) || [];
         const chosenMove = selectBattleMove(foeTypes, foeHpPct, isCaptureTarget);
+
+        if (isCaptureTarget && !chosenMove) {
+            // ZERO-KILL GUARD ACTIVE: Any attack would risk killing the target!
+            if (totalBalls > 0) {
+                const fallbackBall = getBestBall(foeHpPct, isShiny, isUncaught) || "poke-ball";
+                logEvent(`🛡️ [ZERO-KILL GUARD] Risco crítico de nocaute! Evitando ataque e arremessando ${fallbackBall}...`, "warning");
+                executeBattleAction("battle:item", { battleId: currentBattleId, itemId: fallbackBall });
+                return;
+            } else {
+                logEvent(`🛡️ [ZERO-KILL GUARD] Sem Pokébolas e sem golpe seguro contra ${foeSpecies}! Executando fuga tática...`, "warning");
+                executeBattleAction("battle:flee", { battleId: currentBattleId }, '.hud-throw-balls .hud-throw-flee:not([disabled])');
+                return;
+            }
+        }
 
         let chosenMoveId = chosenMove ? chosenMove.id : null;
         let chosenMoveName = chosenMove ? (chosenMove.name || chosenMove.id) : "Ataque";
@@ -1650,8 +1746,12 @@ function handleGameMessage(msg) {
                     battleWatchdog = null;
                 }
                 logEvent("⏸️ Bot pausado pelo usuário (Controle manual liberado)", "warning");
+                if (botConfig.auto_idle) {
+                    sendEvent("idle:start");
+                }
             } else {
-                logEvent("▶️ Bot ativado pelo usuário", "success");
+                logEvent("▶️ Bot ativado pelo usuário (Controle Autoritativo)", "success");
+                sendEvent("idle:stop");
                 if (inBattle) {
                     // In battle: do NOT roam; process battle action immediately
                     processBattleTurn();
@@ -1666,7 +1766,13 @@ function handleGameMessage(msg) {
             configureAndStartIdle();
             emitTelemetry();
         } else if (cmd === 'manual-action') {
-            if (payload.action === 'idle-start') sendEvent("idle:start");
+            if (payload.action === 'idle-start') {
+                if (botConfig.enabled) {
+                    logEvent("⚠️ Auto-Idle nativo evitado para não conflitar com o motor do bot", "warning");
+                } else {
+                    sendEvent("idle:start");
+                }
+            }
             else if (payload.action === 'idle-stop') sendEvent("idle:stop");
             else if (payload.action === 'claim-all') {
                 sendEvent("pokedex:claim-all");

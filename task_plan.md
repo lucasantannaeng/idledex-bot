@@ -173,21 +173,24 @@
 - [x] Standalone distribution packaging:
   - Recompiled standalone executable `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack`.
 
-## Phase 15: Full Reverse Engineering of 10 Tutorials, 178 Official Commands & Player Automation Engine (v2.4)
-- [x] Complete reverse engineering of official tutorials (`Xee` / `Dh`):
-  - Extracted and documented all 10 chapters (`auto_setup`, `healing`, `travel`, `chat`, `team`, `evolution`, `buy_balls`, `sell`, `gym`, `fishing_bait`).
-  - Cataloged exact WebSocket payloads for 178 official client-to-server commands.
-- [x] Autonomous Player Engine (`electron/preload-game.js`):
-  - Auto-claim of daily quests (`daily:claim` with `{ questId }`), calendar streak bonus (`daily:bonus`), Pokédex milestones (`pokedex:claim-all`), Gamepass tiers (`gamepass:claim-all`), and news updates (`news:claim`).
-  - Auto-lock protection (`creature:lock` with `{ creatureId, locked: true }`) immediately upon capturing Shinies, Event Tiers, or Grade S creatures.
-  - Automated NPC quest deliveries for Professor Oak (`professor:deliver`), DexQuest (`dexquest:deliver`), and Collector (`collector:deliver`).
-  - Intelligent boost management (`shiny-boost:activate`, `xp-share-boost:activate`) with `itemEffects` tracking.
-- [x] UI & Dashboard Expansion (`app/index.html` & `app/app.js`):
-  - Added "🤖 Automações de Jogador (v2.4)" card with individual checkboxes.
-  - Added "Boosts & Consumíveis" KPI grid to the inventory panel.
-  - Full bidirectional config integration across Python, Electron Main, Preload, and Web Dashboard.
-- [x] Verification & Standalone Packaging:
-  - Created and ran `scratch/test_player_actions_suite.js` (10/10 tests passed with exit code 0).
-  - Verified regression suites (`test_economy_v23_suite.js`, `test_battle_engine_fix.js`, `test_v22_suite.js`) with exit code 0.
-  - Bumped version to 2.4.0 in `package.json` and compiled standalone executable in `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack`.
+## Phase 16: Resolution of Command & Capture Conflicts (Zero-Kill Guard & Authoritative Control) (v2.4.1)
+- [x] Forensic investigation of production bundle (`index-C3hpUun1.js`) and bot engine:
+  - Identified 5 critical conflicts: auto-idle server concurrency race, fallthrough to kill in `processBattleTurn`, ball alias discrepancy (`great-ball` vs `super-ball`), whitelist priority suppressing uncaught/shinies, and movement locks.
+- [x] Alignment of architectural decisions via user inquiry:
+  - User approved Authoritative Bot Control (stopping native `idle:start` while bot is active).
+  - User approved Direct Ball Throw for Shinies/Low-Level/Uncaught and Non-Lethal Weakening for High-Level targets.
+- [x] Implementation in `electron/preload-game.js`:
+  - Enforced `sendEvent("idle:stop")` in `configureAndStartIdle()` and `toggle-bot` when bot is enabled, eliminating turn collisions and `bad_message undefined`.
+  - Implemented `canonicalItemId()` mapping `super-ball` to `great-ball` in outgoing WebSocket payloads.
+  - Aligned `BALL_CATALOG` (3x multiplier for both aliases) and `POTION_CATALOG` (20, 60, 120, 9999 HP).
+  - Implemented Zero-Kill Guard in `selectBattleMove`: returns `null` for Shinies, level gap $\ge 5$, or HP $\le 60\%$, preventing accidental KOs.
+  - Implemented Direct Throw in `processBattleTurn`: throws balls from 100% HP for Shinies, low-level uncaught, or level advantages.
+  - Added dual-alias DOM selectors (`[data-item-id="great-ball"], [data-item-id="super-ball"]`) and direct WebSocket dispatch fallback when DOM button is delayed.
+  - Established strict priority hierarchy: Shinies (#1) and Uncaught species (#2) are never discarded by route whitelists or flee rules.
+- [x] Dashboard UI Polish (`app/app.js`):
+  - Added visual badges `✨SHINY` and `📕NOVO` to active battle opponent name in combat card.
+- [x] Automated Verification & Packaging:
+  - Created `scratch/test_capture_conflicts_suite.js` covering all 5 conflict scenarios (17/17 tests passed with exit code 0).
+  - Verified regression suites (`test_player_actions_suite.js`, `test_economy_v23_suite.js`, `test_decision_suite.js`) all passing with exit code 0.
+  - Recompiled standalone executable `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack` (verified 188.7 MB on disk).
 

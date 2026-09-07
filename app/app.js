@@ -439,8 +439,14 @@ function updateCombatUI(data) {
         const opp = data.enemyMon;
         const oppName = opp.name || opp.species || 'Criatura Selvagem';
         const oppHp = opp.hpPercent !== undefined ? Math.round(opp.hpPercent * 100) : 100;
+        const isShiny = !!(opp.isShiny || opp.shiny);
+        const isUncaught = (opp.species && data.collection) ? !data.collection[opp.species] : false;
 
-        if (enemyNameEl) enemyNameEl.textContent = `${oppName} (Nv. ${opp.level || '?'})`;
+        let badgeStr = '';
+        if (isShiny) badgeStr += ' ✨SHINY';
+        if (isUncaught) badgeStr += ' 📕NOVO';
+
+        if (enemyNameEl) enemyNameEl.textContent = `${oppName} (Nv. ${opp.level || '?'})${badgeStr}`;
         if (enemyHpText) enemyHpText.textContent = `${oppHp}%`;
         if (enemyHpBar) enemyHpBar.style.width = `${Math.max(0, Math.min(100, oppHp))}%`;
     } else {
