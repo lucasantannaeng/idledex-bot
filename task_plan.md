@@ -194,16 +194,23 @@
   - Verified regression suites (`test_player_actions_suite.js`, `test_economy_v23_suite.js`, `test_decision_suite.js`) all passing with exit code 0.
   - [x] Recompiled standalone executable `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack` (verified 188.7 MB on disk).
 
-## Phase 17: Interactive Live Simulation & Real-World Validation (v2.4.3)
-- [x] Launch application with native GUI and remote debugging port 9222 enabled.
-- [x] Connect automated live user driver via CDP WebSocket to host dashboard.
-- [x] Execute automated scenario runner covering all 5 configuration profiles.
-- [x] Simulate Profile 1: Shiny Hunter & Zero-Kill Guard (Master/Ultra, instant flee on commons).
-- [x] Simulate Profile 2: Economy Mode (Poké Ball 1st, HP <= 50%, regular Potion, XP duel).
-- [x] Simulate Profile 3: Farm XP & Offensive Combat (max damage, emergency flee only).
-- [x] Simulate Profile 4: Route Species Filter (selective capture vs flee / battle).
-- [x] Simulate Profile 5: Critical Survival & Heavy Potions (Super/Hyper Potions, Revives).
-- [x] Audit all host/guest console logs, WebSocket events, and error buffers.
-- [x] Isolate root cause of `bad_message undefined`, `professor_not_here`, and ghost modal popups ("miss clicks").
-- [x] Formulate /grill-me architectural decision query for user alignment.
+## Phase 18: Auto-Travel & NPC Deliveries State Machine (v2.4.4)
+- [x] Reverse engineer travel mechanics and city map identifiers:
+  - Proven map ID for Professor Oak's Laboratory is `npclab` (not `pallet-town`).
+  - Extracted `map:travel` envelope (`{ t: "map:travel", d: { mapId } }`) and `map:change` state handler.
+  - Deconstructed Professor Oak delivery lot specifications (`lotSize`, `available > lotSize`, `professor:deliver`).
+- [x] Implement Auto-Travel State Machine in `electron/preload-game.js`:
+  - `checkAutoTravelDeliveries()` evaluates surplus common species ($\ge$ configured threshold).
+  - Pauses grass patrol, caches `originMap`, and dispatches `map:travel` to `npclab`.
+  - On arrival, requests `professor:open`, auto-heals team at Pokémon Center/Nurse if injured, and dispatches `professor:deliver`.
+  - Automatically schedules return `map:travel` back to `originMap` after 3.5s delivery window.
+  - On arrival back at `originMap`, resets state to idle and safely resumes BFS grass patrol.
+  - Watchdog timer (25s) and cooldown (3 min) ensure 100% fail-safe operation.
+- [x] UI & Persistence Integration:
+  - Added `cfg-auto-travel-deliveries` toggle and `cfg-auto-travel-surplus` threshold input to `app/index.html`.
+  - Bound controls in `app/app.js` and synced to `electron/main.js` and `config.py`.
+- [x] Automated Unit Testing & Live Visual Simulation:
+  - Created `scratch/test_auto_travel_suite.js` (6/6 tests passing with exit code 0).
+  - Executed visual simulation driver (`scratch/live_simulation_driver.js`) with 6 distinct profiles live on user desktop.
+  - App actively running in foreground with remote debugging port 9222 active and zero errors.
 

@@ -57,6 +57,8 @@ function initMainWorldEngine() {
         auto_lock_valuable: true, // Auto bloqueio de Shinies, Event Tiers e Grau S
         auto_use_boosts: false, // Auto ativação de boosts (shiny/xp) durante patrulha
         auto_npc_quests: true, // Auto entrega de pedidos para Professor, DexQuest e Colecionador
+        auto_travel_deliveries: true, // Viagem automática para entrega a NPCs
+        auto_travel_surplus_threshold: 5, // Limiar de cópias excedentes para disparar viagem
     };
 
     let currentMapSpecies = [];
@@ -120,6 +122,83 @@ function initMainWorldEngine() {
     let wallet = { silver: 0, gold: 0, coins: 0, crystals: 0 };
     let collection = {};
     let team = [];
+
+    // State machine for Option 3: Auto-Travel & NPC Deliveries
+    let autoTravelState = {
+        active: false,
+        originMap: null,
+        targetMap: "npclab",
+        phase: "idle", // 'idle' | 'traveling_to_lab' | 'delivering' | 'returning'
+        lastTravelTime: 0,
+        cooldownMs: 180000, // 3 min cooldown between auto-travel runs
+        timeoutTimer: null,
+        deliveriesDone: 0
+    };
+
+    function checkAutoTravelDeliveries() {
+        if (!botConfig.enabled || !botConfig.auto_travel_deliveries) return false;
+        if (inBattle || autoTravelState.active) return false;
+        if (!currentMap || currentMap === "npclab" || currentMap.startsWith("lobby")) return false;
+
+        const now = Date.now();
+        if (now - autoTravelState.lastTravelTime < autoTravelState.cooldownMs) return false;
+
+        // Group unlocked, non-shiny creatures in player collection by speciesId
+        const speciesCounts = {};
+        const speciesNames = {};
+        for (const id in collection) {
+            const mon = collection[id];
+            if (!mon || mon.isShiny || mon.shiny || mon.isLocked || (mon.eventTier && mon.eventTier > 0)) continue;
+            const spId = mon.speciesId || mon.species;
+            if (!spId) continue;
+            speciesCounts[spId] = (speciesCounts[spId] || 0) + 1;
+            if (mon.name || mon.species) speciesNames[spId] = mon.name || mon.species;
+        }
+
+        const threshold = botConfig.auto_travel_surplus_threshold || 5;
+        let eligibleSpecies = null;
+        let surplusCount = 0;
+
+        for (const spId in speciesCounts) {
+            const count = speciesCounts[spId];
+            if (count > threshold) {
+                eligibleSpecies = spId;
+                surplusCount = count - 1; // Preserve 1 copy for trainer
+                break;
+            }
+        }
+
+        if (!eligibleSpecies) return false;
+
+        autoTravelState.active = true;
+        autoTravelState.originMap = currentMap;
+        autoTravelState.targetMap = "npclab";
+        autoTravelState.phase = "traveling_to_lab";
+        autoTravelState.lastTravelTime = now;
+        autoTravelState.deliveriesDone = 0;
+
+        // Immediately pause grass roaming
+        if (roamInterval) {
+            clearInterval(roamInterval);
+            roamInterval = null;
+        }
+
+        logEvent(`🚀 [AUTO-TRAVEL] Acúmulo de ${surplusCount} cópias de ${speciesNames[eligibleSpecies] || eligibleSpecies}! Pausando patrulha e viajando para o Laboratório do Professor (npclab)...`, "warning");
+
+        // Watchdog timeout to prevent hang if packet is lost (25s)
+        if (autoTravelState.timeoutTimer) clearTimeout(autoTravelState.timeoutTimer);
+        autoTravelState.timeoutTimer = setTimeout(() => {
+            if (autoTravelState.active && autoTravelState.phase !== "idle") {
+                logEvent(`⚠️ [AUTO-TRAVEL] Timeout de viagem/entrega (25s). Restaurando patrulha...`, "warning");
+                autoTravelState.active = false;
+                autoTravelState.phase = "idle";
+                if (botConfig.auto_roam && !inBattle) startRoamLoop();
+            }
+        }, 25000);
+
+        sendEvent("map:travel", { mapId: "npclab" });
+        return true;
+    }
 
     // Check if a battle packet belongs to the local player
     function isMyBattle(d) {
@@ -940,6 +1019,52 @@ function handleGameMessage(msg) {
             if (d.x !== undefined && d.y !== undefined) playerPos = { x: Number(d.x), y: Number(d.y) };
             logEvent(`🗺️ Transição de mapa para: ${getMapFriendlyName(currentMap)}`, "info");
             setTimeout(() => { sendEvent("map:preview", { mapId: currentMap }); }, 300);
+
+            // AUTO-TRAVEL STATE MACHINE TRANSITIONS
+            if (autoTravelState.active) {
+                if (currentMap === autoTravelState.targetMap && autoTravelState.phase === "traveling_to_lab") {
+                    autoTravelState.phase = "delivering";
+                    logEvent(`🏛️ [AUTO-TRAVEL] Chegada ao Laboratório do Professor confirmada! Solicitando entregas...`, "info");
+
+                    setTimeout(() => {
+                        sendEvent("professor:open");
+                    }, 600);
+
+                    // Auto-Heal team at Pokémon Center/Nurse if available in lab
+                    if (botConfig.auto_heal_center && Array.isArray(team) && team.length > 0) {
+                        const needsHeal = team.some(m => m.hp !== undefined && m.maxHp !== undefined && m.hp < m.maxHp);
+                        if (needsHeal) {
+                            setTimeout(() => {
+                                sendEvent("heal:full", { creatureIds: team.map(m => m.id) });
+                                logEvent(`💚 [AUTO-TRAVEL] Equipe curada no Centro do Laboratório!`, "success");
+                            }, 1200);
+                        }
+                    }
+
+                    // Return trip scheduled after delivery window (3.5s)
+                    setTimeout(() => {
+                        if (autoTravelState.active && autoTravelState.phase === "delivering") {
+                            autoTravelState.phase = "returning";
+                            logEvent(`🔄 [AUTO-TRAVEL] Entregas finalizadas! Retornando para a rota de caça (${getMapFriendlyName(autoTravelState.originMap)})...`, "info");
+                            sendEvent("map:travel", { mapId: autoTravelState.originMap });
+                        }
+                    }, 3500);
+                }
+                else if (currentMap === autoTravelState.originMap && autoTravelState.phase === "returning") {
+                    if (autoTravelState.timeoutTimer) {
+                        clearTimeout(autoTravelState.timeoutTimer);
+                        autoTravelState.timeoutTimer = null;
+                    }
+                    autoTravelState.active = false;
+                    autoTravelState.phase = "idle";
+                    autoTravelState.lastTravelTime = Date.now();
+                    logEvent(`🎯 [AUTO-TRAVEL] Retorno à rota ${getMapFriendlyName(currentMap)} concluído com sucesso! Retomando patrulha na grama alta.`, "success");
+                    if (botConfig.auto_roam && !inBattle) {
+                        startRoamLoop();
+                    }
+                }
+            }
+
             emitTelemetry();
         }
 
@@ -1129,7 +1254,9 @@ function handleGameMessage(msg) {
                     if (lot && lot.available > lotSize) {
                         sendEvent("professor:deliver", { speciesId: lot.speciesId });
                         logEvent(`🔬 [PROFESSOR] Entregando lote de ${lot.name || lot.speciesId} (+${lot.bronzePerLot || 1} Moedas de Bronze)`, "success");
-                        break;
+                        if (autoTravelState.active) {
+                            autoTravelState.deliveriesDone++;
+                        }
                     }
                 }
             }
@@ -1254,11 +1381,14 @@ function handleGameMessage(msg) {
             enemyMon = null;
             emitTelemetry();
 
-            // Resume roaming after battle exit animation completes
-            if (botConfig.enabled && botConfig.auto_roam) {
+            // Resume roaming after battle exit animation completes (or trigger auto-travel delivery)
+            if (botConfig.enabled) {
                 setTimeout(() => {
-                    if (!inBattle && botConfig.enabled && botConfig.auto_roam) {
-                        startRoamLoop();
+                    if (!inBattle && botConfig.enabled) {
+                        const traveled = checkAutoTravelDeliveries();
+                        if (!traveled && botConfig.auto_roam) {
+                            startRoamLoop();
+                        }
                     }
                 }, 1200);
             }
@@ -1337,9 +1467,13 @@ function handleGameMessage(msg) {
             if (botConfig.auto_npc_quests) {
                 // Only interact with specific NPCs if the player is physically on their respective map,
                 // eliminating server errors 'professor_not_here' and 'dexquest_not_here'.
-                if (currentMap === "pallet-town" || currentMap.includes("lab")) {
+                if (currentMap === "npclab" || currentMap === "pallet-town" || currentMap.includes("lab")) {
                     sendEvent("professor:deliver");
                 }
+            }
+
+            if (botConfig.auto_travel_deliveries) {
+                checkAutoTravelDeliveries();
             }
 
             if (botConfig.auto_use_boosts && inventory.boosts) {
@@ -1787,6 +1921,9 @@ function handleGameMessage(msg) {
             else if (payload.action === 'claim-all') {
                 sendEvent("pokedex:claim-all");
                 sendEvent("gamepass:claim-all");
+            }
+            else if (payload.action === 'trigger-auto-travel') {
+                checkAutoTravelDeliveries();
             }
         }
     });

@@ -612,6 +612,8 @@ function applyConfigToInputs(cfg) {
     setCheck('cfg-auto-dailies', cfg.auto_claim_dailies !== false);
     setCheck('cfg-auto-lock', cfg.auto_lock_valuable !== false);
     setCheck('cfg-auto-npc-quests', cfg.auto_npc_quests !== false);
+    setCheck('cfg-auto-travel-deliveries', cfg.auto_travel_deliveries !== false);
+    setVal('cfg-auto-travel-surplus', cfg.auto_travel_surplus_threshold || 5);
     setCheck('cfg-auto-boosts', !!cfg.auto_use_boosts);
 }
 
@@ -643,6 +645,8 @@ async function saveBotSettings() {
         auto_claim_dailies: getCheck('cfg-auto-dailies'),
         auto_lock_valuable: getCheck('cfg-auto-lock'),
         auto_npc_quests: getCheck('cfg-auto-npc-quests'),
+        auto_travel_deliveries: getCheck('cfg-auto-travel-deliveries'),
+        auto_travel_surplus_threshold: parseInt(getVal('cfg-auto-travel-surplus'), 10) || 5,
         auto_use_boosts: getCheck('cfg-auto-boosts'),
     };
 

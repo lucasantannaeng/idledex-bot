@@ -99,6 +99,8 @@ class BotConfig:
     auto_lock_valuable: bool = True
     auto_use_boosts: bool = False
     auto_npc_quests: bool = True
+    auto_travel_deliveries: bool = True
+    auto_travel_surplus_threshold: int = 5
     discord_webhook: str = ""
 
 

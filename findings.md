@@ -302,3 +302,33 @@
       - `daily:bonus` (resgata o bônus diário sem abrir o calendário).
       - `pokedex:claim-all` (resgata todos os marcos sem abrir a Pokédex).
       - `gamepass:claim-all` (resgata todos os passes sem abrir o Gamepass).
+
+## 15. Reverse Engineering & Architecture: Auto-Travel & NPC Deliveries State Machine (Phase 18)
+- **Descoberta dos Mapas e NPCs de Cidade (`fte` Dictionary & Collision Files)**:
+  - `npclab`: "Laboratório do Professor" (dimensões 51x25, bioma `lab`, rota oficial onde reside o Professor Carvalho).
+  - `lobby1`: "Vila Central" (dimensões 108x108, bioma `terra`, cidade central do jogo).
+  - Rotas de caça selvagem: `route_001` até `route_150`.
+- **Protocolo Oficial de Viagem (`map:travel`)**:
+  - Envio do cliente: `{ t: "map:travel", d: { mapId: string } }`.
+  - Resposta autoritativa do servidor: `{ t: "map:change", d: { map: string, x: number, y: number } }`.
+  - O cliente carrega a nova colisão (`/maps/${mapId}.collision.json`) e renderiza os atores e NPCs do mapa.
+- **Protocolo de Entrega ao Professor Carvalho (`professor:deliver`)**:
+  - Ao entrar em `npclab`, o envio de `professor:open` solicita o estado atualizado:
+    - `{ t: "professor:state", d: { lotSize: number, charges: number, lots: [{ speciesId, name, available, bronzePerLot }] } }`.
+  - Cada lote requer que `available > lotSize` (padrão 5).
+  - Entrega: `{ t: "professor:deliver", d: { speciesId: string } }`.
+  - Recompensa: Moedas de Bronze para compra de itens raros na loja de bronze (`bronzeshop:buy`).
+- **Máquina de Estados de Viagem Autônoma (`autoTravelState`)**:
+  - **Fase 1 (`idle`)**: O bot monitora a coleção local de monstros capturados (`collection`).
+  - **Fase 2 (`traveling_to_lab`)**: Ao detectar excedente $\ge$ limiar (ex: 5 cópias excedentes de Pidgey), o bot pausa a patrulha na grama, salva `originMap = currentMap`, e despacha `{ t: "map:travel", d: { mapId: "npclab" } }`.
+  - **Fase 3 (`delivering`)**: Ao receber `map:change` confirmando chegada a `npclab`:
+    - Dispara `{ t: "professor:open" }`.
+    - Executa cura completa com a Enfermeira via `{ t: "heal:full", d: { creatureIds } }` caso algum membro da equipe esteja com HP reduzido.
+    - Ao receber `professor:state`, despacha entregas de todos os lotes elegíveis.
+    - Agenda retorno automático para a rota de origem após janela de 3.5 segundos.
+  - **Fase 4 (`returning`)**: O bot despacha `{ t: "map:travel", d: { mapId: originMap } }`.
+  - **Fase 5 (`idle`)**: Ao confirmar retorno à rota de origem via `map:change`:
+    - Reseta a máquina de estados para `idle`.
+    - Atualiza timestamp para respeitar cooldown de 3 minutos.
+    - Retoma automaticamente a patrulha BFS na grama alta.
+    - Watchdog de 25 segundos garante recuperação automática em caso de qualquer pacote perdido.

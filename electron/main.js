@@ -50,6 +50,8 @@ function loadConfig() {
         auto_lock_valuable: true,
         auto_use_boosts: false,
         auto_npc_quests: true,
+        auto_travel_deliveries: true,
+        auto_travel_surplus_threshold: 5,
     };
 }
 
@@ -71,6 +73,7 @@ function createWindow() {
         title: 'IdleDex Desktop Suite v2.0',
         backgroundColor: '#0a0e17',
         autoHideMenuBar: true,
+        show: true,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -82,6 +85,25 @@ function createWindow() {
     });
 
     mainWindow.loadFile(path.join(__dirname, '../app/index.html'));
+
+    // Force window to appear visibly in foreground on user desktop
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.setAlwaysOnTop(true);
+        setTimeout(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.setAlwaysOnTop(false);
+            }
+        }, 1200);
+    });
+
+    setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    }, 500);
 
     // Forward ALL renderer console messages to stdout for diagnosis
     mainWindow.webContents.on('console-message', (event, level, msg, line, sourceId) => {
@@ -98,34 +120,38 @@ function createWindow() {
 }
 
 function createTray() {
-    // Generate a clean 16x16 icon programmatically if file doesn't exist
-    const iconPath = path.join(__dirname, 'tray-icon.png');
-    let icon;
-    if (fs.existsSync(iconPath)) {
-        icon = nativeImage.createFromPath(iconPath);
-    } else {
-        // Fallback: 16x16 cyan dot
-        const n = nativeImage.createFromBuffer(
-            Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAA0SURBVDhPY/wPBAwUACYGKsD/oRhGE2AAjEZB/BiNAsZgNArYgDEyYEAAmBioAP+HYhhNgAEAvdYHEb5rKxkAAAAASUVORK5CYII=', 'base64')
-        );
-        icon = n;
+    try {
+        // Generate a clean 16x16 icon programmatically if file doesn't exist
+        const iconPath = path.join(__dirname, 'tray-icon.png');
+        let icon;
+        if (fs.existsSync(iconPath)) {
+            icon = nativeImage.createFromPath(iconPath);
+        } else {
+            // Fallback: 16x16 cyan dot
+            const n = nativeImage.createFromBuffer(
+                Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAA0SURBVDhPY/wPBAwUACYGKsD/oRhGE2AAjEZB/BiNAsZgNArYgDEyYEAAmBioAP+HYhhNgAEAvdYHEb5rKxkAAAAASUVORK5CYII=', 'base64')
+            );
+            icon = n;
+        }
+
+        tray = new Tray(icon);
+        tray.setToolTip('IdleDex Desktop Suite');
+
+        const contextMenu = Menu.buildFromTemplate([
+            { label: 'Exibir IdleDex Desktop', click: () => { mainWindow.show(); mainWindow.focus(); } },
+            { label: 'Alternar Bot (Ligar / Pausar)', click: () => { mainWindow.webContents.send('toggle-bot-tray'); } },
+            { type: 'separator' },
+            { label: 'Sair Completamente', click: () => { isQuitting = true; app.quit(); } }
+        ]);
+
+        tray.setContextMenu(contextMenu);
+        tray.on('double-click', () => {
+            mainWindow.show();
+            mainWindow.focus();
+        });
+    } catch (e) {
+        console.warn('[MAIN] Tray initialization skipped:', e.message);
     }
-
-    tray = new Tray(icon);
-    tray.setToolTip('IdleDex Desktop Suite');
-
-    const contextMenu = Menu.buildFromTemplate([
-        { label: 'Exibir IdleDex Desktop', click: () => { mainWindow.show(); mainWindow.focus(); } },
-        { label: 'Alternar Bot (Ligar / Pausar)', click: () => { mainWindow.webContents.send('toggle-bot-tray'); } },
-        { type: 'separator' },
-        { label: 'Sair Completamente', click: () => { isQuitting = true; app.quit(); } }
-    ]);
-
-    tray.setContextMenu(contextMenu);
-    tray.on('double-click', () => {
-        mainWindow.show();
-        mainWindow.focus();
-    });
 }
 
 // IPC Handlers
