@@ -473,8 +473,12 @@ function updateStatsUI(progress, wallet) {
     setText('stat-captures', (progress.captures ?? 0).toLocaleString('pt-BR'));
     setText('stat-shinies', progress.shinies ?? 0);
 
-    setText('wallet-coins', (wallet.coins ?? 0).toLocaleString('pt-BR'));
-    setText('wallet-crystals', (wallet.crystals ?? 0).toLocaleString('pt-BR'));
+    const silver = wallet.silver ?? wallet.coins ?? 0;
+    const gold = wallet.gold ?? wallet.crystals ?? 0;
+    setText('wallet-silver', silver.toLocaleString('pt-BR'));
+    setText('wallet-gold', gold.toLocaleString('pt-BR'));
+    setText('wallet-coins', silver.toLocaleString('pt-BR'));
+    setText('wallet-crystals', gold.toLocaleString('pt-BR'));
 }
 
 function updateInventoryUI(inventory) {
@@ -587,6 +591,11 @@ function applyConfigToInputs(cfg) {
 
     setCheck('cfg-auto-roam', cfg.auto_roam !== false);
     setCheck('cfg-auto-idle', cfg.auto_idle !== false);
+    const discardPct = cfg.discard_iv_pct !== undefined ? cfg.discard_iv_pct : 50;
+    setVal('cfg-discard-iv-pct', discardPct);
+    const lblDiscard = document.getElementById('lbl-discard-iv-pct');
+    if (lblDiscard) lblDiscard.innerText = discardPct + '%';
+    setCheck('cfg-pause-no-balls', cfg.pause_on_no_balls !== false);
 }
 
 async function saveBotSettings() {
@@ -610,6 +619,8 @@ async function saveBotSettings() {
         unselected_action: getVal('cfg-unselected-action') || getVal('cfg-unselected-action-radar') || 'battle',
         min_iv_alert: 130,
         roam_step_delay_ms: parseInt(getVal('cfg-roam-delay'), 10) || 300,
+        discard_iv_pct: parseInt(getVal('cfg-discard-iv-pct'), 10) || 50,
+        pause_on_no_balls: getCheck('cfg-pause-no-balls'),
         auto_roam: getCheck('cfg-auto-roam'),
         auto_idle: getCheck('cfg-auto-idle'),
     };

@@ -48,6 +48,8 @@ function initMainWorldEngine() {
         target_species: [], // array of speciesIds to catch in current area
         unselected_action: 'battle', // 'battle' (lutar por XP) ou 'flee' (fugir)
         min_iv_alert: 130,
+        discard_iv_pct: 50, // Corte percentual de IV para descarte automático via creature:release
+        pause_on_no_balls: true, // Pausar patrulha se esgotar Pokébolas e foco for captura
         roam_step_delay_ms: 300,
         auto_idle: true,
         auto_roam: true,
@@ -55,6 +57,7 @@ function initMainWorldEngine() {
 
     let currentMapSpecies = [];
     let lastCapturedMon = null;
+    const releasedCreatureIds = new Set();
 
     let activeWs = null;
     let inBattle = false;
@@ -99,7 +102,7 @@ function initMainWorldEngine() {
         revives: { revive: 0, "max-revive": 0 },
         potion: 0
     };
-    let wallet = { coins: 0, crystals: 0 };
+    let wallet = { silver: 0, gold: 0, coins: 0, crystals: 0 };
     let collection = {};
     let team = [];
 
@@ -620,6 +623,11 @@ function initMainWorldEngine() {
         return null;
     }
 
+    function getTotalBalls() {
+        const b = (inventory && inventory.ball) || {};
+        return (b.pokeball || 0) + (b.greatball || 0) + (b.ultraball || 0) + (b.masterball || 0);
+    }
+
     function selectBattleMove(foeTypes, foeHpPct, isCaptureTarget) {
         if (!battleMoves || battleMoves.length === 0) return null;
 
@@ -733,8 +741,10 @@ function handleGameMessage(msg) {
                     }
                     if (p.wallet) {
                         wallet = {
-                            coins: p.wallet.coins ?? p.wallet.gold ?? 0,
-                            crystals: p.wallet.crystals ?? p.wallet.gems ?? 0
+                            silver: p.wallet.silver ?? p.wallet.coins ?? 0,
+                            gold: p.wallet.gold ?? p.wallet.crystals ?? 0,
+                            coins: p.wallet.silver ?? p.wallet.coins ?? 0,
+                            crystals: p.wallet.gold ?? p.wallet.crystals ?? 0
                         };
                     }
                     if (p.inventory) {
@@ -928,9 +938,12 @@ function handleGameMessage(msg) {
 
         // Wallet
         else if (t === "wallet") {
+            if (d.silver !== undefined) wallet.silver = d.silver;
+            if (d.gold !== undefined) wallet.gold = d.gold;
             if (d.coins !== undefined) wallet.coins = d.coins;
-            if (d.gold !== undefined) wallet.coins = d.gold;
+            else if (d.silver !== undefined) wallet.coins = d.silver;
             if (d.crystals !== undefined) wallet.crystals = d.crystals;
+            else if (d.gold !== undefined) wallet.crystals = d.gold;
             emitTelemetry();
         }
 
@@ -1053,9 +1066,6 @@ function handleGameMessage(msg) {
             enemyMon = null;
             emitTelemetry();
 
-            // Refresh collection / inventory (NO claim-all spam)
-            sendEvent("inventory:list");
-
             // Resume roaming after battle exit animation completes
             if (botConfig.enabled && botConfig.auto_roam) {
                 setTimeout(() => {
@@ -1068,15 +1078,26 @@ function handleGameMessage(msg) {
     }
 
     function checkMonIVStrategy(mon) {
+        if (!mon || !mon.id || releasedCreatureIds.has(mon.id)) return;
+
+        // Strict Safety Gate: Never release shiny, special event tiers, or locked creatures
+        if (mon.isShiny || mon.shiny || (mon.eventTier && mon.eventTier > 0) || mon.isLocked) {
+            return;
+        }
+
         const stats = mon.stats || mon.ivs || {};
         const ivSum = (stats.hp || 0) + (stats.atk || 0) + (stats.def || 0) + 
-                      (stats.spAtk || 0) + (stats.spDef || 0) + (stats.speed || 0);
+                      (stats.spAtk || stats.spa || 0) + (stats.spDef || stats.spd || 0) + (stats.speed || stats.spe || 0);
+        const ivPct = Math.round((ivSum / 186) * 100);
 
-        if (botConfig.strategy_mode === "monetize") {
-            if (ivSum <= botConfig.iv_sell_threshold) {
-                sendEvent("market:sell", { monId: mon.id });
-                logEvent(`💰 Venda automática de ${mon.species || 'Mon'} (IV: ${ivSum})`, "info");
-            }
+        const cutoffPct = botConfig.discard_iv_pct !== undefined ? botConfig.discard_iv_pct : 50;
+
+        // Auto release low IV creatures via official creature:release protocol
+        if (cutoffPct > 0 && ivPct < cutoffPct) {
+            releasedCreatureIds.add(mon.id);
+            sendEvent("creature:release", { creatureIds: [mon.id] });
+            const speciesName = mon.species || mon.name || 'Criatura';
+            logEvent(`🗑️ Liberação automática de ${speciesName} (IV: ${ivSum}/186 - ${ivPct}% < ${cutoffPct}%)`, "info");
         }
     }
 
@@ -1200,6 +1221,19 @@ function handleGameMessage(msg) {
             return;
         }
 
+        // Tactical Zero-Ball Strategy: Flee or farm XP if inventory has no balls
+        const totalBalls = getTotalBalls();
+        if (isCaptureTarget && totalBalls === 0) {
+            if (botConfig.unselected_action === "battle") {
+                logEvent(`⚠️ Sem Pokébolas! Alternando para combate por XP contra ${foeSpecies}...`, "info");
+                isCaptureTarget = false;
+            } else if (botConfig.unselected_action === "flee") {
+                logEvent(`⚠️ Sem Pokébolas e modo de captura ativo! Fugindo de ${foeSpecies}...`, "warning");
+                executeBattleAction("battle:flee", { battleId: currentBattleId }, '.hud-throw-balls .hud-throw-flee:not([disabled])');
+                return;
+            }
+        }
+
         // 1. Flee emergency
         if (myHpPct <= botConfig.flee_hp_pct) {
             logEvent("🏃 HP crítico! Executando fuga tática...", "warning");
@@ -1297,6 +1331,18 @@ function handleGameMessage(msg) {
         if (roamInterval) clearInterval(roamInterval);
         roamInterval = setInterval(() => {
             if (!botConfig.enabled || !botConfig.auto_roam || inBattle || !activeWs || activeWs.readyState !== WebSocket.OPEN) {
+                return;
+            }
+
+            // Zero-ball auto-pause: if balls are exhausted and player only wants to capture (flee unselected)
+            if (botConfig.pause_on_no_balls && getTotalBalls() === 0 && botConfig.unselected_action === "flee") {
+                botConfig.enabled = false;
+                if (roamInterval) {
+                    clearInterval(roamInterval);
+                    roamInterval = null;
+                }
+                logEvent("🛑 Patrulha pausada automaticamente: estoque de Pokébolas esgotado e modo de captura ativo!", "warning");
+                emitTelemetry();
                 return;
             }
 

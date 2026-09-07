@@ -149,3 +149,26 @@
   - Validated takeover immunity, in-flight locking, and turn reset passing with exit code 0.
 - [x] Recompile portable standalone distribution:
   - Recompiled `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack`.
+
+## Phase 14: Economic Alignment, Official creature:release Protocol & Zero-Ball Strategy (v2.3)
+- [x] Complete forensic audit of bot codebase vs official bundle (`index-C3hpUun1.js`):
+  - Discovered and eliminated ghost command `inventory:list` in `battle:end`.
+  - Discovered and eliminated ghost command `market:sell` in monetize strategy.
+  - Reverse-engineered official discard protocol: `{ t: "creature:release", d: { creatureIds: string[] } }`.
+- [x] Align wallet currency structure:
+  - Updated snapshot parsing and `wallet` event to ingest `silver` (Prata) and `gold` (Ouro) accurately.
+  - Updated UI dashboard cards to "Prata" and "Ouro" with faithful locale formatting.
+- [x] Implement safe low-IV discard engine via `creature:release`:
+  - Added strict safety gates: never release Shinies (`isShiny`), rare event tiers (`eventTier > 0`), or favorited/locked monsters (`isLocked`).
+  - Added configurable threshold slider `discard_iv_pct` (default 50%).
+  - Added duplicate release protection via `releasedCreatureIds` Set.
+- [x] Implement tactical zero-ball inventory management:
+  - In combat: if out of balls and foe was target, either switch to XP battle (with max damage attacks) if `unselected_action === "battle"`, or flee if `unselected_action === "flee"`.
+  - In roaming: if out of balls and `unselected_action === "flee"`, auto-pause roam loop and bot (`pause_on_no_balls: true`).
+- [x] Configuration persistence & UI:
+  - Added `discard_iv_pct: 50` and `pause_on_no_balls: true` to `config.py`, `electron/main.js`, `app/index.html`, and `app/app.js`.
+- [x] Verification & Automated Tests:
+  - Created and executed `scratch/test_economy_v23_suite.js` (static audit, wallet ingestion, safety filters, zero-ball behavior) passing with exit code 0.
+  - Ran full regression suites `scratch/test_battle_engine_fix.js` and `scratch/test_v22_suite.js` with exit code 0.
+- [x] Standalone distribution packaging:
+  - Recompiled standalone executable `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack`.

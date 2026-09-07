@@ -38,6 +38,8 @@ function loadConfig() {
         target_species: [],
         unselected_action: 'battle',
         min_iv_alert: 130,
+        discard_iv_pct: 50,
+        pause_on_no_balls: true,
         roam_step_delay_ms: 300,
         auto_idle: true,
         auto_roam: true,

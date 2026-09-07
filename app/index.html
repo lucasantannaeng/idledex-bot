@@ -166,8 +166,8 @@
                     <div class="card">
                         <div class="card-title">Economia</div>
                         <div style="display:flex; justify-content:space-around; margin-top:8px;">
-                            <div>Ouro: <b id="wallet-coins" style="color:#ffd700; font-family:var(--font-mono);">0</b></div>
-                            <div>Cristais: <b id="wallet-crystals" style="color:var(--cyan); font-family:var(--font-mono);">0</b></div>
+                            <div>Prata: <b id="wallet-silver" style="color:#e2e8f0; font-family:var(--font-mono);">0</b></div>
+                            <div>Ouro: <b id="wallet-gold" style="color:#ffd700; font-family:var(--font-mono);">0</b></div>
                         </div>
                     </div>
                 </div>
@@ -294,12 +294,15 @@
                                 </select>
                             </div>
                             <div class="form-item">
-                                <label>Mínimo IV Coleção</label>
-                                <input type="number" id="cfg-iv-col" class="form-control" style="width:65px;" min="100" max="186">
+                                <label>Descarte Auto IV &lt; (%)</label>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <input type="range" id="cfg-discard-iv-pct" min="0" max="90" step="5" value="50" oninput="document.getElementById('lbl-discard-iv-pct').innerText = this.value + '%'" style="width:90px;">
+                                    <span id="lbl-discard-iv-pct" style="font-family:var(--font-mono); font-size:0.75rem; width:35px; color:var(--cyan);">50%</span>
+                                </div>
                             </div>
                             <div class="form-item">
-                                <label>IV Descarte/Venda</label>
-                                <input type="number" id="cfg-iv-sell" class="form-control" style="width:65px;" min="100" max="186">
+                                <label>Pausar ao Esgotar Pokébolas</label>
+                                <input type="checkbox" id="cfg-pause-no-balls">
                             </div>
                             <div class="form-item">
                                 <label>Auto-Idle Nativo</label>

@@ -90,6 +90,8 @@ class BotConfig:
     target_species: List[str] = field(default_factory=list)
     unselected_action: str = "battle"  # battle, flee
     min_iv_alert: int = 130
+    discard_iv_pct: int = 50
+    pause_on_no_balls: bool = True
     roam_step_delay_ms: int = 300
     auto_idle: bool = True
     auto_roam: bool = True

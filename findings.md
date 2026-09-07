@@ -199,7 +199,25 @@
   2. **In-Flight Turn Lock (`actionInFlight` & `lastTurnNumber`)**: Locks dispatch immediately upon firing an action. Unlocked ONLY when a new turn arrives from the server (`d.turn !== lastTurnNumber` or `d.open === true`).
   3. **Throw Bar State Guard (`isThrowBarOpen`)**: Checks that `.hud-throw-bar` has `data-open` and does NOT have `.hud-duel-waiting`. No actions are dispatched during animations.
   4. **Strict Move Selector & Takeover Immunity**: Move selection is scoped strictly inside `.hud-duel-moves` and explicitly excludes `.hud-throw-takeover` (`button.hud-duel-move:not([disabled]):not(.hud-throw-takeover)`).
-  5. **Console Log Filter**: In `app/app.js`, filtered out `bad_message`, `in_battle_move`, and `chat_empty` matching the official client's suppression logic (`!["bad_message","in_battle_move","chat_empty"].includes(t.code)`).
 
-
-
+## 11. Complete Codebase Audit: Economic Alignment, Official Release Protocol & Zero-Ball Strategy (Phase 14)
+- **Comprehensive Upstream Bundle Audit (`index-C3hpUun1.js`)**:
+  - Reverse-engineered all 188 client-to-server commands and 13 WebSocket event listeners.
+  - Discovered that `inventory:list` (previously sent on `battle:end`) is completely unrecognized by the IdleDex server and triggered repetitive `bad_message` errors. The server natively pushes `inventory` and `wallet` events on state changes.
+  - Discovered that `market:sell` does NOT exist in the official protocol. The official discard protocol is `{ t: "creature:release", d: { creatureIds: string[] } }`.
+- **Official Currency Structure Alignment (Prata vs Ouro)**:
+  - Upstream client state: `wallet: { silver: number, gold: number }`.
+  - Silver (Prata) is the primary in-game progression and battle currency; Gold (Ouro) is the premium/trade currency.
+  - Aligned UI dashboard cards to "Prata" and "Ouro" with faithful number formatting and legacy fallbacks.
+- **Safe Low-IV Discard Engine (`creature:release`)**:
+  - Implemented strict safety gates before dispatching `creature:release`:
+    1. Never release shiny Pokémon (`mon.isShiny || mon.shiny`).
+    2. Never release special event tiers (`mon.eventTier > 0`).
+    3. Never release favorited/locked monsters (`mon.isLocked`).
+    4. Never release monsters with IV percentage >= configured threshold (`discard_iv_pct`, default 50%).
+    5. Duplicate dispatch prevention using in-memory Set (`releasedCreatureIds`).
+- **Tactical Zero-Ball Inventory Management**:
+  - In combat: If inventory balls are exhausted (`totalBalls === 0`) and the target was marked for capture:
+    - If `unselected_action === "battle"`: Switch target to battle for XP and select the highest damage attack moves to knock out the foe and earn XP.
+    - If `unselected_action === "flee"`: Flee immediately to avoid unnecessary damage.
+  - In roaming: If `pause_on_no_balls` is true, balls are exhausted, and `unselected_action === "flee"`, automatically pause roaming and the bot, issuing a clear warning on the dashboard.
