@@ -172,3 +172,22 @@
   - Ran full regression suites `scratch/test_battle_engine_fix.js` and `scratch/test_v22_suite.js` with exit code 0.
 - [x] Standalone distribution packaging:
   - Recompiled standalone executable `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack`.
+
+## Phase 15: Full Reverse Engineering of 10 Tutorials, 178 Official Commands & Player Automation Engine (v2.4)
+- [x] Complete reverse engineering of official tutorials (`Xee` / `Dh`):
+  - Extracted and documented all 10 chapters (`auto_setup`, `healing`, `travel`, `chat`, `team`, `evolution`, `buy_balls`, `sell`, `gym`, `fishing_bait`).
+  - Cataloged exact WebSocket payloads for 178 official client-to-server commands.
+- [x] Autonomous Player Engine (`electron/preload-game.js`):
+  - Auto-claim of daily quests (`daily:claim` with `{ questId }`), calendar streak bonus (`daily:bonus`), Pokédex milestones (`pokedex:claim-all`), Gamepass tiers (`gamepass:claim-all`), and news updates (`news:claim`).
+  - Auto-lock protection (`creature:lock` with `{ creatureId, locked: true }`) immediately upon capturing Shinies, Event Tiers, or Grade S creatures.
+  - Automated NPC quest deliveries for Professor Oak (`professor:deliver`), DexQuest (`dexquest:deliver`), and Collector (`collector:deliver`).
+  - Intelligent boost management (`shiny-boost:activate`, `xp-share-boost:activate`) with `itemEffects` tracking.
+- [x] UI & Dashboard Expansion (`app/index.html` & `app/app.js`):
+  - Added "🤖 Automações de Jogador (v2.4)" card with individual checkboxes.
+  - Added "Boosts & Consumíveis" KPI grid to the inventory panel.
+  - Full bidirectional config integration across Python, Electron Main, Preload, and Web Dashboard.
+- [x] Verification & Standalone Packaging:
+  - Created and ran `scratch/test_player_actions_suite.js` (10/10 tests passed with exit code 0).
+  - Verified regression suites (`test_economy_v23_suite.js`, `test_battle_engine_fix.js`, `test_v22_suite.js`) with exit code 0.
+  - Bumped version to 2.4.0 in `package.json` and compiled standalone executable in `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack`.
+

@@ -43,6 +43,10 @@ function loadConfig() {
         roam_step_delay_ms: 300,
         auto_idle: true,
         auto_roam: true,
+        auto_claim_dailies: true,
+        auto_lock_valuable: true,
+        auto_use_boosts: false,
+        auto_npc_quests: true,
     };
 }
 

@@ -95,6 +95,10 @@ class BotConfig:
     roam_step_delay_ms: int = 300
     auto_idle: bool = True
     auto_roam: bool = True
+    auto_claim_dailies: bool = True
+    auto_lock_valuable: bool = True
+    auto_use_boosts: bool = False
+    auto_npc_quests: bool = True
     discord_webhook: str = ""
 
 

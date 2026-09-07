@@ -221,3 +221,26 @@
     - If `unselected_action === "battle"`: Switch target to battle for XP and select the highest damage attack moves to knock out the foe and earn XP.
     - If `unselected_action === "flee"`: Flee immediately to avoid unnecessary damage.
   - In roaming: If `pause_on_no_balls` is true, balls are exhausted, and `unselected_action === "flee"`, automatically pause roaming and the bot, issuing a clear warning on the dashboard.
+
+## 12. Full Reverse Engineering: 10 Tutorial Chapters, 178 Official Commands & Player Automation Suite (Phase 15)
+- **10 Official Tutorial Chapters & Business Rules Deconstructed (`Xee` / `Dh`)**:
+  1. `auto_setup`: Official bot/idle mechanics (`idle:config`, `idle:set`, `idle:resume`).
+  2. `healing`: Nurse Joy / Pokémon Center rules (`heal:full`). Free for low rank (`rank <= 3`), charges silver later.
+  3. `travel`: Map transitions and route unlocking (`map:travel`, `map:preview`).
+  4. `chat`: Channel messaging and monster showcase (`chat:send`, `chat:showcase`).
+  5. `team`: Team presets and lead switching (`team:preset:save`, `team:preset:apply`).
+  6. `evolution`: Evolution Machine mechanics (`evomachine:commit`).
+  7. `buy_balls`: Common Mart item purchases with Silver (`shop:buy`).
+  8. `sell`: Explains market trading (`market:list`) vs box cleanup (`creature:release`).
+  9. `gym`: Badge system and route unlocks (`badges:list`).
+  10. `fishing_bait`: Rod equipping and bait delivery to Fisherman (`fishing-bait:activate`, `fisherman:deliver`).
+- **Autonomous Player Automation Engine**:
+  - **Daily Rewards & Streaks**: Auto-claims `daily:claim` (`{ questId: q.id }`), login streak bonus `daily:bonus` (when `claimable === true`), all Pokédex milestones `pokedex:claim-all`, Gamepass rewards `gamepass:claim-all`, and update post rewards `news:claim`.
+  - **Valuable Creature Protection (`creature:lock`)**: Immediately locks any caught creature that is Shiny, Event Tier (>0), or Grade S (IV $\ge$ 85% with Top Nature) via `{ t: "creature:lock", d: { creatureId, locked: true } }`, eliminating accidental releases.
+  - **Automated NPC Quest Deliveries**: Delivers surplus common lots to Professor Oak (`professor:deliver`), fulfilled species to DexQuest (`dexquest:deliver`), and completed sets to Collector (`collector:deliver`).
+  - **Intelligent Boost Activation**: Monitors inventory and session status (`itemEffects: { shinyBoost, xpShareBoost }`), activating `shiny-boost:activate` and `xp-share-boost:activate` only when unbuffed during active roaming.
+- **UI & Dashboard Upgrades**:
+  - Added dedicated "🤖 Automações de Jogador (v2.4)" settings card in sidebar with toggle switches.
+  - Added "Boosts & Consumíveis" KPI grid to inventory panel tracking Shiny Boost, XP Share, Capture Boost, and Map Boost.
+  - Full bidirectional config persistence between Python (`config.py`), Electron Main (`main.js`), Preload (`preload-game.js`), and Dashboard UI (`app.js`).
+

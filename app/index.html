@@ -194,6 +194,15 @@
                             <div class="kpi-cell"><div class="kpi-num" id="inv-max-revive" style="color:var(--amber, #f59e0b);">0</div><div class="kpi-lbl">Max Revive</div></div>
                         </div>
                     </div>
+                    <div class="card" style="margin-top:10px;">
+                        <div class="card-title" style="margin-bottom:10px;">Boosts & Consumíveis</div>
+                        <div class="kpi-grid">
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-boost-shiny" style="color:var(--amber, #f59e0b);">0</div><div class="kpi-lbl">Shiny Boost</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-boost-xp" style="color:var(--cyan);">0</div><div class="kpi-lbl">XP Share</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-boost-capture" style="color:var(--emerald);">0</div><div class="kpi-lbl">Capture Boost</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="inv-boost-map" style="color:var(--purple-400, #c084fc);">0</div><div class="kpi-lbl">Map Boost</div></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- PANEL: CONFIG -->
@@ -307,6 +316,25 @@
                             <div class="form-item">
                                 <label>Auto-Idle Nativo</label>
                                 <input type="checkbox" id="cfg-auto-idle">
+                            </div>
+
+                            <!-- AUTOMAÇÕES DE JOGADOR (v2.4) -->
+                            <div class="form-section-title">🤖 Automações de Jogador (v2.4)</div>
+                            <div class="form-item">
+                                <label>Resgate Diário, Bônus e Marcos</label>
+                                <input type="checkbox" id="cfg-auto-dailies">
+                            </div>
+                            <div class="form-item">
+                                <label>Blindagem Auto de Shinies / Grau S</label>
+                                <input type="checkbox" id="cfg-auto-lock">
+                            </div>
+                            <div class="form-item">
+                                <label>Entregas a NPCs (Prof / DexQuest)</label>
+                                <input type="checkbox" id="cfg-auto-npc-quests">
+                            </div>
+                            <div class="form-item">
+                                <label>Ativação de Boosts (Shiny / XP)</label>
+                                <input type="checkbox" id="cfg-auto-boosts">
                             </div>
 
                             <button onclick="saveBotSettings()" class="tb-btn primary" style="margin-top:12px; width:100%; padding:9px;">

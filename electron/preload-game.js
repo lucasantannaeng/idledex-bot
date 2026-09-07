@@ -53,6 +53,10 @@ function initMainWorldEngine() {
         roam_step_delay_ms: 300,
         auto_idle: true,
         auto_roam: true,
+        auto_claim_dailies: true, // Auto resgate de missões diárias, bônus e marcos
+        auto_lock_valuable: true, // Auto bloqueio de Shinies, Event Tiers e Grau S
+        auto_use_boosts: false, // Auto ativação de boosts (shiny/xp) durante patrulha
+        auto_npc_quests: true, // Auto entrega de pedidos para Professor, DexQuest e Colecionador
     };
 
     let currentMapSpecies = [];
@@ -100,8 +104,19 @@ function initMainWorldEngine() {
         ball: { pokeball: 0, greatball: 0, ultraball: 0, masterball: 0 },
         potions: { potion: 0, "super-potion": 0, "hyper-potion": 0, "max-potion": 0 },
         revives: { revive: 0, "max-revive": 0 },
+        boosts: { "shiny-boost": 0, "xp-share-boost": 0, "capture-boost": 0, "map-boost": 0 },
         potion: 0
     };
+    let itemEffects = {
+        mapBoost: null,
+        tracker: null,
+        shinyBoost: null,
+        captureBoost: null,
+        xpShareBoost: null,
+        fishingBait: null,
+        bless: null
+    };
+    let lastMaintenanceCheck = 0;
     let wallet = { silver: 0, gold: 0, coins: 0, crystals: 0 };
     let collection = {};
     let team = [];
@@ -253,6 +268,7 @@ function initMainWorldEngine() {
                         entities,
                         progress,
                         inventory,
+                        itemEffects,
                         wallet,
                         collection,
                         team,
@@ -659,6 +675,7 @@ function initMainWorldEngine() {
         const balls = { pokeball: 0, greatball: 0, ultraball: 0, masterball: 0 };
         const potions = { potion: 0, "super-potion": 0, "hyper-potion": 0, "max-potion": 0 };
         const revives = { revive: 0, "max-revive": 0 };
+        const boosts = { "shiny-boost": 0, "xp-share-boost": 0, "capture-boost": 0, "map-boost": 0 };
         let totalPotions = 0;
 
         for (const item of items) {
@@ -681,10 +698,15 @@ function initMainWorldEngine() {
             } else if (kind.includes("revive") || iid.includes("revive")) {
                 if (iid.includes("max")) revives["max-revive"] += qty;
                 else revives.revive += qty;
+            } else if (iid.includes("boost") || kind.includes("boost")) {
+                if (iid.includes("shiny")) boosts["shiny-boost"] += qty;
+                else if (iid.includes("xp") || iid.includes("share")) boosts["xp-share-boost"] += qty;
+                else if (iid.includes("capture") || iid.includes("catch")) boosts["capture-boost"] += qty;
+                else if (iid.includes("map")) boosts["map-boost"] += qty;
             }
         }
 
-        inventory = { ball: balls, potions, revives, potion: totalPotions };
+        inventory = { ball: balls, potions, revives, boosts, potion: totalPotions };
         emitTelemetry();
     }
 function handleGameMessage(msg) {
@@ -749,6 +771,9 @@ function handleGameMessage(msg) {
                     }
                     if (p.inventory) {
                         updateInventory(p.inventory);
+                    }
+                    if (p.itemEffects) {
+                        itemEffects = Object.assign({}, itemEffects, p.itemEffects);
                     }
                 }
             }
@@ -972,6 +997,99 @@ function handleGameMessage(msg) {
             emitTelemetry();
         }
 
+        // Item Effects & Session Buffs
+        else if (t === "item-effects:state") {
+            if (d) {
+                itemEffects = Object.assign({}, itemEffects, d);
+                emitTelemetry();
+            }
+        }
+
+        // Daily Quests (Auto Claim)
+        else if (t === "daily:list" || t === "daily:state") {
+            if (botConfig.auto_claim_dailies && d) {
+                const quests = d.quests || (Array.isArray(d) ? d : []);
+                for (const q of quests) {
+                    if (q && q.completed && !q.claimed) {
+                        sendEvent("daily:claim", { questId: q.id });
+                        logEvent(`🎁 [MISSÃO DIÁRIA] Reivindicando: ${q.name || q.id}`, "success");
+                    }
+                }
+            }
+        }
+
+        // Login Streak Calendar Bonus
+        else if (t === "calendar:state") {
+            if (botConfig.auto_claim_dailies && d && d.claimable === true) {
+                sendEvent("daily:bonus");
+                logEvent(`📅 [LOGIN CONSECUTIVO] Bônus de calendário resgatado!`, "success");
+            }
+        }
+
+        // Pokédex Milestones
+        else if (t === "pokedex:list" || t === "pokedex:state") {
+            if (botConfig.auto_claim_dailies && d) {
+                const hasUnclaimed = (d.unclaimedMilestones && d.unclaimedMilestones > 0) || 
+                                     (Array.isArray(d.milestones) && d.milestones.some(m => m.reached && !m.claimed));
+                if (hasUnclaimed) {
+                    sendEvent("pokedex:claim-all");
+                    logEvent(`📖 [POKÉDEX] Resgatando marcos completados da Pokédex!`, "success");
+                }
+            }
+        }
+
+        // Gamepass / Battle Pass
+        else if (t === "gamepass:state") {
+            if (botConfig.auto_claim_dailies && d) {
+                if (d.unclaimedTiers > 0 || d.hasUnclaimed) {
+                    sendEvent("gamepass:claim-all");
+                    logEvent(`🎫 [GAMEPASS] Resgatando recompensas do Passe de Batalha!`, "success");
+                }
+            }
+        }
+
+        // Official News & Announcements Reward Claim
+        else if (t === "news:list") {
+            if (botConfig.auto_claim_dailies && d && Array.isArray(d.posts)) {
+                for (const post of d.posts) {
+                    if (post && post.reward && !post.claimed) {
+                        sendEvent("news:claim", { postId: post.id });
+                        logEvent(`📰 [NOTÍCIAS] Recompensa de post resgatada: ${post.title || post.id}`, "success");
+                    }
+                }
+            }
+        }
+
+        // Professor Oak Delivery (Bronze Coins)
+        else if (t === "professor:state") {
+            if (botConfig.auto_npc_quests && d && Array.isArray(d.lots) && !d.outOfCharges) {
+                const lotSize = d.lotSize || 5;
+                for (const lot of d.lots) {
+                    if (lot && lot.available > lotSize) {
+                        sendEvent("professor:deliver", { speciesId: lot.speciesId });
+                        logEvent(`🔬 [PROFESSOR] Entregando lote de ${lot.name || lot.speciesId} (+${lot.bronzePerLot || 1} Moedas de Bronze)`, "success");
+                        break;
+                    }
+                }
+            }
+        }
+
+        // DexQuest Delivery
+        else if (t === "dexquest:state") {
+            if (botConfig.auto_npc_quests && d && d.target && d.target.have > 0) {
+                sendEvent("dexquest:deliver", { speciesId: d.target.speciesId });
+                logEvent(`🎯 [DEXQUEST] Entregando ${d.target.name || d.target.speciesId} para missão de rota!`, "success");
+            }
+        }
+
+        // Collector Delivery
+        else if (t === "collector:state") {
+            if (botConfig.auto_npc_quests && d && d.deliverable && !d.delivered) {
+                sendEvent("collector:deliver");
+                logEvent(`🏺 [COLECIONADOR] Entregando coleção completada!`, "success");
+            }
+        }
+
         // Combat Turn & Control
         else if (t === "battle:turn" || t === "battle:control") {
             // CRITICAL MULTI-PLAYER FIX: Ignore turns from other players' battles!
@@ -1048,6 +1166,15 @@ function handleGameMessage(msg) {
                         const natMsg = evalData.isBestNature ? `Nature: ${evalData.nature} (⭐ TOP NATURE!)` : `Nature: ${evalData.nature}`;
                         const tierMsg = `IV: ${evalData.ivTotal}/186 (${evalData.ivPct}% - Grau ${evalData.grade})`;
                         logEvent(`🎉 [CAPTURA] ${evalData.name}${star} Lv${evalData.level}! ${natMsg}, ${tierMsg}`, evalData.grade === "S" ? "success" : "info");
+
+                        // Auto-lock valuable creatures (Shinies, Event Tiers, Grade S)
+                        if (botConfig.auto_lock_valuable && evalData.id) {
+                            const isValuable = evalData.isShiny || evalData.grade === "S" || (d.caught.eventTier && d.caught.eventTier > 0);
+                            if (isValuable) {
+                                sendEvent("creature:lock", { creatureId: evalData.id, locked: true });
+                                logEvent(`🔒 [PROTEÇÃO] ${evalData.name} bloqueado contra descarte/perda acidental!`, "success");
+                            }
+                        }
                     } else {
                         logEvent(`✨ ${foeName} capturado com sucesso!`, "success");
                     }
@@ -1130,6 +1257,37 @@ function handleGameMessage(msg) {
             if (allFainted || (teamHpPct <= 0.25 && !hasPotions && !hasRevives)) {
                 logEvent(`🏥 Acionando Centro Pokémon para cura global da equipe (HP Equipe: ${Math.round(teamHpPct * 100)}%)...`, "info");
                 sendEvent("heal:full", { creatureIds: team.map(m => m.id) });
+            }
+        }
+
+        // 3. Periodic Out-of-Battle Player Automation Queries & Boost Activation (Throttled every 60s)
+        const now = Date.now();
+        if (now - lastMaintenanceCheck > 60000) {
+            lastMaintenanceCheck = now;
+
+            if (botConfig.auto_claim_dailies) {
+                sendEvent("daily:open");
+                sendEvent("calendar:open");
+                sendEvent("pokedex:open");
+                sendEvent("gamepass:open");
+                sendEvent("news:list");
+            }
+
+            if (botConfig.auto_npc_quests) {
+                sendEvent("professor:open");
+                sendEvent("dexquest:open");
+                sendEvent("collector:open");
+            }
+
+            if (botConfig.auto_use_boosts && inventory.boosts) {
+                if (inventory.boosts["shiny-boost"] > 0 && !itemEffects.shinyBoost) {
+                    sendEvent("shiny-boost:activate", { itemId: "shiny-boost" });
+                    logEvent("✨ [BOOST] Ativando Shiny Boost para patrulha...", "info");
+                }
+                if (inventory.boosts["xp-share-boost"] > 0 && !itemEffects.xpShareBoost) {
+                    sendEvent("xp-share-boost:activate", { itemId: "xp-share-boost" });
+                    logEvent("📈 [BOOST] Ativando XP Share Boost para patrulha...", "info");
+                }
             }
         }
     }
@@ -1344,6 +1502,11 @@ function handleGameMessage(msg) {
                 logEvent("🛑 Patrulha pausada automaticamente: estoque de Pokébolas esgotado e modo de captura ativo!", "warning");
                 emitTelemetry();
                 return;
+            }
+
+            // Out-of-battle maintenance (revives, nurse joy, dailies, NPC deliveries, boosts)
+            if (roamStepIdx % 15 === 0) {
+                checkOutOfBattleMaintenance();
             }
 
             // Fallback position from player entity if playerPos not yet initialized

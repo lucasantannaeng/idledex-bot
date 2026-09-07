@@ -1,6 +1,6 @@
 {
   "name": "idledex-desktop",
-  "version": "2.0.0",
+  "version": "2.4.0",
   "description": "IdleDex Desktop App with Built-in Chromium and Autonomous Bot",
   "main": "electron/main.js",
   "scripts": {

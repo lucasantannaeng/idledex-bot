@@ -498,6 +498,12 @@ function updateInventoryUI(inventory) {
 
     setText('inv-revive', (revives.revive ?? 0).toLocaleString('pt-BR'));
     setText('inv-max-revive', (revives['max-revive'] ?? 0).toLocaleString('pt-BR'));
+
+    const boosts = inventory.boosts || {};
+    setText('inv-boost-shiny', (boosts['shiny-boost'] ?? 0).toLocaleString('pt-BR'));
+    setText('inv-boost-xp', (boosts['xp-share-boost'] ?? 0).toLocaleString('pt-BR'));
+    setText('inv-boost-capture', (boosts['capture-boost'] ?? 0).toLocaleString('pt-BR'));
+    setText('inv-boost-map', (boosts['map-boost'] ?? 0).toLocaleString('pt-BR'));
 }
 
 function setText(id, text) {
@@ -596,6 +602,10 @@ function applyConfigToInputs(cfg) {
     const lblDiscard = document.getElementById('lbl-discard-iv-pct');
     if (lblDiscard) lblDiscard.innerText = discardPct + '%';
     setCheck('cfg-pause-no-balls', cfg.pause_on_no_balls !== false);
+    setCheck('cfg-auto-dailies', cfg.auto_claim_dailies !== false);
+    setCheck('cfg-auto-lock', cfg.auto_lock_valuable !== false);
+    setCheck('cfg-auto-npc-quests', cfg.auto_npc_quests !== false);
+    setCheck('cfg-auto-boosts', !!cfg.auto_use_boosts);
 }
 
 async function saveBotSettings() {
@@ -623,6 +633,10 @@ async function saveBotSettings() {
         pause_on_no_balls: getCheck('cfg-pause-no-balls'),
         auto_roam: getCheck('cfg-auto-roam'),
         auto_idle: getCheck('cfg-auto-idle'),
+        auto_claim_dailies: getCheck('cfg-auto-dailies'),
+        auto_lock_valuable: getCheck('cfg-auto-lock'),
+        auto_npc_quests: getCheck('cfg-auto-npc-quests'),
+        auto_use_boosts: getCheck('cfg-auto-boosts'),
     };
 
     currentConfig = updated;
