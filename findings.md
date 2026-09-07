@@ -270,4 +270,35 @@
      - **Prioridade 2**: Não Registrados (`catch_only_uncaught`). Fuga de rota ignorada.
      - **Prioridade 3**: Whitelist de Área (`target_species`). Aplica-se apenas a criaturas comuns repetidas.
 
-
+## 14. Forensic Root Cause of `bad_message undefined` and Ghost Modal Popups ('Miss Clicks') (Phase 17)
+- **Live Empirical Discovery**:
+  - Durante a execução de testes com o app aberto e conectado ao servidor oficial de produção, a inspeção de pacotes capturou respostas periódicas:
+    - `[server] professor_not_here undefined`
+    - `[server] dexquest_not_here undefined`
+    - `[server] bad_message undefined` (4 repetições exatas a cada 60s)
+  - Simultaneamente, o cliente React do jogo renderizava modais repentinos na tela do usuário (Quests, Pokédex, Calendário Diário), assemelhando-se a cliques fantasmas (*"miss clicks"*).
+- **Causa Raiz no Código**:
+  - Em `electron/preload-game.js` (linhas 1324-1342), a rotina periódica `checkOutOfBattleMaintenance()` disparava comandos a cada 60 segundos:
+    ```javascript
+    if (botConfig.auto_claim_dailies) {
+        sendEvent("daily:open");
+        sendEvent("calendar:open");
+        sendEvent("pokedex:open");
+        sendEvent("gamepass:open");
+        sendEvent("news:list");
+    }
+    if (botConfig.auto_npc_quests) {
+        sendEvent("professor:open");
+        sendEvent("dexquest:open");
+        sendEvent("collector:open");
+    }
+    ```
+  - **Por que isso é problemático no protocolo oficial**:
+    1. Os eventos que terminam com `:open` (`pokedex:open`, `daily:open`, `calendar:open`) são eventos da UI do jogo disparados exclusivamente quando um humano clica para **abrir a janela modal na tela**!
+    2. Quando o servidor recebe esses pacotes, ele atualiza o estado local do cliente com os dados do modal aberto, fazendo a interface gráfica do jogo abrir essas janelas por cima da tela de exploração/batalha.
+    3. Quando o jogador está em rotas ou mapas comuns (ex: caçando na grama alta) e envia `professor:open`, `dexquest:open` ou `collector:open`, o servidor rejeita imediatamente, pois o NPC não reside naquele mapa, gerando `professor_not_here`, `dexquest_not_here` e `bad_message`.
+  - **Protocolo de Resgate Não-Intrusivo (Silent Claims)**:
+    - No bundle oficial (`index-C3hpUun1.js`), resgates automáticos são executados por pacotes diretos sem abrir modais visuais:
+      - `daily:bonus` (resgata o bônus diário sem abrir o calendário).
+      - `pokedex:claim-all` (resgata todos os marcos sem abrir a Pokédex).
+      - `gamepass:claim-all` (resgata todos os passes sem abrir o Gamepass).

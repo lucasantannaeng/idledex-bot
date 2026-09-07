@@ -192,5 +192,18 @@
 - [x] Automated Verification & Packaging:
   - Created `scratch/test_capture_conflicts_suite.js` covering all 5 conflict scenarios (17/17 tests passed with exit code 0).
   - Verified regression suites (`test_player_actions_suite.js`, `test_economy_v23_suite.js`, `test_decision_suite.js`) all passing with exit code 0.
-  - Recompiled standalone executable `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack` (verified 188.7 MB on disk).
+  - [x] Recompiled standalone executable `dist-desktop/win-unpacked/IdleDex Desktop.exe` via `npm run pack` (verified 188.7 MB on disk).
+
+## Phase 17: Interactive Live Simulation & Real-World Validation (v2.4.3)
+- [x] Launch application with native GUI and remote debugging port 9222 enabled.
+- [x] Connect automated live user driver via CDP WebSocket to host dashboard.
+- [x] Execute automated scenario runner covering all 5 configuration profiles.
+- [x] Simulate Profile 1: Shiny Hunter & Zero-Kill Guard (Master/Ultra, instant flee on commons).
+- [x] Simulate Profile 2: Economy Mode (Poké Ball 1st, HP <= 50%, regular Potion, XP duel).
+- [x] Simulate Profile 3: Farm XP & Offensive Combat (max damage, emergency flee only).
+- [x] Simulate Profile 4: Route Species Filter (selective capture vs flee / battle).
+- [x] Simulate Profile 5: Critical Survival & Heavy Potions (Super/Hyper Potions, Revives).
+- [x] Audit all host/guest console logs, WebSocket events, and error buffers.
+- [x] Isolate root cause of `bad_message undefined`, `professor_not_here`, and ghost modal popups ("miss clicks").
+- [x] Formulate /grill-me architectural decision query for user alignment.
 

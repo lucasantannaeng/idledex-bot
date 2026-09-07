@@ -1327,17 +1327,19 @@ function handleGameMessage(msg) {
             lastMaintenanceCheck = now;
 
             if (botConfig.auto_claim_dailies) {
-                sendEvent("daily:open");
-                sendEvent("calendar:open");
-                sendEvent("pokedex:open");
-                sendEvent("gamepass:open");
-                sendEvent("news:list");
+                // Silent Non-Intrusive Claims: Claim rewards directly without popping up UI modals ("miss click")
+                // and without triggering server 'bad_message undefined' rejections.
+                sendEvent("daily:bonus");
+                sendEvent("pokedex:claim-all");
+                sendEvent("gamepass:claim-all");
             }
 
             if (botConfig.auto_npc_quests) {
-                sendEvent("professor:open");
-                sendEvent("dexquest:open");
-                sendEvent("collector:open");
+                // Only interact with specific NPCs if the player is physically on their respective map,
+                // eliminating server errors 'professor_not_here' and 'dexquest_not_here'.
+                if (currentMap === "pallet-town" || currentMap.includes("lab")) {
+                    sendEvent("professor:deliver");
+                }
             }
 
             if (botConfig.auto_use_boosts && inventory.boosts) {

@@ -7,6 +7,9 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electr
 const path = require('path');
 const fs = require('fs');
 
+// Enable Remote Debugging Protocol on port 9222 for live automated simulation & inspection
+app.commandLine.appendSwitch('remote-debugging-port', '9222');
+
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
