@@ -244,3 +244,33 @@
   - Sincronizados arquivos atualizados para `dist-desktop/win-unpacked/resources/app/`.
   - App mantido aberto e visível no desktop do usuário com CDP ativo na porta 9222.
 
+## Phase 20: Refinamento Integral do Bot, Hardening 24/7, Presets de Estratégia, Auto-Troca de Rota, Métricas de Sessão & Redesign Linear/Vercel (v3.0)
+- [x] Correção de Recursos Quebrados & Eliminação de Código Fantasma:
+  - Implementado arremesso real de Revive em batalha (`processBattleTurn()` prioridade 1.5) via `battle:item`.
+  - Eliminadas chaves e referências fantasmas `iv_collection_threshold` e `iv_sell_threshold` sem utilidade.
+  - Eliminadas chamadas legadas a `wallet-coins` e `wallet-crystals` em `app.js`.
+  - Reset robusto de estado em `ws.close` (`activeWs`, `inBattle`, `battleWindowOpen`, `lastTurnNumber`).
+- [x] Presets de Modo Estratégico com Lógica Real no Backend:
+  - Implementada função `applyStrategyPreset(mode)` em `preload-game.js`:
+    - **Coleção:** Inéditos obrigatórios (`catch_only_uncaught = true`), fuga de não selecionados (`flee`) e Pokébolas econômicas.
+    - **Monetização:** Combate contra todos por XP (`battle`), Pokébolas econômicas e corte de HP de captura em 30%.
+    - **Equilibrado:** Parâmetros balanceados.
+  - Sincronização visual em tempo real no frontend via `onStrategyChange(mode)`.
+- [x] Auto-Troca de Rota Sequencial com Exceção de Mon Fixado (`pinned_species`):
+  - Implementada função `checkAutoRouteSwitch()` para avançar de rota (1-150) ao capturar todas as espécies da whitelist.
+  - Exceção `pinned_species`: se o treinador fixar uma espécie para farm de IVs altos, o bot permanece na rota indefinidamente.
+  - Adicionados controles na aba Config de `app/index.html` e sincronizados em `app.js`.
+- [x] Hardening de Patrulha 24/7 & Anti-Travamento:
+  - Detecção de estagnação por 10 ciclos idênticos na mesma coordenada com desvio forçado transitável.
+  - Diagnóstico e fallback automático para mapas sem grama alta.
+  - Rastreamento de reconexões com `reconnectCount` e auto-recuperação pós-welcome.
+- [x] Métricas de Sessão em Tempo Real:
+  - Card dedicado **⚡ Métricas da Sessão (24/7)** no painel de Treinador: Uptime (`HH:MM:SS`), Capturas/h, XP/h, Prata/h e Reconexões.
+- [x] Redesign Visual Linear/Vercel Dark Premium:
+  - Fundo `#111111`, cards `#191919`, bordas sutis `#262626`, abas com indicador sublinhado ciano de 2px, tipografia compacta e logs minimalistas.
+- [x] Validação Empírica:
+  - Verificação sintática Node.js 100% limpa nos 4 arquivos JS.
+  - Suíte de colisão 100% aprovada.
+  - Teste ao vivo via CDP na porta 9222 com bot em patrulha autônoma e telemetria sincronizada.
+
+

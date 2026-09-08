@@ -146,8 +146,11 @@ function handleTelemetry(data) {
     // Combat State
     updateCombatUI(data);
 
-    // Trainer Stats
+    // Trainer Stats & Session Metrics
     updateStatsUI(data.progress || {}, data.wallet || {});
+    if (data.sessionMetrics) {
+        updateSessionMetricsUI(data.sessionMetrics);
+    }
 
     // Inventory
     updateInventoryUI(data.inventory || {});
@@ -492,8 +495,30 @@ function updateStatsUI(progress, wallet) {
     const gold = wallet.gold ?? wallet.crystals ?? 0;
     setText('wallet-silver', silver.toLocaleString('pt-BR'));
     setText('wallet-gold', gold.toLocaleString('pt-BR'));
-    setText('wallet-coins', silver.toLocaleString('pt-BR'));
-    setText('wallet-crystals', gold.toLocaleString('pt-BR'));
+}
+
+function updateSessionMetricsUI(metrics) {
+    if (!metrics) return;
+    if (metrics.uptime !== undefined) {
+        const s = metrics.uptime;
+        const hrs = Math.floor(s / 3600);
+        const mins = Math.floor((s % 3600) / 60);
+        const secs = s % 60;
+        const fmt = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        setText('stat-uptime', fmt);
+    }
+    if (metrics.capturesPerHour !== undefined) {
+        setText('stat-captures-hr', `${metrics.capturesPerHour}/h`);
+    }
+    if (metrics.xpPerHour !== undefined) {
+        setText('stat-xp-hr', `${(metrics.xpPerHour || 0).toLocaleString('pt-BR')}/h`);
+    }
+    if (metrics.silverPerHour !== undefined) {
+        setText('stat-silver-hr', `${(metrics.silverPerHour || 0).toLocaleString('pt-BR')}/h`);
+    }
+    if (metrics.reconnectCount !== undefined) {
+        setText('stat-reconnects', metrics.reconnectCount);
+    }
 }
 
 function updateInventoryUI(inventory) {
@@ -590,8 +615,6 @@ function minimizeToTray() {
 function applyConfigToInputs(cfg) {
     if (!cfg) return;
     setVal('cfg-strategy', cfg.strategy_mode || 'balanced');
-    setVal('cfg-iv-col', cfg.iv_collection_threshold || 150);
-    setVal('cfg-iv-sell', cfg.iv_sell_threshold || 120);
     setVal('cfg-flee', Math.round((cfg.flee_hp_pct || 0.30) * 100));
     setVal('cfg-potion', Math.round((cfg.potion_hp_pct || 0.35) * 100));
     setVal('cfg-potion-mode', cfg.potion_mode || 'smart');
@@ -613,6 +636,8 @@ function applyConfigToInputs(cfg) {
 
     setCheck('cfg-auto-roam', cfg.auto_roam !== false);
     setCheck('cfg-auto-idle', cfg.auto_idle !== false);
+    setCheck('cfg-auto-route-switch', !!cfg.auto_route_switch);
+    setVal('cfg-pinned-species', cfg.pinned_species || '');
     const discardPct = cfg.discard_iv_pct !== undefined ? cfg.discard_iv_pct : 50;
     setVal('cfg-discard-iv-pct', discardPct);
     const lblDiscard = document.getElementById('lbl-discard-iv-pct');
@@ -626,12 +651,29 @@ function applyConfigToInputs(cfg) {
     setCheck('cfg-auto-boosts', !!cfg.auto_use_boosts);
 }
 
+function onStrategyChange(mode) {
+    if (mode === 'collection') {
+        setCheck('cfg-only-uncaught', true);
+        setVal('cfg-unselected-action', 'flee');
+        setVal('cfg-unselected-action-radar', 'flee');
+        setVal('cfg-ball-priority', 'economy');
+        appendLog('🎯 [PRESET] Modo Coleção: Capturar apenas inéditos, fugir dos demais e Pokébolas econômicas.', 'info');
+    } else if (mode === 'monetize') {
+        setCheck('cfg-only-uncaught', false);
+        setVal('cfg-unselected-action', 'battle');
+        setVal('cfg-unselected-action-radar', 'battle');
+        setVal('cfg-ball-priority', 'economy');
+        setVal('cfg-catch', 30);
+        appendLog('💰 [PRESET] Modo Monetização: Lutar contra todos por XP e capturar com HP <= 30%.', 'info');
+    } else if (mode === 'balanced') {
+        appendLog('⚖️ [PRESET] Modo Equilibrado ativo.', 'info');
+    }
+}
+
 async function saveBotSettings() {
     const updated = {
         enabled: botEnabled,
-        strategy_mode: getVal('cfg-strategy'),
-        iv_collection_threshold: parseInt(getVal('cfg-iv-col'), 10) || 150,
-        iv_sell_threshold: parseInt(getVal('cfg-iv-sell'), 10) || 120,
+        strategy_mode: getVal('cfg-strategy') || 'balanced',
         flee_hp_pct: (parseInt(getVal('cfg-flee'), 10) || 30) / 100,
         potion_hp_pct: (parseInt(getVal('cfg-potion'), 10) || 35) / 100,
         potion_mode: getVal('cfg-potion-mode') || 'smart',
@@ -647,6 +689,8 @@ async function saveBotSettings() {
         unselected_action: getVal('cfg-unselected-action') || getVal('cfg-unselected-action-radar') || 'battle',
         min_iv_alert: 130,
         roam_step_delay_ms: parseInt(getVal('cfg-roam-delay'), 10) || 300,
+        auto_route_switch: getCheck('cfg-auto-route-switch'),
+        pinned_species: getVal('cfg-pinned-species').trim() || null,
         discard_iv_pct: parseInt(getVal('cfg-discard-iv-pct'), 10) || 50,
         pause_on_no_balls: getCheck('cfg-pause-no-balls'),
         auto_roam: getCheck('cfg-auto-roam'),
@@ -743,3 +787,4 @@ window.onAreaSpeciesToggle = onAreaSpeciesToggle;
 window.selectAllAreaSpecies = selectAllAreaSpecies;
 window.onRadarUnselectedActionChange = onRadarUnselectedActionChange;
 window.saveAreaSettings = saveAreaSettings;
+window.onStrategyChange = onStrategyChange;

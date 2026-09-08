@@ -164,6 +164,17 @@
                     </div>
 
                     <div class="card">
+                        <div class="card-title" style="margin-bottom:10px;">⚡ Métricas da Sessão (24/7)</div>
+                        <div class="kpi-grid">
+                            <div class="kpi-cell"><div class="kpi-num" id="stat-uptime" style="font-size:0.95rem; font-family:var(--font-mono); color:var(--cyan);">00:00:00</div><div class="kpi-lbl">Tempo Ativo</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="stat-captures-hr" style="color:var(--emerald);">0/h</div><div class="kpi-lbl">Capturas / Hora</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="stat-xp-hr" style="color:var(--cyan);">0/h</div><div class="kpi-lbl">XP / Hora</div></div>
+                            <div class="kpi-cell"><div class="kpi-num" id="stat-silver-hr" style="color:#ffd700;">0/h</div><div class="kpi-lbl">Prata / Hora</div></div>
+                            <div class="kpi-cell" style="grid-column: span 2;"><div class="kpi-num" id="stat-reconnects" style="color:var(--amber);">0</div><div class="kpi-lbl">Reconexões Automáticas</div></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
                         <div class="card-title">Economia</div>
                         <div style="display:flex; justify-content:space-around; margin-top:8px;">
                             <div>Prata: <b id="wallet-silver" style="color:#e2e8f0; font-family:var(--font-mono);">0</b></div>
@@ -296,8 +307,16 @@
                                 <input type="number" id="cfg-roam-delay" class="form-control" style="width:65px;" min="150" max="1000" step="50">
                             </div>
                             <div class="form-item">
+                                <label>Auto-Troca de Rota (ao capturar alvos)</label>
+                                <input type="checkbox" id="cfg-auto-route-switch">
+                            </div>
+                            <div class="form-item">
+                                <label>Fixar Espécie (Farming IV)</label>
+                                <input type="text" id="cfg-pinned-species" class="form-control" style="width:135px; font-size:0.75rem;" placeholder="Ex: pikachu">
+                            </div>
+                            <div class="form-item">
                                 <label>Modo Estratégico</label>
-                                <select id="cfg-strategy" class="form-control" style="width:135px;">
+                                <select id="cfg-strategy" class="form-control" style="width:135px;" onchange="onStrategyChange(this.value)">
                                     <option value="balanced">Equilibrado (50/50)</option>
                                     <option value="collection">Foco Coleção</option>
                                     <option value="monetize">Monetização</option>

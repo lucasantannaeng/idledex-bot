@@ -31,9 +31,6 @@ function initMainWorldEngine() {
 
     let botConfig = {
         enabled: true,
-        strategy_mode: 'balanced',
-        iv_collection_threshold: 150,
-        iv_sell_threshold: 120,
         flee_hp_pct: 0.30,
         potion_hp_pct: 0.35,
         potion_mode: 'smart', // 'smart', 'potion', 'super-potion', 'hyper-potion', 'max-potion'
@@ -59,6 +56,9 @@ function initMainWorldEngine() {
         auto_npc_quests: true, // Auto entrega de pedidos para Professor, DexQuest e Colecionador
         auto_travel_deliveries: true, // Viagem automática para entrega a NPCs
         auto_travel_surplus_threshold: 5, // Limiar de cópias excedentes para disparar viagem
+        auto_route_switch: false, // Troca automática de rota ao capturar todas as espécies alvo
+        pinned_species: null, // Espécie fixada para farming de IV alto (exceção ao auto-switch)
+        strategy_mode: 'balanced', // Macro preset: 'balanced', 'collection', 'monetize'
     };
 
     let currentMapSpecies = [];
@@ -103,6 +103,22 @@ function initMainWorldEngine() {
     let currentMapBiome = "forest";
     let loadingMap = false;
 
+    // Session metrics (Component 5)
+    let sessionStartTime = Date.now();
+    let sessionCaptures = 0;
+    let sessionXpGained = 0;
+    let sessionSilverGained = 0;
+    let reconnectCount = 0;
+    let initialXp = null;
+    let initialSilver = null;
+
+    // Dead-end detection (Component 4)
+    let lastStepPos = { x: null, y: null };
+    let stuckCounter = 0;
+
+    // Auto-route-switch cooldown (Component 3)
+    let lastRouteSwitchTime = 0;
+
     let canRevive = true;
     let progress = { rank: 1, xp: 0, wins: 0, losses: 0, captures: 0, shinies: 0 };
     let inventory = {
@@ -122,7 +138,7 @@ function initMainWorldEngine() {
         bless: null
     };
     let lastMaintenanceCheck = 0;
-    let wallet = { silver: 0, gold: 0, coins: 0, crystals: 0 };
+    let wallet = { silver: 0, gold: 0 };
     let collection = {};
     let team = [];
 
@@ -200,6 +216,83 @@ function initMainWorldEngine() {
         }, 25000);
 
         sendEvent("map:travel", { mapId: "npclab" });
+        return true;
+    }
+
+    function applyStrategyPreset(mode) {
+        if (!mode) return;
+        botConfig.strategy_mode = mode;
+        if (mode === 'collection') {
+            botConfig.catch_only_uncaught = true;
+            botConfig.unselected_action = 'flee';
+            botConfig.ball_priority = 'economy';
+            logEvent("🎯 [ESTRATÉGIA] Modo Coleção: Capturando apenas inéditos e fugindo dos demais!", "info");
+        } else if (mode === 'monetize') {
+            botConfig.catch_only_uncaught = false;
+            botConfig.unselected_action = 'battle';
+            botConfig.ball_priority = 'economy';
+            botConfig.catch_hp_pct = 0.30;
+            logEvent("💰 [ESTRATÉGIA] Modo Monetização: Maximizando vitórias por XP e economia de Pokébolas!", "info");
+        } else if (mode === 'balanced') {
+            logEvent("⚖️ [ESTRATÉGIA] Modo Equilibrado: Configurações personalizadas ativas.", "info");
+        }
+    }
+
+    function checkAutoRouteSwitch() {
+        if (!botConfig.enabled || !botConfig.auto_route_switch) return false;
+        if (inBattle || autoTravelState.active) return false;
+        if (!currentMap || !currentMap.startsWith("route_")) return false;
+        if (!Array.isArray(currentMapSpecies) || currentMapSpecies.length === 0) return false;
+
+        const now = Date.now();
+        if (now - lastRouteSwitchTime < 30000) return false; // 30s cooldown
+
+        // Check if there is a pinned species present on this route
+        if (botConfig.pinned_species) {
+            const pinnedId = String(botConfig.pinned_species).toLowerCase().trim();
+            const hasPinned = currentMapSpecies.some(s => 
+                String(s.speciesId).toLowerCase() === pinnedId || 
+                String(s.name).toLowerCase() === pinnedId
+            );
+            if (hasPinned) {
+                // User pinned this species for high-IV farming: stay on this route!
+                return false;
+            }
+        }
+
+        // Target species (or all species if target list is empty)
+        let relevantSpecies = currentMapSpecies;
+        if (Array.isArray(botConfig.target_species) && botConfig.target_species.length > 0) {
+            relevantSpecies = currentMapSpecies.filter(s => botConfig.target_species.includes(s.speciesId));
+        }
+
+        if (relevantSpecies.length === 0) return false;
+
+        // Check if all relevant species are marked as caught
+        const allCaught = relevantSpecies.every(s => s.caught === true);
+        if (!allCaught) return false;
+
+        // Calculate next sequential route
+        const match = currentMap.match(/^route_(\d+)$/);
+        if (!match) return false;
+        const currentRouteNum = parseInt(match[1], 10);
+        const nextRouteNum = currentRouteNum + 1;
+        if (nextRouteNum > 150) {
+            logEvent(`🏁 [AUTO-ROTA] Todas as rotas (1-150) foram completadas!`, "info");
+            return false;
+        }
+
+        const nextRouteId = `route_${String(nextRouteNum).padStart(3, '0')}`;
+        lastRouteSwitchTime = now;
+
+        logEvent(`🗺️ [AUTO-ROTA] Todas as espécies alvo de ${getMapFriendlyName(currentMap)} foram capturadas! Viajando automaticamente para ${getMapFriendlyName(nextRouteId)}...`, "success");
+
+        if (roamInterval) {
+            clearInterval(roamInterval);
+            roamInterval = null;
+        }
+
+        sendEvent("map:travel", { mapId: nextRouteId });
         return true;
     }
 
@@ -317,7 +410,11 @@ function initMainWorldEngine() {
                     }
                 }
             }
-            logEvent(`🌿 Malha de mapa calibrada (${mapId}): ${grassTiles.length} tiles de encontro genuínos identificados (ruídos e copas de árvores podados)`, "info");
+            if (grassTiles.length === 0) {
+                logEvent(`⚠️ Mapa sem grama alta detectado (${mapId}). Alternando para patrulha em caminhos transitáveis.`, "warning");
+            } else {
+                logEvent(`🌿 Malha de mapa calibrada (${mapId}): ${grassTiles.length} tiles de encontro genuínos identificados (ruídos e copas de árvores podados)`, "info");
+            }
         } catch (e) {
             // ignore network load errors
         } finally {
@@ -421,7 +518,17 @@ function initMainWorldEngine() {
                         wallet,
                         collection,
                         team,
-                        config: botConfig
+                        config: botConfig,
+                        sessionMetrics: {
+                            uptime: Math.floor((Date.now() - sessionStartTime) / 1000),
+                            sessionCaptures,
+                            sessionXpGained,
+                            sessionSilverGained,
+                            capturesPerHour: Math.round(sessionCaptures / Math.max((Date.now() - sessionStartTime) / 3600000, 1 / 3600)),
+                            xpPerHour: Math.round(sessionXpGained / Math.max((Date.now() - sessionStartTime) / 3600000, 1 / 3600)),
+                            silverPerHour: Math.round(sessionSilverGained / Math.max((Date.now() - sessionStartTime) / 3600000, 1 / 3600)),
+                            reconnectCount
+                        }
                     }
                 }
             }));
@@ -974,9 +1081,7 @@ function handleGameMessage(msg) {
                     if (p.wallet) {
                         wallet = {
                             silver: p.wallet.silver ?? p.wallet.coins ?? 0,
-                            gold: p.wallet.gold ?? p.wallet.crystals ?? 0,
-                            coins: p.wallet.silver ?? p.wallet.coins ?? 0,
-                            crystals: p.wallet.gold ?? p.wallet.crystals ?? 0
+                            gold: p.wallet.gold ?? p.wallet.crystals ?? 0
                         };
                     }
                     if (p.inventory) {
@@ -1151,6 +1256,14 @@ function handleGameMessage(msg) {
                     seen: !!sp.seen
                 }));
                 emitTelemetry();
+
+                if (botConfig.auto_route_switch) {
+                    setTimeout(() => {
+                        if (!inBattle && botConfig.enabled && !autoTravelState.active) {
+                            checkAutoRouteSwitch();
+                        }
+                    }, 3500);
+                }
             }
         }
 
@@ -1209,7 +1322,11 @@ function handleGameMessage(msg) {
         // Progress & Stats
         else if (t === "progress:state" || t === "progress") {
             if (d.rank) progress.rank = d.rank;
-            if (d.xp !== undefined) progress.xp = d.xp;
+            if (d.xp !== undefined) {
+                if (initialXp === null) initialXp = d.xp;
+                else if (d.xp >= initialXp) sessionXpGained = d.xp - initialXp;
+                progress.xp = d.xp;
+            }
             if (d.wins !== undefined) progress.wins = d.wins;
             if (d.losses !== undefined) progress.losses = d.losses;
             if (d.captures !== undefined) progress.captures = d.captures;
@@ -1219,12 +1336,14 @@ function handleGameMessage(msg) {
 
         // Wallet
         else if (t === "wallet") {
-            if (d.silver !== undefined) wallet.silver = d.silver;
+            const curSilver = d.silver !== undefined ? d.silver : d.coins;
+            if (curSilver !== undefined) {
+                if (initialSilver === null) initialSilver = curSilver;
+                else if (curSilver >= initialSilver) sessionSilverGained = curSilver - initialSilver;
+                wallet.silver = curSilver;
+            }
             if (d.gold !== undefined) wallet.gold = d.gold;
-            if (d.coins !== undefined) wallet.coins = d.coins;
-            else if (d.silver !== undefined) wallet.coins = d.silver;
-            if (d.crystals !== undefined) wallet.crystals = d.crystals;
-            else if (d.gold !== undefined) wallet.crystals = d.gold;
+            else if (d.crystals !== undefined) wallet.gold = d.crystals;
             emitTelemetry();
         }
 
@@ -1440,6 +1559,7 @@ function handleGameMessage(msg) {
                     logEvent(`✨ ${foeName} capturado com sucesso!`, "success");
                 }
                 progress.captures = (progress.captures || 0) + 1;
+                sessionCaptures++;
             } else if (victory) {
                 logEvent(`⚔️ Vitória sobre ${foeName}!`, "success");
                 progress.wins = (progress.wins || 0) + 1;
@@ -1451,13 +1571,16 @@ function handleGameMessage(msg) {
             enemyMon = null;
             emitTelemetry();
 
-            // Resume roaming after battle exit animation completes (or trigger auto-travel delivery)
+            // Resume roaming after battle exit animation completes (or trigger auto-travel delivery / route switch)
             if (botConfig.enabled) {
                 setTimeout(() => {
                     if (!inBattle && botConfig.enabled) {
                         const traveled = checkAutoTravelDeliveries();
-                        if (!traveled && botConfig.auto_roam) {
-                            startRoamLoop();
+                        if (!traveled) {
+                            const switchedRoute = checkAutoRouteSwitch();
+                            if (!switchedRoute && botConfig.auto_roam) {
+                                startRoamLoop();
+                            }
                         }
                     }
                 }, 1200);
@@ -1683,6 +1806,16 @@ function handleGameMessage(msg) {
             return;
         }
 
+        // 1.5 In-Battle Revive: Revive fainted leader before any other action
+        if (botConfig.use_revive_battle && canRevive && myMon && (myMon.hp === 0 || myMon.isFainted)) {
+            const chosenRevive = getBestRevive();
+            if (chosenRevive) {
+                logEvent(`💊 [REVIVE] Revivendo companheiro caído em combate com ${chosenRevive}...`, "warning");
+                executeBattleAction("battle:item", { battleId: currentBattleId, itemId: chosenRevive });
+                return;
+            }
+        }
+
         // 2. Heal with potion (Smart Escalation / Configured Tier)
         if (myHpPct <= botConfig.potion_hp_pct && canUsePotion) {
             const chosenPotion = getBestPotion(myCurrentHp, myMaxHp);
@@ -1833,13 +1966,34 @@ function handleGameMessage(msg) {
                 return;
             }
 
+            // Dead-end / Stuck Detection (Component 4.1)
+            let forcedEscapeDir = null;
+            if (lastStepPos.x === px && lastStepPos.y === py) {
+                stuckCounter++;
+                if (stuckCounter >= 10) {
+                    logEvent(`⚠️ [ANTI-TRAVAMENTO] Patrulha estagnada em (${px}, ${py}) por 10 ciclos. Executando desvio de emergência...`, "warning");
+                    lastGrassDir = null;
+                    const escapeDirs = ["N", "S", "E", "W"].filter(d => {
+                        const dt = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] }[d];
+                        return isWalkable(px + dt[0], py + dt[1]);
+                    });
+                    if (escapeDirs.length > 0) {
+                        forcedEscapeDir = escapeDirs[Math.floor(Math.random() * escapeDirs.length)];
+                    }
+                    stuckCounter = 0;
+                }
+            } else {
+                lastStepPos = { x: px, y: py };
+                stuckCounter = 0;
+            }
+
             // Automatically load map collision if not yet cached
             if (!mapGrid && currentMap && !loadingMap) {
                 loadMapCollision(currentMap);
                 return;
             }
 
-            let chosenDir = null;
+            let chosenDir = forcedEscapeDir;
 
             // Strategy 1: If player is ALREADY inside tall grass, pace strictly within the grass patch
             if (isGrass(px, py)) {
@@ -1904,18 +2058,29 @@ function handleGameMessage(msg) {
     const OrigWebSocket = window.WebSocket;
     function HookedWebSocket(...args) {
         console.log("[IdleDex Desktop] Novo WebSocket interceptado com sucesso:", args[0]);
+        const isReconnect = (reconnectCount > 0 || (activeWs && activeWs.readyState === WebSocket.CLOSED));
         const ws = new OrigWebSocket(...args);
         activeWs = ws;
 
         ws.addEventListener('open', () => {
-            logEvent("✅ Conexão WebSocket estabelecida com o servidor!", "success");
+            if (isReconnect) {
+                reconnectCount++;
+                logEvent(`🔄 [RECONEXÃO #${reconnectCount}] Conexão WebSocket restabelecida com o servidor!`, "success");
+            } else {
+                logEvent("✅ Conexão WebSocket estabelecida com o servidor!", "success");
+            }
             emitTelemetry();
             setTimeout(configureAndStartIdle, 1000);
         });
 
-        ws.addEventListener('close', () => {
-            logEvent("🔌 WebSocket desconectado.", "warning");
+        ws.addEventListener('close', (event) => {
+            logEvent(`🔌 WebSocket desconectado (code: ${event.code}).`, "warning");
             emitTelemetry();
+            // Reset state related to this WebSocket
+            activeWs = null;
+            inBattle = false;
+            battleWindowOpen = false;
+            lastTurnNumber = -1;
         });
 
         ws.addEventListener('message', (event) => {
@@ -1975,7 +2140,11 @@ function handleGameMessage(msg) {
             }
             emitTelemetry();
         } else if (cmd === 'update-config') {
+            const prevMode = botConfig.strategy_mode;
             Object.assign(botConfig, payload);
+            if (payload && payload.strategy_mode && payload.strategy_mode !== prevMode) {
+                applyStrategyPreset(payload.strategy_mode);
+            }
             logEvent("⚙️ Configurações do bot atualizadas", "info");
             configureAndStartIdle();
             emitTelemetry();

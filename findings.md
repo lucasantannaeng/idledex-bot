@@ -360,3 +360,22 @@
   - `isWalkable` retornava `true` para coordenadas fora do mapa. Corrigido para retornar estritamente `false` quando `x < 0 || x >= mapCols || y < 0 || y >= mapRows`, alinhando-se a `t2e.isWalkableAt`.
 - **Diferenciação Visual por Bioma**:
   - Em mapas de caverna (como Rota 5), o chão de batalha tem bioma `cave` e colisão `1`. No radar, a etiqueta agora indica contextualmente `🪨 [Caverna Selvagem]`, `🌋 [Solo Vulcânico]`, `🏖️ [Areia Selvagem]`, `❄️ [Neve Alta]`, ou `🌿 [Grama Alta]` conforme `currentMapBiome`.
+
+## 17. Reverse Engineering & Architecture: Refinamento Integral, In-Battle Revive, Presets de Estratégia, Auto-Troca de Rota e Hardening 24/7 (Phase 20 / v3.0)
+- **Implementação do Arremesso de Revive em Batalha (`battle:item`)**:
+  - No protocolo oficial de duelo (`battle:turn`), o servidor transmite a flag `canRevive: boolean`.
+  - Quando o monstro líder desmaia (`myMon.hp === 0 || myMon.isFainted`), o cliente tem permissão de usar itens do tipo revive (`revive` ou `max-revive`) via payload `{ t: "battle:item", d: { battleId, itemId } }`.
+  - Inserido como prioridade de turno 1.5 (após fuga e antes de poção comum).
+- **Macro Presets de Estratégia (`applyStrategyPreset`)**:
+  - O dropdown de estratégia macro foi conectado a regras de decisão operacionais:
+    - `collection`: Força `catch_only_uncaught = true`, fuga imediata (`unselected_action = 'flee'`) de repetidos para economizar esferas, e prioridade de Pokébolas econômicas (`economy`).
+    - `monetize`: Desativa filtro de inéditos, força combate por XP (`battle`), usa esferas econômicas e reduz limiar de HP inimigo para captura a 30%, maximizando derrotas rápidas por XP e moedas.
+    - `balanced`: Preserva valores manuais definidos pelo usuário.
+- **Motor de Auto-Troca de Rota Sequencial (`checkAutoRouteSwitch`)**:
+  - Monitora o status `caught` de cada espécie fornecida pelo pacote oficial `map:preview`.
+  - Se todas as espécies da rota atual (ou da whitelist configurada) estiverem registradas como capturadas, calcula a próxima rota incremental (`route_${String(n+1).padStart(3, '0')}`) de 1 a 150 e dispara `{ t: "map:travel", d: { mapId: nextRouteId } }`.
+  - **Exceção `pinned_species`**: Caso o treinador configure um nome de espécie para farm de IVs perfeitos (ex: `dratini`, `eevee`), o bot verifica se a criatura habita a rota corrente. Se habitar, a troca automática é bloqueada, mantendo o bot caçando naquela rota indefinidamente.
+- **Anti-Travamento e Resiliência 24/7**:
+  - `stuckCounter` rastreia ciclos sem deslocamento físico do jogador. Se atingir 10 ciclos, força um passo em direção cardeal transitável aleatória e reseta a memória de patrulha.
+  - Reconexões automáticas são rastreadas via `reconnectCount` e integradas ao novo card de métricas de sessão (Uptime, Capturas/h, XP/h, Prata/h).
+
