@@ -147,6 +147,4 @@ node tests/smoke-electron.js
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
-Developed with high standards by **Luca Rodrigues Gomes de Sant'Anna** ([lucasantannaeng](https://github.com/lucasantannaeng)).
-
 *Disclaimer: IdleDex is a trademark of its respective creators. This software is an independent educational automation tool.*
