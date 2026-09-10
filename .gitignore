@@ -22,3 +22,28 @@ _agy_prompt.txt
 # Unignore electron project sources (overriding global .gitignore)
 !electron/
 !electron/**
+
+# =============================================================================
+# DevSecOps: Desktop Compilations, Binaries & Secret Protection (Zero-Trust)
+# =============================================================================
+.env
+.env.*
+!.env.example
+*.secret
+*.key
+*.pem
+*.cert
+credentials.json
+
+# Binaries & Packaging Outputs
+*.exe
+*.dll
+*.asar
+*.dmg
+*.apk
+*.aab
+*.msi
+*.zip
+*.7z
+*.tar.gz
+
