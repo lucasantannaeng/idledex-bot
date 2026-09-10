@@ -666,6 +666,7 @@ function applyConfigToInputs(cfg) {
     setCheck('cfg-auto-travel-deliveries', cfg.auto_travel_deliveries !== false);
     setVal('cfg-auto-travel-surplus', cfg.auto_travel_surplus_threshold || 5);
     setCheck('cfg-auto-boosts', !!cfg.auto_use_boosts);
+    setCheck('cfg-close-to-tray', !!cfg.close_to_tray);
 }
 
 function onStrategyChange(mode) {
@@ -738,6 +739,7 @@ async function saveBotSettings() {
         auto_travel_deliveries: getCheck('cfg-auto-travel-deliveries'),
         auto_travel_surplus_threshold: parseInt(getVal('cfg-auto-travel-surplus'), 10) || 5,
         auto_use_boosts: getCheck('cfg-auto-boosts'),
+        close_to_tray: getCheck('cfg-close-to-tray'),
     };
 
     // Persist to main process

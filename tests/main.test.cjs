@@ -37,3 +37,9 @@ test('failed atomic save preserves the previous configuration', () => {
 test('remote debugging is disabled by default', () => {
     assert.equal(mainProcess().switches.length, 0);
 });
+test('close_to_tray is false by default and can be persisted', () => {
+    const main = mainProcess();
+    assert.equal(main.config().close_to_tray, false);
+    assert.equal(main.save({ ...main.config(), close_to_tray: true }), true);
+    assert.equal(main.config().close_to_tray, true);
+});

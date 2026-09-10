@@ -60,6 +60,7 @@ function loadConfig() {
         auto_npc_quests: true,
         auto_travel_deliveries: true,
         auto_travel_surplus_threshold: 5,
+        close_to_tray: false,
     };
     try {
         if (fs.existsSync(CONFIG_PATH)) {
@@ -85,6 +86,37 @@ function saveConfig(cfg) {
     }
 }
 
+function getWindowIcon() {
+    const candidates = [
+        path.join(__dirname, 'icon.png'),
+        path.join(__dirname, 'icon.ico'),
+        path.join(__dirname, '../build/icon.png'),
+        path.join(__dirname, '../app/icon.png')
+    ];
+    for (const p of candidates) {
+        if (fs.existsSync(p)) return p;
+    }
+    return undefined;
+}
+
+function getTrayIcon() {
+    const candidates = [
+        path.join(__dirname, 'tray-icon.ico'),
+        path.join(__dirname, 'tray-icon.png'),
+        path.join(__dirname, 'icon.ico'),
+        path.join(__dirname, 'icon.png'),
+        path.join(__dirname, '../build/icon.ico'),
+        path.join(__dirname, '../app/icon.png')
+    ];
+    for (const p of candidates) {
+        if (fs.existsSync(p)) {
+            const img = nativeImage.createFromPath(p);
+            if (!img.isEmpty()) return img;
+        }
+    }
+    return null;
+}
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1480,
@@ -92,7 +124,7 @@ function createWindow() {
         minWidth: 1040,
         minHeight: 700,
         title: 'IdleDex Desktop',
-        icon: path.join(__dirname, '../build/icon.png'),
+        icon: getWindowIcon(),
         backgroundColor: '#0a0e17',
         autoHideMenuBar: true,
         show: true,
@@ -134,42 +166,63 @@ function createWindow() {
     });
 
     mainWindow.on('close', (event) => {
-        if (!isQuitting) {
+        if (isQuitting) return;
+        const cfg = loadConfig();
+        if (cfg.close_to_tray) {
             event.preventDefault();
             mainWindow.hide();
+            if (tray && typeof tray.displayBalloon === 'function') {
+                try {
+                    tray.displayBalloon({
+                        title: 'IdleDex Desktop',
+                        content: 'O aplicativo continua executando em segundo plano na bandeja.',
+                        iconType: 'info'
+                    });
+                } catch (_) {}
+            }
+        } else {
+            isQuitting = true;
+            if (tray && !tray.isDestroyed()) {
+                tray.destroy();
+                tray = null;
+            }
+            app.quit();
         }
     });
 }
 
 function createTray() {
     try {
-        // Generate a clean 16x16 icon programmatically if file doesn't exist
-        const iconPath = path.join(__dirname, 'tray-icon.png');
-        let icon;
-        if (fs.existsSync(iconPath)) {
-            icon = nativeImage.createFromPath(iconPath);
-        } else {
-            // Fallback: 16x16 cyan dot
-            const n = nativeImage.createFromBuffer(
-                Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAA0SURBVDhPY/wPBAwUACYGKsD/oRhGE2AAjEZB/BiNAsZgNArYgDEyYEAAmBioAP+HYhhNgAEAvdYHEb5rKxkAAAAASUVORK5CYII=', 'base64')
-            );
-            icon = n;
+        const icon = getTrayIcon();
+        if (!icon) {
+            console.warn('[MAIN] No valid tray icon found on disk.');
+            return;
         }
 
         tray = new Tray(icon);
         tray.setToolTip('IdleDex Desktop Suite');
 
         const contextMenu = Menu.buildFromTemplate([
-            { label: 'Exibir IdleDex Desktop', click: () => { mainWindow.show(); mainWindow.focus(); } },
-            { label: 'Alternar Bot (Ligar / Pausar)', click: () => { mainWindow.webContents.send('toggle-bot-tray'); } },
+            { label: 'Exibir IdleDex Desktop', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
+            { label: 'Alternar Bot (Ligar / Pausar)', click: () => { if (mainWindow) mainWindow.webContents.send('toggle-bot-tray'); } },
             { type: 'separator' },
             { label: 'Sair Completamente', click: () => { isQuitting = true; app.quit(); } }
         ]);
 
         tray.setContextMenu(contextMenu);
+        tray.on('click', () => {
+            if (mainWindow) {
+                if (mainWindow.isMinimized()) mainWindow.restore();
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        });
         tray.on('double-click', () => {
-            mainWindow.show();
-            mainWindow.focus();
+            if (mainWindow) {
+                if (mainWindow.isMinimized()) mainWindow.restore();
+                mainWindow.show();
+                mainWindow.focus();
+            }
         });
     } catch (e) {
         console.warn('[MAIN] Tray initialization skipped:', e.message);
@@ -202,7 +255,18 @@ ipcMain.handle('switch-account', async event => {
 });
 
 ipcMain.on('minimize-to-tray', () => {
-    if (mainWindow) mainWindow.hide();
+    if (mainWindow) {
+        mainWindow.hide();
+        if (tray && typeof tray.displayBalloon === 'function') {
+            try {
+                tray.displayBalloon({
+                    title: 'IdleDex Desktop',
+                    content: 'O aplicativo continua executando em segundo plano na bandeja.',
+                    iconType: 'info'
+                });
+            } catch (_) {}
+        }
+    }
 });
 
 ipcMain.on('toggle-fullscreen', () => {
