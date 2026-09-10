@@ -38,3 +38,86 @@
 
 
 
+
+## 2026-09-08 — Codex: incremento de correções, objetivo ainda ativo
+- Criados tests/engine-harness.cjs e tests/engine.test.cjs, executando integralmente electron/preload-game.js via node:vm com bridges e WebSocket simulado; npm test adicionado.
+- RED verificado: 4/4 falharam antes da primeira correção; teste de pausa adicional também falhou (2 comandos indevidos).
+- GREEN verificado: npm.cmd test, 5/5 aprovados; node --check electron/preload-game.js aprovado.
+- Corrigidos lifecycle de WebSocket, telemetria/reset de batalha, contador de reconexões, respostas fora de ordem de colisão e gates de pausa para claims/NPCs/auto-lock. URL do socket removida do console para evitar registrar query de autenticação.
+- Aplicativo distribuído ainda é o anterior; não foi reiniciado, recarregado nem sobrescrito. Build e validação em runtime das mudanças ainda pendentes.
+- Próxima ação: corrigir carregamento/sincronização da configuração e auditar combate/coleção contra bundle atual. Ver backlog novo em task_plan.md. Não declarar entrega pronta com base nos cinco testes.
+
+## 2026-09-08 — Codex: configuração, protocolo e distribuição candidata
+- Turno anterior classificado como progresso: correções e testes presentes e revalidados no worktree.
+- Corrigida sincronização da configuração persistida ao dom-ready e após getConfig. Motor aguarda configuração antes de automações. Presets não sobrescrevem campos explícitos restaurados. Limites zero e pausa persistidos.
+- Engenharia reversa confirmou team/patch via d.creatures, leader/foe no início e turn.events para HP. Implementadas ingestão de equipe/Box, patches, HP de dano/cura/desmaio, swap/swap_enemy e comparação de captura por speciesId.
+- Corrigidos quantidade zero no inventário e arremesso sem canThrow. npm.cmd test: 13/13 aprovados, com casos RED registrados antes das correções.
+- Compilação candidata concluída: npm.cmd run pack -- --config.directories.output=dist-candidate. Versão ainda 2.4.0; não tratar como release final.
+- Smoke em Electron real usando pacote candidato, perfil .smoke-profile isolado, janela oculta e fixture HTTPS local. Screenshot após asserts em research/smoke-dashboard.png. Script tests/electron-smoke.cjs grava também smoke-result.json na execução atual.
+- Pendente: validação real das mudanças no jogo, temporização/duplicação de turnos, timers durante pausa, IVs/descarte/NPCs/boosts/autoviagem, mapas e documentação final. Detalhes em research/2026-09-08-audit.md.
+- Aplicação original continua sem substituição em dist-desktop. Não marcar objetivo completo.
+
+## 2026-09-08 — Codex: combate/NPCs auditados e primeiro teste real
+- Progresso anterior confirmado no worktree; 23 testes atuais aprovados, incluindo relógio virtual para animação de turnos, callbacks antigos, captura via result, dados de IVs, entregas e cura parcial.
+- Implementado scheduleSessionTask com vínculo à conexão e geração de comandos; callbacks antigos não atuam após reconexão/pausa. Keyup continua independente para não prender teclas.
+- battle:turn agora respeita animateMs e turnMs; canThrow continua obrigatório. battle:end usa result capture/win/lose; fuga não conta como derrota.
+- IVs incompletos não são avaliados nem descartados. Captura resumida aguarda team.creatures e associação inequívoca por speciesId/ID e IDs anteriores à batalha. Protegidos equipe, líderes, shinies, locks, eventos/formas e mega.
+- Professor exige charges >= lotSize, excedentes elegíveis da Box e um comando por estado. Colecionador usa collector:preview para verificar creatureIds antes de consumir. Autoviagem ignora integrantes da equipe e é cancelada por pausa.
+- Confirmado tryMove do cliente gerencia sequência/predição; removido envio duplicado de move do bot. Teste de integração simulado falhava 2 comandos vs 1 e agora passa.
+- Recompilada candidata e smoke Electron aprovado às 2026-09-09T01:30Z. Copiados preload-game.js e app/app.js candidatos para dist-desktop; backup em research/previous-runtime. Dashboard existente recarregado fora de batalha e conectado com configuração pausada preservada.
+- Teste real research/validate-live.cjs, 30s, restaurou configuração ao terminar. Evidência em research/live-validation.json: move n=1..151 sem duplicação, nenhuma batalha, 22 erros heal_insufficient_funds. Sem entregas/descarte no perfil temporário de validação.
+- Causa verificada: rank22, prata18, equipe 3x Lv5 HP0; custo oficial 2*level = 30 para todos. Corrigido requestAffordableHeal para selecionar cura compatível com saldo (1 mon por 10), cooldown e trava de repetição após recusa; patrulha espera equipe viva.
+- IMPORTANTE: correção de cura mais recente está no fonte e testes, ainda NÃO no pacote em execução/candidato. Próxima ação: reconstruir, smoke, sincronizar preload fora de batalha, repetir validate-live e observar combate/captura. Distribuição atual permanece pausada.
+- Pendências restantes: recuperação real, combate/captura reais e erros encontrados; audit de demais ações sem dados (dailies), persistência/main/security/review e documentação de entrega final. Não marcar concluído.
+
+## 2026-09-08 — Persistência, recompensas e documentação (Codex)
+- Turno de mero reconhecimento anterior: sem progresso; retomada pelo worktree e testes falhando.
+- Confirmado teste real anterior: uma captura, recuperação por poção e zero erros na janela observada (research/live-validation.json). Inspeção atual: conectado, pausado, fora de batalha, prata26, 60 criaturas saudáveis na Box.
+- Corrigidos defaults ao carregar configuração parcial, gravação atômica e falha de salvamento no painel. Debug CDP agora exige --inspect-bot ou IDLEDEX_DEBUG=1. Processo já aberto ainda usa main antigo até reiniciar.
+- Bundle oficial confirma diárias por progress >= goal e passe por missions/tiers; corrigidos handlers e adicionado teste de regressão.
+- 29 testes aprovados. Build candidato terminou com exit0. Smoke candidato aprovado em 2026-09-09T01:53:14.724Z; não cobre main de produção completo.
+- README, QUICKSTART e tests.md atualizados para Electron, removendo instruções obsoletas de token manual e alegações de zero desconexões.
+- Pendentes: auditar Pokédex/news e resgates periódicos sem estado; revisar duplicação de pedidos e inicialização/main; padronizar títulos/versionamento; atualizar distribuição final e testar reinício real com sessão preservada. Pacote em dist-desktop ainda não recebeu mudanças deste turno.
+- Objetivo permanece ativo; não declarar pronto para uso ainda.
+
+## 2026-09-08 — Entrega 2.4.1 (Codex)
+- Turno anterior foi progresso comprovado no worktree. Concluídos Pokédex ready, news:page/reward.length, consultas periódicas e supressão de pedidos repetidos.
+- Teste real revelou manutenção dependente da patrulha; corrigido relógio independente do movimento e retomada após batalha/mapa. 31 testes aprovados.
+- Empacotada 2.4.1, títulos e lockfile alinhados. Instância única implementada e segunda abertura verificada com um único processo principal.
+- Reinício real preservou sessão/configuração pausada. Consultas daily/calendar/pokedex/gamepass/news e recuperação responderam sem erros; teste final de combate também sem erros. Evidências separadas preservadas.
+- Smoke final aprovado; verify-release.cjs confirma seis arquivos da distribuição idênticos ao fonte e manifesto consistente. Reinício normal mantém app aberto sem porta9222.
+- Auditoria de conclusão: research/delivery-audit.md. Não há correção conhecida restante identificada nesta auditoria; limitações de cobertura explicitadas no documento.
+
+## Laboratório — causas reproduzidas
+- Retorno após3.5s não aguardava professor:state nem confirmação de consumo. Timeout25s limpava a viagem e retomava patrulha no lab.
+- Loop de patrulha podia continuar no tick que iniciava viagem e não bloqueava laboratório sem viagem ativa.
+- Implementados estados delivering/returning por confirmação, retorno com retries limitados, bloqueio de movimento e recuperação após pausa. Origem lembrada em sessionStorage; fallback route_001 se sessão começa no lab sem rota conhecida.
+- Viagens periódicas agora exigem mudança dos excedentes desde a tentativa anterior; botão manual pode tentar novamente.
+- 36 testes aprovados; 2.4.2 candidata compilada e smoke aprovado. Pacote em execução atualizado com diagnóstico temporário; teste real do lab em andamento, não considerar corrigido até inspecionar resultado.
+
+## 2026-09-08 — Laboratório concluído (2.4.2)
+- Evidência real identificou shard:redirect + welcome no retorno, confirmando por que map:change sozinho não bastava. Recuperação de origem/fluxo implementada também para esse caminho e coberta por regressão.
+- 38 testes aprovados; teste real saiu do npclab para route_014 sem erro e sem move. Sem lote disponível preservando uma cópia; consumo confirmado de lote coberto pelo teste do protocolo. Cura configurada custou42prata e recuperou10HP.
+- Código final empacotado como2.4.2, smoke aprovado02:34:02Z, seis arquivos distribuídos idênticos ao fonte. Aplicativo reiniciado normalmente; configuração original pausada e rota014 preservadas.
+- Requisitos do novo problema atendidos: sem repetição automática por excedentes inalterados, sem caça no laboratório, entrega por confirmação e retorno com recuperação de reconexão. Documentação atualizada.
+
+## 2026-09-09 — Tutorial, ajuda, presets, contas e pacote único (2.5.0)
+- Progresso concreto: 34 seções locais de tutorial, ajuda (?) por campo/função, janela modal com fechamento e ligação à seção aprofundada. Screenshot renderizado com Electron offscreen em research/smoke-dashboard.png.
+- Presets corrigidos após teste que reproduziu herança indevida de filtro shiny e parâmetros do modo anterior. Edição apenas prepara os campos; salvar persiste/aplica.
+- Sair / Trocar conta pausa e fecha as páginas da partição do jogo, aguarda destroyed e limpa armazenamento/autenticação/conexões. Google OAuth recebe prompt select_account. Teste real do Electron com cookies fictícios comprova isolamento e preservação de configuração; não houve autenticação de segunda conta real.
+- 41 testes unitários/regressões aprovados. Smoke da distribuição aprovado com 34 tópicos, todos os campos cobertos, link para seção correto, fechamento por botão/Esc e saída/reload.
+- Dist-desktop reconstruído 2.5.0, nome fixo IdleDex_Desktop.exe. Instância antiga em dist-candidate encerrada; pasta candidata removida após desbloquear arquivo residual de idioma. Aplicativo reiniciado pelo caminho canônico; configuração previamente pausada preservada. verify-release.cjs aprovou oito arquivos idênticos ao fonte e ausência de pacote duplicado.
+- PENDÊNCIA: fórmula da grama do automático nativo. Cliente público atual index-BPTg-fzT.js apenas envia idle:start ao servidor e define tiles/transitabilidade. Não há prova do algoritmo de escolha de grama no fonte público. Solicitada referência/código do servidor ao usuário. Heurística anterior permanece sem alegação de equivalência. Não marcar objetivo completo.
+- Primeiro turno com esta limitação: não satisfaz limiar de três turnos para blocked. Restantes independentes concluídos; próxima ação depende de referência ou descoberta verificável do algoritmo.
+
+## 2026-09-09 — Continuação: referência do automático nativo
+- Turno anterior classificado como progresso: implementação, testes e consolidação efetivamente presentes. Revalidação do pacote aprovada: oito arquivos e versão 2.5.0, sem dist-candidate.
+- Busca de arquivos em 1.Autorais não revelou servidor do jogo. Cliente index-BPTg-fzT.js não contém sourceMappingURL nem link GitHub. Busca pública por repositório e guia da fórmula sem resultado relevante.
+- Nova evidência primária: https://idledex.com/en/ declara que encontros, batalhas, passos e capturas são decididos no servidor, e AUTO continua com aba fechada. Isso confirma o limite do cliente; não fornece a fórmula de escolha da grama.
+- Mesmo impedimento pela segunda vez consecutiva: fórmula/implementação nativa não disponível, pergunta ao usuário ainda sem resposta. Nenhum processo de pesquisa em andamento. Não marcar complete nem blocked neste turno (limiar de três ainda não alcançado).
+
+## 2026-09-09 — Bloqueio confirmado: fórmula nativa de grama
+- Turno anterior classificado como progresso de investigação: evidência oficial adicional sobre execução no servidor, sem obtenção da fórmula.
+- Terceira ocorrência consecutiva do mesmo impedimento. Não chegou referência nova nem resposta à pergunta; não há processo de pesquisa aguardando resultado.
+- Trabalho independente entregue na 2.5.0. Reprodução exata da seleção de grama e sua validação continuam pendentes; login em segunda conta real também não foi realizado pelo agente.
+- Objetivo marcado como blocked, não complete. Retomar com código/referência verificável da fórmula nativa; preservar integralmente o escopo original.

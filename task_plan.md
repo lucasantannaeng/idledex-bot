@@ -1,5 +1,15 @@
 # Task Plan: idleDEX Bot Fixes & Enhancements
 
+## Pedido atual — tutorial, ajuda, presets, contas, grama e pacote único (2026-09-09)
+- [x] Tutorial detalhado local, acessível permanentemente, cobrindo cada ferramenta e configuração.
+- [x] Ajuda contextual (?) por função, popup fechável e link para seção aprofundada.
+- [x] Presets determinísticos, com revisão antes de salvar, sem herdar filtros conflitantes.
+- [x] Sair/trocar conta Google dentro da sessão Electron, sem apagar configurações do bot (sessão sintética validada; segunda conta real requer login do usuário).
+- [ ] Verificar algoritmo do automático nativo atual e alinhar seleção/navegação da grama.
+- [ ] Testar interface real, autenticação e navegação; executar regressões.
+- [x] Empacotar versão 2.5.0 apenas em dist-desktop, remover pacote duplicado após validação; grama permanece pendente.
+- [ ] Atualizar documentação, auditoria e diário no cofre.
+
 ## Phase 1: Architecture & Persistence
 - [x] Extract full conversation context and reverse engineer upstream JavaScript protocol.
 - [x] Create `config.json` persistence engine (`config.py`: auto-load, auto-save, token, cookie, port, thresholds, strategy).
@@ -274,3 +284,37 @@
   - Teste ao vivo via CDP na porta 9222 com bot em patrulha autônoma e telemetria sincronizada.
 
 
+
+## Auditoria Codex — 2026-09-08 (em andamento)
+- [x] Consultar orientações do cofre e estado real do repositório.
+- [x] Baixar HTML e bundle público atual index-DwmEwqo-.js.
+- [x] Inspecionar aplicação ativa via CDP sem consultar credenciais.
+- [x] Criar testes que executam o preload distribuído com IPC e WebSocket simulados.
+- [x] Reproduzir e corrigir perda de conexão por close/mensagens de socket antigo, contagem de reconexões, telemetria de desconexão, corrida de carregamento de mapas e ações automáticas durante pausa.
+- [ ] Corrigir sincronização de configuração persistida no boot e após recarga do webview (dom-ready atualmente não envia currentConfig).
+- [ ] Auditar protocolo atual de coleção, batalha, NPCs, colisão e movimento; comparar invariantes com bundle atual.
+- [ ] Ampliar testes reais do motor para combate/captura, coleção, deslocamento e timers pendentes durante pausa/reconexão.
+- [ ] Validar correções em Electron e no jogo, reconstruir distribuição e testar artefato resultante.
+- [ ] Atualizar README/QUICKSTART/tests.md e registrar entrega no 04_Logbook do cofre.
+
+## Fechamento da auditoria Codex — 2.4.1
+- [x] Sincronização da configuração no boot/recarga, persistência e falhas de gravação.
+- [x] Contratos atuais de equipe, Box, batalha, captura, cura, NPCs, movimento e recompensas.
+- [x] 31 regressões automatizadas; smoke Electron do pacote candidato.
+- [x] Testes reais de recuperação, captura, combate e consultas de recompensas.
+- [x] Distribuição 2.4.1, reinício com sessão preservada, instância única e diagnóstico desligado.
+- [x] README/QUICKSTART/tests.md atualizados; evidências em research/delivery-audit.md.
+
+Este fechamento atualiza o status das pendências da seção Auditoria Codex. Fases anteriores de Python permanecem como histórico, não como requisitos da distribuição Electron.
+
+## Correção do ciclo do laboratório — 2026-09-08
+- [x] Reproduzir retorno prematuro, falta de cargas e timeout em testes.
+- [x] Aguardar resposta/confirmacão do Professor, bloquear patrulha durante viagem e no lab, recuperar fluxo após pausa e limitar retries de retorno.
+- [x] Evitar nova viagem automática pelo mesmo conjunto de excedentes.
+- [ ] Validar ida/entrega/retorno no jogo e corrigir diferenças do servidor.
+- [ ] Publicar pacote atualizado, verificar artefato e registrar evidências.
+
+### Fechamento da correção do laboratório
+- [x] Teste real de consulta/retorno e reconexão; regressão de entrega confirmada e chegada via welcome.
+- [x] Pacote2.4.2 atualizado, 38 testes e smoke aprovados, arquivos distribuídos verificados.
+- [x] README/tests e diário de bordo atualizados.

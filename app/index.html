@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IdleDex Desktop Suite v2.0</title>
+    <title>IdleDex Desktop</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -23,9 +23,11 @@
         </div>
 
         <div class="titlebar-actions">
-            <button id="btn-toggle-bot" class="tb-btn primary" onclick="toggleBotState()">⏸️ Pausar Bot</button>
-            <button class="tb-btn" onclick="toggleSidebar()">📐 Alternar Barra</button>
-            <button class="tb-btn" onclick="minimizeToTray()">📥 Bandeja (Tray)</button>
+            <button id="btn-tutorial" class="tb-btn">Tutorial</button>
+            <button id="btn-switch-account" data-help="account" class="tb-btn" onclick="switchAccount()">Sair / Trocar conta</button>
+            <button id="btn-toggle-bot" data-help="start" class="tb-btn primary" onclick="toggleBotState()">⏸️ Pausar Bot</button>
+            <button data-help="start" class="tb-btn" onclick="toggleSidebar()">📐 Alternar Barra</button>
+            <button data-help="start" class="tb-btn" onclick="minimizeToTray()">📥 Bandeja (Tray)</button>
         </div>
     </header>
 
@@ -58,7 +60,7 @@
                 <div id="panel-radar" class="panel active">
                     <div class="card">
                         <div class="card-header">
-                            <span class="card-title">Radar Tático (20x20 Grid)</span>
+                            <span class="card-title" data-help="radar">Radar Tático (20x20 Grid)</span>
                             <span id="radar-coords" style="font-size:0.75rem; font-family:var(--font-mono); color:var(--cyan);">Posição: Aguardando...</span>
                         </div>
                         <div class="radar-box">
@@ -72,7 +74,7 @@
                     </div>
 
                     <div class="card">
-                        <div class="card-title">Criaturas Próximas Detectadas</div>
+                        <div class="card-title" data-help="radar">Criaturas Próximas Detectadas</div>
                         <div id="entities-list" style="margin-top:8px; font-size:0.78rem; display:flex; flex-direction:column; gap:4px; max-height:110px; overflow-y:auto;">
                             <div style="color:var(--text-dim);">Aguardando telemetria de mapa...</div>
                         </div>
@@ -80,11 +82,11 @@
 
                     <div class="card">
                         <div class="card-header">
-                            <span class="card-title">📍 Spawns da Área</span>
+                            <span class="card-title" data-help="radar">📍 Spawns da Área</span>
                             <span id="current-map-badge" class="badge" style="background:var(--cyan); color:#000; font-weight:600; font-size:0.72rem; padding:2px 6px; border-radius:4px;">Aguardando Mapa...</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0 6px 0;">
-                            <span style="font-size:0.75rem; color:var(--text-muted);">Não Selecionados:</span>
+                            <span data-help="cfg-unselected-action" style="font-size:0.75rem; color:var(--text-muted);">Não Selecionados:</span>
                             <select id="cfg-unselected-action-radar" class="form-control" style="width:130px; padding:2px 6px; font-size:0.75rem;" onchange="onRadarUnselectedActionChange(this.value)">
                                 <option value="battle">⚔️ Lutar por XP</option>
                                 <option value="flee">🏃 Fugir Imediato</option>
@@ -315,9 +317,9 @@
                                 <input type="text" id="cfg-pinned-species" class="form-control" style="width:135px; font-size:0.75rem;" placeholder="Ex: pikachu">
                             </div>
                             <div class="form-item">
-                                <label>Modo Estratégico</label>
+                                <label>Preset de configuração</label>
                                 <select id="cfg-strategy" class="form-control" style="width:135px;" onchange="onStrategyChange(this.value)">
-                                    <option value="balanced">Equilibrado (50/50)</option>
+                                    <option value="balanced">Equilibrado</option>
                                     <option value="collection">Foco Coleção</option>
                                     <option value="monetize">Monetização</option>
                                 </select>
@@ -365,7 +367,7 @@
                                 <input type="checkbox" id="cfg-auto-boosts">
                             </div>
 
-                            <button onclick="saveBotSettings()" class="tb-btn primary" style="margin-top:12px; width:100%; padding:9px;">
+                            <button data-help="save" onclick="saveBotSettings()" class="tb-btn primary" style="margin-top:12px; width:100%; padding:9px;">
                                 💾 Salvar Ajustes
                             </button>
                         </div>
@@ -375,7 +377,7 @@
                 <!-- OPERATIONS LOG FEED (ALWAYS VISIBLE AT BOTTOM) -->
                 <div class="card" style="margin-top:auto;">
                     <div class="card-header">
-                        <span class="card-title">Console de Operações</span>
+                        <span data-help="logs" class="card-title">Console de Operações</span>
                         <button onclick="clearLogs()" style="background:transparent; border:none; color:var(--text-dim); font-size:0.75rem; cursor:pointer;">Limpar</button>
                     </div>
                     <div class="log-box" id="log-feed">
@@ -388,6 +390,14 @@
 
     </div>
 
+    <dialog id="help-dialog" aria-labelledby="help-title">
+        <header class="help-header">
+            <h2 id="help-title">Tutorial do IdleDex Bot</h2>
+            <button id="help-close" class="tb-btn" autofocus>Fechar</button>
+        </header>
+        <div id="help-body"></div>
+    </dialog>
     <script src="app.js"></script>
+    <script src="help.js"></script>
 </body>
 </html>

@@ -379,3 +379,34 @@
   - `stuckCounter` rastreia ciclos sem deslocamento físico do jogador. Se atingir 10 ciclos, força um passo em direção cardeal transitável aleatória e reseta a memória de patrulha.
   - Reconexões automáticas são rastreadas via `reconnectCount` e integradas ao novo card de métricas de sessão (Uptime, Capturas/h, XP/h, Prata/h).
 
+
+## 2026-09-08 — Codex: diagnóstico verificado e regressões
+- Fonte atual: https://idledex.com/assets/index-DwmEwqo-.js (1.788.037 bytes; SHA256 b2df02277738381598b3b31b045b3e85eb9a6bc7e53d8432efccade436864172). Cópia em research/; não é a versão C3hpUun1 citada no histórico.
+- research/inspect-bundle.cjs confirma emissores oficiais battle:move {battleId,moveId}, battle:item {battleId,itemId}, map:travel {mapId}, professor:deliver {speciesId}. Isso ainda não valida todas as features.
+- CDP localhost:9222 confirmou aplicativo antigo ativo, webview no bundle atual, telemetria conectada na route_006 e equipe com 3 membros. Inspeção somente leitura em research/inspect-live.cjs; nenhuma credencial lida.
+- Testes antigos em C:/Users/Luca Rodrigues/.gemini/antigravity/brain/2f45b7d2-b49b-4059-b306-0bccc58442bf/scratch incluem lógica duplicada e asserts sobre constantes locais. Não provam integralmente o código distribuído.
+- Bugs reproduzidos nos novos testes: close de socket antigo anulava activeWs novo; mensagens antigas alteravam playerId; contador nunca incrementava após activeWs=null; telemetria de close emitida antes do reset; loadingMap descartava segunda troca de mapa; pause não impedia claims/deliveries recebidos por eventos.
+- Risco pendente: app/app.js carrega configuração só nos inputs e não a envia no dom-ready. O preload começa com enabled=true. Corrigir antes de declarar pronto.
+- Risco pendente: timers de welcome/auto-travel capturam estado global; verificar callbacks antigos após pause/reconexão. loadMapCollision já usa versão de requisição, mas patrulha deve ser auditada durante carregamento.
+- QMD CLI existe, mas vault-manifest.json não existe no cofre; consulta direta realizada. 02_Areas contém somente diretório Scripts_Automação_Python. PowerShell com login travou em duas chamadas; usar login:false. qmd.ps1 bloqueado pela ExecutionPolicy; qmd.cmd --help funcionou.
+
+## Protocolo confirmado e próximos testes (Codex, continuação)
+- Fonte e contratos documentados em research/2026-09-08-audit.md. Novas provas: d.creatures em team/patch; eventos battle.turn.events com targetHp/hpAfter; swap e swap_enemy sem campo who.
+- Foram corrigidos carregamento de configuração, HP, equipe e contagem zero; 13 testes passam, candidato compilado e smoke Electron executado.
+- Atenção para próximo incremento: d.turn é objeto (não contador), actionInFlight hoje compara referências; battleWindowOpen fica true antes de animateMs. Ações devem respeitar janela e deduplicação do protocolo. Testar antes de alterar.
+- Atenção: captura de inéditos baseada em coleção atual pode diferir de Pokédex histórica; map:preview possui caught. Confirmar intenção e fonte.
+- Atenção: updateCreatures agora popula collection; revisar todas as ações destrutivas/NPCs que antes viam coleção vazia antes de executar o candidato na sessão real.
+
+## Novos contratos verificados (Codex)
+- Cliente oficial: battle:end.result usa capture/win/lose/draw; d.caught é resumo e pode omitir ID/IVs. Não inferir IV=0 de ausência.
+- Professor UI Kle: charges>=lotSize e lot.available>lotSize; deliver {speciesId}. Colecionador Xle: preview {mapId,window,creatureIds}, compara janela/mapa antes da confirmação. DexQuest Pce usa target.have e speciesId.
+- tryMove(e) atual envia move {dir,n} após predição net.enviar; teclado é amostrado a cada16ms. Removido pacote manual duplicado da patrulha.
+- Cura oficial: H8(rank) gratuita até rank20 inclusive; Vle/Qde=2 prata por level de cada mon ferido. Gle só oferece resgate sem saldo quando todos os membros da equipe e Box estão desmaiados.
+- Teste real em research/live-validation.json identificou heal_insufficient_funds; saldo18/equipe3xLv5 desmaiada/59 Box vivos. Cura parcial resolve saldo necessário sem trocar equipe ou comprar itens.
+- Próximo teste real obrigatório: fonte requestAffordableHeal ainda não sincronizado no dist-desktop. O app está pausado e a configuração original foi restaurada pelo validador.
+
+## 2026-09-09 — Pedido de usabilidade
+- Novo bundle público: https://idledex.com/assets/index-BPTg-fzT.js. Define V_ Grass=1/Path=2; fringe usado na renderização. Automático envia idle:start ao servidor; seleção de grama não encontrada. A exclusão de fringe e componentes menores que 4 no bot é heurística anterior, não fórmula nativa comprovada.
+- QMD CLI falhou por diretório de banco inexistente; cofre sem vault-manifest.json. Consultados diretamente 00_Meta, 02_Areas (sem notas aplicáveis) e Guia Mestre.
+- Electron clearStorageData deve ocorrer depois de fechar e aguardar destroyed de todas as páginas da partição, inclusive popups OAuth. Isso evita regravação por páginas antigas e elimina sessionStorage pelo fechamento.
+- Evidências da entrega parcial: research/2026-09-09-usability-audit.md, research/smoke-result.json e research/release-verification.json.

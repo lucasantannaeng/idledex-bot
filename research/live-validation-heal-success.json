@@ -1,0 +1,779 @@
+{
+  "startedAt": "2026-09-09T01:40:08.611Z",
+  "sent": {
+    "idle:config": 1,
+    "idle:stop": 1,
+    "heal:full": 1,
+    "move": 85,
+    "battle:flee": 5,
+    "battle:replayed": 3,
+    "ping": 6
+  },
+  "received": {
+    "idle:state": 1,
+    "state": 1,
+    "wallet": 1,
+    "notice": 1,
+    "team": 1,
+    "entity:leave": 6,
+    "battle:start": 3,
+    "chat:msg": 8,
+    "battle:turn": 7,
+    "progress:state": 3,
+    "team:patch": 3,
+    "battle:end": 3,
+    "pong": 6,
+    "entity:enter": 3
+  },
+  "errors": [],
+  "moves": [
+    {
+      "n": 1,
+      "dir": "N"
+    },
+    {
+      "n": 2,
+      "dir": "N"
+    },
+    {
+      "n": 3,
+      "dir": "E"
+    },
+    {
+      "n": 4,
+      "dir": "N"
+    },
+    {
+      "n": 5,
+      "dir": "E"
+    },
+    {
+      "n": 6,
+      "dir": "N"
+    },
+    {
+      "n": 7,
+      "dir": "S"
+    },
+    {
+      "n": 8,
+      "dir": "N"
+    },
+    {
+      "n": 9,
+      "dir": "S"
+    },
+    {
+      "n": 10,
+      "dir": "N"
+    },
+    {
+      "n": 11,
+      "dir": "S"
+    },
+    {
+      "n": 12,
+      "dir": "N"
+    },
+    {
+      "n": 13,
+      "dir": "S"
+    },
+    {
+      "n": 14,
+      "dir": "N"
+    },
+    {
+      "n": 15,
+      "dir": "S"
+    },
+    {
+      "n": 16,
+      "dir": "N"
+    },
+    {
+      "n": 17,
+      "dir": "E"
+    },
+    {
+      "n": 18,
+      "dir": "W"
+    },
+    {
+      "n": 19,
+      "dir": "W"
+    },
+    {
+      "n": 20,
+      "dir": "E"
+    },
+    {
+      "n": 21,
+      "dir": "E"
+    },
+    {
+      "n": 22,
+      "dir": "W"
+    },
+    {
+      "n": 23,
+      "dir": "E"
+    },
+    {
+      "n": 24,
+      "dir": "W"
+    },
+    {
+      "n": 25,
+      "dir": "S"
+    },
+    {
+      "n": 26,
+      "dir": "W"
+    },
+    {
+      "n": 27,
+      "dir": "S"
+    },
+    {
+      "n": 28,
+      "dir": "W"
+    },
+    {
+      "n": 29,
+      "dir": "S"
+    },
+    {
+      "n": 30,
+      "dir": "W"
+    },
+    {
+      "n": 31,
+      "dir": "S"
+    },
+    {
+      "n": 32,
+      "dir": "W"
+    },
+    {
+      "n": 33,
+      "dir": "E"
+    },
+    {
+      "n": 34,
+      "dir": "E"
+    },
+    {
+      "n": 35,
+      "dir": "S"
+    },
+    {
+      "n": 36,
+      "dir": "W"
+    },
+    {
+      "n": 37,
+      "dir": "E"
+    },
+    {
+      "n": 38,
+      "dir": "E"
+    },
+    {
+      "n": 39,
+      "dir": "S"
+    },
+    {
+      "n": 40,
+      "dir": "W"
+    },
+    {
+      "n": 41,
+      "dir": "W"
+    },
+    {
+      "n": 42,
+      "dir": "E"
+    },
+    {
+      "n": 43,
+      "dir": "W"
+    },
+    {
+      "n": 44,
+      "dir": "E"
+    },
+    {
+      "n": 45,
+      "dir": "W"
+    },
+    {
+      "n": 46,
+      "dir": "N"
+    },
+    {
+      "n": 47,
+      "dir": "W"
+    },
+    {
+      "n": 48,
+      "dir": "E"
+    },
+    {
+      "n": 49,
+      "dir": "S"
+    },
+    {
+      "n": 50,
+      "dir": "N"
+    },
+    {
+      "n": 51,
+      "dir": "W"
+    },
+    {
+      "n": 52,
+      "dir": "N"
+    },
+    {
+      "n": 53,
+      "dir": "E"
+    },
+    {
+      "n": 54,
+      "dir": "E"
+    },
+    {
+      "n": 55,
+      "dir": "W"
+    },
+    {
+      "n": 56,
+      "dir": "S"
+    },
+    {
+      "n": 57,
+      "dir": "W"
+    },
+    {
+      "n": 58,
+      "dir": "E"
+    },
+    {
+      "n": 59,
+      "dir": "N"
+    },
+    {
+      "n": 60,
+      "dir": "E"
+    },
+    {
+      "n": 61,
+      "dir": "N"
+    },
+    {
+      "n": 62,
+      "dir": "E"
+    },
+    {
+      "n": 63,
+      "dir": "N"
+    },
+    {
+      "n": 64,
+      "dir": "E"
+    },
+    {
+      "n": 65,
+      "dir": "N"
+    },
+    {
+      "n": 66,
+      "dir": "E"
+    },
+    {
+      "n": 67,
+      "dir": "S"
+    },
+    {
+      "n": 68,
+      "dir": "S"
+    },
+    {
+      "n": 69,
+      "dir": "N"
+    },
+    {
+      "n": 70,
+      "dir": "N"
+    },
+    {
+      "n": 71,
+      "dir": "S"
+    },
+    {
+      "n": 72,
+      "dir": "N"
+    },
+    {
+      "n": 73,
+      "dir": "S"
+    },
+    {
+      "n": 74,
+      "dir": "S"
+    },
+    {
+      "n": 75,
+      "dir": "N"
+    },
+    {
+      "n": 76,
+      "dir": "N"
+    },
+    {
+      "n": 77,
+      "dir": "S"
+    },
+    {
+      "n": 78,
+      "dir": "N"
+    },
+    {
+      "n": 79,
+      "dir": "S"
+    },
+    {
+      "n": 80,
+      "dir": "S"
+    },
+    {
+      "n": 81,
+      "dir": "N"
+    },
+    {
+      "n": 82,
+      "dir": "N"
+    },
+    {
+      "n": 83,
+      "dir": "E"
+    },
+    {
+      "n": 84,
+      "dir": "W"
+    },
+    {
+      "n": 85,
+      "dir": "S"
+    }
+  ],
+  "samples": [
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 38
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 20,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 37
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 20,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 36
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 16,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 36
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 12,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 37
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 12,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 36
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 12,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 12,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 41
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 7,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 41
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 2,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 41
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 2,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 42
+      },
+      "enabled": true,
+      "onGrass": false,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 2,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 2,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 37
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 2,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 115,
+        "y": 38
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 2,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 115,
+        "y": 37
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 2,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    }
+  ],
+  "finishedAt": "2026-09-09T01:40:38.774Z"
+}

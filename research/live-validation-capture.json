@@ -1,0 +1,532 @@
+{
+  "startedAt": "2026-09-09T01:43:02.150Z",
+  "sent": {
+    "idle:config": 1,
+    "idle:stop": 1,
+    "item:use": 1,
+    "ping": 7,
+    "move": 23,
+    "battle:item": 14,
+    "battle:replayed": 1
+  },
+  "received": {
+    "idle:state": 1,
+    "pong": 7,
+    "notice": 1,
+    "state": 1,
+    "inventory": 15,
+    "team": 2,
+    "battle:start": 2,
+    "battle:turn": 16,
+    "collector:state": 1,
+    "progress:state": 1,
+    "battle:end": 1,
+    "entity:enter": 2,
+    "chat:msg": 3,
+    "entity:leave": 1,
+    "fountain:state": 1
+  },
+  "errors": [],
+  "moves": [
+    {
+      "n": 1,
+      "dir": "N"
+    },
+    {
+      "n": 2,
+      "dir": "E"
+    },
+    {
+      "n": 3,
+      "dir": "W"
+    },
+    {
+      "n": 4,
+      "dir": "W"
+    },
+    {
+      "n": 5,
+      "dir": "W"
+    },
+    {
+      "n": 6,
+      "dir": "S"
+    },
+    {
+      "n": 7,
+      "dir": "W"
+    },
+    {
+      "n": 8,
+      "dir": "S"
+    },
+    {
+      "n": 9,
+      "dir": "W"
+    },
+    {
+      "n": 10,
+      "dir": "S"
+    },
+    {
+      "n": 11,
+      "dir": "W"
+    },
+    {
+      "n": 12,
+      "dir": "E"
+    },
+    {
+      "n": 13,
+      "dir": "W"
+    },
+    {
+      "n": 14,
+      "dir": "E"
+    },
+    {
+      "n": 15,
+      "dir": "W"
+    },
+    {
+      "n": 16,
+      "dir": "E"
+    },
+    {
+      "n": 17,
+      "dir": "W"
+    },
+    {
+      "n": 18,
+      "dir": "E"
+    },
+    {
+      "n": 19,
+      "dir": "W"
+    },
+    {
+      "n": 20,
+      "dir": "E"
+    },
+    {
+      "n": 21,
+      "dir": "E"
+    },
+    {
+      "n": 22,
+      "dir": "E"
+    },
+    {
+      "n": 23,
+      "dir": "W"
+    }
+  ],
+  "samples": [
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 37
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0,
+      "party": [
+        {
+          "hp": 15,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 37
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 15,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 110,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 15,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 15,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 10,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 15,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 10,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 10,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 15,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 10,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 10,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 15,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 10,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 10,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    },
+    {
+      "connected": true,
+      "inBattle": true,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 1,
+      "party": [
+        {
+          "hp": 15,
+          "maxHp": 20
+        },
+        {
+          "hp": 0,
+          "maxHp": 17
+        },
+        {
+          "hp": 0,
+          "maxHp": 23
+        }
+      ],
+      "silver": 8
+    }
+  ],
+  "finishedAt": "2026-09-09T01:43:32.325Z"
+}

@@ -1,9 +1,20 @@
 # Virtual environment & cache
 __pycache__/
 *.pyc
-build/
+*.bak
+build/*
+!build/icon.ico
+!build/icon.png
 dist/
 dist-desktop/
+dist-candidate/
+dist-release/
+.smoke-profile/
+research/*.js
+!research/*.cjs
+research/play.html
+research/play-current.html
+research/previous-runtime/
 node_modules/
 *.log
 _agy_prompt.txt

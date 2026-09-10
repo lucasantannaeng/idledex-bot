@@ -12,6 +12,13 @@ let currentConfig = null;
 let lastTelemetry = null;
 let currentTargetSpecies = [];
 let lastRenderedMapId = "";
+let gameReady = false;
+
+function syncConfigToGame() {
+    if (gameReady && currentConfig) {
+        gameView.send('host-command', { cmd: 'update-config', payload: currentConfig });
+    }
+}
 
 // DOM Elements
 const gameView = document.getElementById('game-view');
@@ -53,8 +60,11 @@ window.addEventListener('DOMContentLoaded', async () => {
         });
 
         gameView.addEventListener('dom-ready', () => {
+            gameReady = true;
+            syncConfigToGame();
             appendLog('🎮 Interface oficial IdleDex carregada com sucesso.', 'success');
         });
+        gameView.addEventListener('did-start-loading', () => { gameReady = false; });
 
         gameView.addEventListener('did-fail-load', (e) => {
             if (e.errorCode !== -3) { // ignore aborts
@@ -81,6 +91,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             if (currentConfig.enabled !== undefined) {
                 setBotEnabledState(currentConfig.enabled);
             }
+            syncConfigToGame();
         } catch (err) {
             console.error('Falha ao carregar configurações:', err);
         }
@@ -554,13 +565,19 @@ function setText(id, text) {
 
 // --- 6. USER CONTROLS & IPC DISPATCH ---
 
-function toggleBotState() {
+async function toggleBotState() {
     botEnabled = !botEnabled;
     setBotEnabledState(botEnabled);
 
     // Send command to guest webview
-    if (gameView) {
+    if (gameView && gameReady) {
         gameView.send('host-command', { cmd: 'toggle-bot', payload: { enabled: botEnabled } });
+    }
+    currentConfig = { ...(currentConfig || {}), enabled: botEnabled };
+    if (window.electronAPI?.saveConfig) {
+        try {
+            if (!await window.electronAPI.saveConfig(currentConfig)) appendLog('Não foi possível salvar o estado do bot.', 'error');
+        } catch (error) { appendLog(`Falha ao salvar estado: ${error.message}`, 'error'); }
     }
 }
 
@@ -615,8 +632,8 @@ function minimizeToTray() {
 function applyConfigToInputs(cfg) {
     if (!cfg) return;
     setVal('cfg-strategy', cfg.strategy_mode || 'balanced');
-    setVal('cfg-flee', Math.round((cfg.flee_hp_pct || 0.30) * 100));
-    setVal('cfg-potion', Math.round((cfg.potion_hp_pct || 0.35) * 100));
+    setVal('cfg-flee', Math.round((cfg.flee_hp_pct ?? 0.30) * 100));
+    setVal('cfg-potion', Math.round((cfg.potion_hp_pct ?? 0.35) * 100));
     setVal('cfg-potion-mode', cfg.potion_mode || 'smart');
     setVal('cfg-unselected-action', cfg.unselected_action || 'battle');
     setVal('cfg-unselected-action-radar', cfg.unselected_action || 'battle');
@@ -627,7 +644,7 @@ function applyConfigToInputs(cfg) {
     setCheck('cfg-revive-overworld', cfg.use_revive_overworld !== false);
     setCheck('cfg-auto-heal-center', cfg.auto_heal_center !== false);
 
-    setVal('cfg-catch', Math.round((cfg.catch_hp_pct || 0.50) * 100));
+    setVal('cfg-catch', Math.round((cfg.catch_hp_pct ?? 0.50) * 100));
     setCheck('cfg-only-shiny', !!cfg.catch_only_shiny);
     setCheck('cfg-only-uncaught', !!cfg.catch_only_uncaught);
     setVal('cfg-ball-priority', cfg.ball_priority || 'balanced');
@@ -652,35 +669,55 @@ function applyConfigToInputs(cfg) {
 }
 
 function onStrategyChange(mode) {
+    if (!['balanced', 'collection', 'monetize'].includes(mode)) return;
+    // Presets populate the editor; the existing save action persists and applies them.
+    // Keep area targets, recovery, deliveries and discard settings chosen by the user.
+    setVal('cfg-strategy', mode);
+    setCheck('cfg-only-shiny', false);
+    setCheck('cfg-only-uncaught', mode === 'collection');
+    setVal('cfg-catch', mode === 'monetize' ? 30 : 50);
+    setVal('cfg-ball-priority', mode === 'balanced' ? 'balanced' : 'economy');
+    setVal('cfg-unselected-action', mode === 'collection' ? 'flee' : 'battle');
+    setVal('cfg-unselected-action-radar', mode === 'collection' ? 'flee' : 'battle');
     if (mode === 'collection') {
-        setCheck('cfg-only-uncaught', true);
-        setVal('cfg-unselected-action', 'flee');
-        setVal('cfg-unselected-action-radar', 'flee');
-        setVal('cfg-ball-priority', 'economy');
         appendLog('🎯 [PRESET] Modo Coleção: Capturar apenas inéditos, fugir dos demais e Pokébolas econômicas.', 'info');
     } else if (mode === 'monetize') {
-        setCheck('cfg-only-uncaught', false);
-        setVal('cfg-unselected-action', 'battle');
-        setVal('cfg-unselected-action-radar', 'battle');
-        setVal('cfg-ball-priority', 'economy');
-        setVal('cfg-catch', 30);
         appendLog('💰 [PRESET] Modo Monetização: Lutar contra todos por XP e capturar com HP <= 30%.', 'info');
     } else if (mode === 'balanced') {
-        appendLog('⚖️ [PRESET] Modo Equilibrado ativo.', 'info');
+        appendLog('⚖️ [PRESET] Equilibrado: captura com HP até 50%, esferas balanceadas e combate dos demais.', 'info');
+    }
+    appendLog('Preset preparado. Revise os campos e clique em Salvar Ajustes para aplicar. Alvos da área e demais automações foram preservados.', 'info');
+}
+
+async function switchAccount() {
+    const button = document.getElementById('btn-switch-account');
+    if (button?.disabled) return;
+    if (button) { button.disabled = true; button.textContent = 'Saindo…'; }
+    setBotEnabledState(false);
+    currentConfig = { ...(currentConfig || {}), enabled: false };
+    if (gameReady) gameView.send('host-command', { cmd: 'toggle-bot', payload: { enabled: false } });
+    try {
+        const result = await window.electronAPI.switchAccount();
+        if (!result?.ok) throw new Error('Session reset failed');
+        window.location.reload();
+    } catch (error) {
+        appendLog('Não foi possível concluir a saída. O bot está pausado. Clique em Sair / Trocar conta para tentar novamente.', 'error');
+        if (button) { button.disabled = false; button.textContent = 'Sair / Trocar conta'; }
     }
 }
 
 async function saveBotSettings() {
     const updated = {
+        ...currentConfig,
         enabled: botEnabled,
         strategy_mode: getVal('cfg-strategy') || 'balanced',
-        flee_hp_pct: (parseInt(getVal('cfg-flee'), 10) || 30) / 100,
-        potion_hp_pct: (parseInt(getVal('cfg-potion'), 10) || 35) / 100,
+        flee_hp_pct: getNumber('cfg-flee', 30) / 100,
+        potion_hp_pct: getNumber('cfg-potion', 35) / 100,
         potion_mode: getVal('cfg-potion-mode') || 'smart',
         use_revive_battle: getCheck('cfg-revive-battle'),
         use_revive_overworld: getCheck('cfg-revive-overworld'),
         auto_heal_center: getCheck('cfg-auto-heal-center'),
-        catch_hp_pct: (parseInt(getVal('cfg-catch'), 10) || 50) / 100,
+        catch_hp_pct: getNumber('cfg-catch', 50) / 100,
         catch_only_shiny: getCheck('cfg-only-shiny'),
         catch_only_uncaught: getCheck('cfg-only-uncaught'),
         ball_priority: getVal('cfg-ball-priority') || 'balanced',
@@ -691,7 +728,7 @@ async function saveBotSettings() {
         roam_step_delay_ms: parseInt(getVal('cfg-roam-delay'), 10) || 300,
         auto_route_switch: getCheck('cfg-auto-route-switch'),
         pinned_species: getVal('cfg-pinned-species').trim() || null,
-        discard_iv_pct: parseInt(getVal('cfg-discard-iv-pct'), 10) || 50,
+        discard_iv_pct: getNumber('cfg-discard-iv-pct', 50),
         pause_on_no_balls: getCheck('cfg-pause-no-balls'),
         auto_roam: getCheck('cfg-auto-roam'),
         auto_idle: getCheck('cfg-auto-idle'),
@@ -703,12 +740,16 @@ async function saveBotSettings() {
         auto_use_boosts: getCheck('cfg-auto-boosts'),
     };
 
-    currentConfig = updated;
-
     // Persist to main process
-    if (window.electronAPI && window.electronAPI.saveConfig) {
-        await window.electronAPI.saveConfig(updated);
+    try {
+        if (!window.electronAPI?.saveConfig || !await window.electronAPI.saveConfig(updated)) {
+            throw new Error('Falha ao gravar configurações');
+        }
+    } catch (error) {
+        appendLog('Não foi possível salvar as configurações. Tente novamente.', 'error');
+        return;
     }
+    currentConfig = updated;
 
     // Push to guest webview
     if (gameView) {
@@ -722,6 +763,11 @@ async function saveBotSettings() {
 function getVal(id) {
     const el = document.getElementById(id);
     return el ? el.value : '';
+}
+
+function getNumber(id, fallback) {
+    const value = parseInt(getVal(id), 10);
+    return Number.isFinite(value) ? value : fallback;
 }
 
 function setVal(id, val) {
@@ -788,3 +834,4 @@ window.selectAllAreaSpecies = selectAllAreaSpecies;
 window.onRadarUnselectedActionChange = onRadarUnselectedActionChange;
 window.saveAreaSettings = saveAreaSettings;
 window.onStrategyChange = onStrategyChange;
+window.switchAccount = switchAccount;

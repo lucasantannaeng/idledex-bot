@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Configuration persistence
     getConfig: () => ipcRenderer.invoke('get-config'),
     saveConfig: (cfg) => ipcRenderer.invoke('save-config', cfg),
+    switchAccount: () => ipcRenderer.invoke('switch-account'),
 
     // Window controls
     minimizeToTray: () => ipcRenderer.send('minimize-to-tray'),
@@ -31,4 +32,3 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('toggle-bot-tray', () => callback());
     }
 });
-

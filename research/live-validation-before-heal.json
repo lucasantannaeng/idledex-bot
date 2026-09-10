@@ -1,0 +1,877 @@
+{
+  "startedAt": "2026-09-09T01:33:03.330Z",
+  "sent": {
+    "idle:config": 1,
+    "idle:stop": 1,
+    "heal:full": 22,
+    "move": 151,
+    "ping": 6
+  },
+  "received": {
+    "idle:state": 1,
+    "error": 22,
+    "chat:msg": 10,
+    "entity:leave": 15,
+    "entity:enter": 14,
+    "pong": 6,
+    "state": 1,
+    "fountain:state": 1
+  },
+  "errors": [
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    },
+    {
+      "code": "heal_insufficient_funds"
+    }
+  ],
+  "moves": [
+    {
+      "n": 1,
+      "dir": "N"
+    },
+    {
+      "n": 2,
+      "dir": "N"
+    },
+    {
+      "n": 3,
+      "dir": "E"
+    },
+    {
+      "n": 4,
+      "dir": "N"
+    },
+    {
+      "n": 5,
+      "dir": "E"
+    },
+    {
+      "n": 6,
+      "dir": "N"
+    },
+    {
+      "n": 7,
+      "dir": "E"
+    },
+    {
+      "n": 8,
+      "dir": "W"
+    },
+    {
+      "n": 9,
+      "dir": "N"
+    },
+    {
+      "n": 10,
+      "dir": "W"
+    },
+    {
+      "n": 11,
+      "dir": "W"
+    },
+    {
+      "n": 12,
+      "dir": "S"
+    },
+    {
+      "n": 13,
+      "dir": "W"
+    },
+    {
+      "n": 14,
+      "dir": "S"
+    },
+    {
+      "n": 15,
+      "dir": "W"
+    },
+    {
+      "n": 16,
+      "dir": "S"
+    },
+    {
+      "n": 17,
+      "dir": "W"
+    },
+    {
+      "n": 18,
+      "dir": "E"
+    },
+    {
+      "n": 19,
+      "dir": "W"
+    },
+    {
+      "n": 20,
+      "dir": "E"
+    },
+    {
+      "n": 21,
+      "dir": "W"
+    },
+    {
+      "n": 22,
+      "dir": "E"
+    },
+    {
+      "n": 23,
+      "dir": "W"
+    },
+    {
+      "n": 24,
+      "dir": "E"
+    },
+    {
+      "n": 25,
+      "dir": "W"
+    },
+    {
+      "n": 26,
+      "dir": "E"
+    },
+    {
+      "n": 27,
+      "dir": "W"
+    },
+    {
+      "n": 28,
+      "dir": "E"
+    },
+    {
+      "n": 29,
+      "dir": "W"
+    },
+    {
+      "n": 30,
+      "dir": "E"
+    },
+    {
+      "n": 31,
+      "dir": "W"
+    },
+    {
+      "n": 32,
+      "dir": "E"
+    },
+    {
+      "n": 33,
+      "dir": "W"
+    },
+    {
+      "n": 34,
+      "dir": "E"
+    },
+    {
+      "n": 35,
+      "dir": "W"
+    },
+    {
+      "n": 36,
+      "dir": "S"
+    },
+    {
+      "n": 37,
+      "dir": "N"
+    },
+    {
+      "n": 38,
+      "dir": "N"
+    },
+    {
+      "n": 39,
+      "dir": "W"
+    },
+    {
+      "n": 40,
+      "dir": "E"
+    },
+    {
+      "n": 41,
+      "dir": "E"
+    },
+    {
+      "n": 42,
+      "dir": "W"
+    },
+    {
+      "n": 43,
+      "dir": "S"
+    },
+    {
+      "n": 44,
+      "dir": "E"
+    },
+    {
+      "n": 45,
+      "dir": "S"
+    },
+    {
+      "n": 46,
+      "dir": "W"
+    },
+    {
+      "n": 47,
+      "dir": "E"
+    },
+    {
+      "n": 48,
+      "dir": "W"
+    },
+    {
+      "n": 49,
+      "dir": "E"
+    },
+    {
+      "n": 50,
+      "dir": "E"
+    },
+    {
+      "n": 51,
+      "dir": "E"
+    },
+    {
+      "n": 52,
+      "dir": "S"
+    },
+    {
+      "n": 53,
+      "dir": "W"
+    },
+    {
+      "n": 54,
+      "dir": "W"
+    },
+    {
+      "n": 55,
+      "dir": "N"
+    },
+    {
+      "n": 56,
+      "dir": "W"
+    },
+    {
+      "n": 57,
+      "dir": "N"
+    },
+    {
+      "n": 58,
+      "dir": "E"
+    },
+    {
+      "n": 59,
+      "dir": "S"
+    },
+    {
+      "n": 60,
+      "dir": "W"
+    },
+    {
+      "n": 61,
+      "dir": "N"
+    },
+    {
+      "n": 62,
+      "dir": "N"
+    },
+    {
+      "n": 63,
+      "dir": "S"
+    },
+    {
+      "n": 64,
+      "dir": "N"
+    },
+    {
+      "n": 65,
+      "dir": "S"
+    },
+    {
+      "n": 66,
+      "dir": "N"
+    },
+    {
+      "n": 67,
+      "dir": "S"
+    },
+    {
+      "n": 68,
+      "dir": "N"
+    },
+    {
+      "n": 69,
+      "dir": "S"
+    },
+    {
+      "n": 70,
+      "dir": "N"
+    },
+    {
+      "n": 71,
+      "dir": "S"
+    },
+    {
+      "n": 72,
+      "dir": "N"
+    },
+    {
+      "n": 73,
+      "dir": "S"
+    },
+    {
+      "n": 74,
+      "dir": "N"
+    },
+    {
+      "n": 75,
+      "dir": "S"
+    },
+    {
+      "n": 76,
+      "dir": "N"
+    },
+    {
+      "n": 77,
+      "dir": "S"
+    },
+    {
+      "n": 78,
+      "dir": "N"
+    },
+    {
+      "n": 79,
+      "dir": "S"
+    },
+    {
+      "n": 80,
+      "dir": "N"
+    },
+    {
+      "n": 81,
+      "dir": "S"
+    },
+    {
+      "n": 82,
+      "dir": "N"
+    },
+    {
+      "n": 83,
+      "dir": "S"
+    },
+    {
+      "n": 84,
+      "dir": "N"
+    },
+    {
+      "n": 85,
+      "dir": "S"
+    },
+    {
+      "n": 86,
+      "dir": "W"
+    },
+    {
+      "n": 87,
+      "dir": "E"
+    },
+    {
+      "n": 88,
+      "dir": "E"
+    },
+    {
+      "n": 89,
+      "dir": "E"
+    },
+    {
+      "n": 90,
+      "dir": "S"
+    },
+    {
+      "n": 91,
+      "dir": "W"
+    },
+    {
+      "n": 92,
+      "dir": "S"
+    },
+    {
+      "n": 93,
+      "dir": "N"
+    },
+    {
+      "n": 94,
+      "dir": "W"
+    },
+    {
+      "n": 95,
+      "dir": "E"
+    },
+    {
+      "n": 96,
+      "dir": "W"
+    },
+    {
+      "n": 97,
+      "dir": "E"
+    },
+    {
+      "n": 98,
+      "dir": "W"
+    },
+    {
+      "n": 99,
+      "dir": "E"
+    },
+    {
+      "n": 100,
+      "dir": "S"
+    },
+    {
+      "n": 101,
+      "dir": "N"
+    },
+    {
+      "n": 102,
+      "dir": "N"
+    },
+    {
+      "n": 103,
+      "dir": "N"
+    },
+    {
+      "n": 104,
+      "dir": "E"
+    },
+    {
+      "n": 105,
+      "dir": "N"
+    },
+    {
+      "n": 106,
+      "dir": "E"
+    },
+    {
+      "n": 107,
+      "dir": "N"
+    },
+    {
+      "n": 108,
+      "dir": "E"
+    },
+    {
+      "n": 109,
+      "dir": "N"
+    },
+    {
+      "n": 110,
+      "dir": "S"
+    },
+    {
+      "n": 111,
+      "dir": "N"
+    },
+    {
+      "n": 112,
+      "dir": "S"
+    },
+    {
+      "n": 113,
+      "dir": "N"
+    },
+    {
+      "n": 114,
+      "dir": "S"
+    },
+    {
+      "n": 115,
+      "dir": "N"
+    },
+    {
+      "n": 116,
+      "dir": "S"
+    },
+    {
+      "n": 117,
+      "dir": "N"
+    },
+    {
+      "n": 118,
+      "dir": "S"
+    },
+    {
+      "n": 119,
+      "dir": "N"
+    },
+    {
+      "n": 120,
+      "dir": "S"
+    },
+    {
+      "n": 121,
+      "dir": "N"
+    },
+    {
+      "n": 122,
+      "dir": "S"
+    },
+    {
+      "n": 123,
+      "dir": "N"
+    },
+    {
+      "n": 124,
+      "dir": "S"
+    },
+    {
+      "n": 125,
+      "dir": "N"
+    },
+    {
+      "n": 126,
+      "dir": "S"
+    },
+    {
+      "n": 127,
+      "dir": "N"
+    },
+    {
+      "n": 128,
+      "dir": "S"
+    },
+    {
+      "n": 129,
+      "dir": "N"
+    },
+    {
+      "n": 130,
+      "dir": "S"
+    },
+    {
+      "n": 131,
+      "dir": "N"
+    },
+    {
+      "n": 132,
+      "dir": "S"
+    },
+    {
+      "n": 133,
+      "dir": "N"
+    },
+    {
+      "n": 134,
+      "dir": "S"
+    },
+    {
+      "n": 135,
+      "dir": "N"
+    },
+    {
+      "n": 136,
+      "dir": "S"
+    },
+    {
+      "n": 137,
+      "dir": "N"
+    },
+    {
+      "n": 138,
+      "dir": "S"
+    },
+    {
+      "n": 139,
+      "dir": "N"
+    },
+    {
+      "n": 140,
+      "dir": "S"
+    },
+    {
+      "n": 141,
+      "dir": "N"
+    },
+    {
+      "n": 142,
+      "dir": "S"
+    },
+    {
+      "n": 143,
+      "dir": "N"
+    },
+    {
+      "n": 144,
+      "dir": "E"
+    },
+    {
+      "n": 145,
+      "dir": "S"
+    },
+    {
+      "n": 146,
+      "dir": "W"
+    },
+    {
+      "n": 147,
+      "dir": "S"
+    },
+    {
+      "n": 148,
+      "dir": "W"
+    },
+    {
+      "n": 149,
+      "dir": "S"
+    },
+    {
+      "n": 150,
+      "dir": "W"
+    },
+    {
+      "n": 151,
+      "dir": "S"
+    }
+  ],
+  "samples": [
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 115,
+        "y": 37
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 110,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 41
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 110,
+        "y": 41
+      },
+      "enabled": true,
+      "onGrass": false,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 110,
+        "y": 39
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 110,
+        "y": 39
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 111,
+        "y": 41
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 36
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 36
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 36
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 114,
+        "y": 36
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_006",
+      "pos": {
+        "x": 112,
+        "y": 40
+      },
+      "enabled": true,
+      "onGrass": true,
+      "captures": 0
+    }
+  ],
+  "finishedAt": "2026-09-09T01:33:33.516Z"
+}

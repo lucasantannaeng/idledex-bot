@@ -1,137 +1,152 @@
-# IdleDex Desktop Suite v2.0 — Embedded Chromium & Autonomous Engine
+# ⚡ IdleDex Desktop Suite — Autonomous Automation & Intelligence Platform
 
-Suíte desktop completa em Electron para o jogo IdleDex. Integra navegador Chromium nativo (`https://idledex.com/play`) em layout split-screen com barra lateral cibernética retrátil de telemetria e automação autônoma.
+[![Electron](https://img.shields.io/badge/Electron-33.4.11-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js->=18.0-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E?logo=javascript&logoColor=black)](https://developer.mozilla.org/)
+[![Playwright](https://img.shields.io/badge/Playwright-Tested-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build](https://img.shields.io/badge/Build-Portable%20Standalone%20x64-blue?logo=windows&logoColor=white)](https://github.com/lucasantannaeng)
 
-> [!IMPORTANT]
-> **Zero Desconexões & Zero Cópia Manual de Token:**
-> O motor autônomo opera diretamente dentro do WebSocket nativo do navegador embutido via preload de protocolo (`preload-game.js`). Isso elimina 100% dos conflitos de conexão única do servidor, prevenindo os kicks automáticos e deslogamentos (`authClient.signOut()`).
-
----
-
-## ⚡ Inicialização Rápida
-
-### Opção 1: Executável Desktop Portátil (Recomendado — Sem Dependências)
-1. Navegue até a pasta da distribuição:
-   ```cmd
-   cd dist-desktop\win-unpacked
-   ```
-2. Execute o binário:
-   ```cmd
-   "IdleDex Desktop.exe"
-   ```
-3. Faça login no jogo normalmente na janela embutida à esquerda. A barra lateral à direita assume o controle e a telemetria instantaneamente!
-
-### Opção 2: Modo de Desenvolvimento (Node.js)
-1. Instale as dependências:
-   ```bash
-   npm install
-   ```
-2. Inicie a aplicação:
-   ```bash
-   npm start
-   ```
+> **Enterprise-grade automation client and real-time game telemetry dashboard for [IdleDex](https://idledex.com/play), featuring zero-injection native WebSocket stream interception, autonomous roaming, battle engine, Pokédex completion analysis, and complete local session isolation.**
 
 ---
 
-## 🖥️ Arquitetura da Suíte Desktop
+## 🌟 Overview
 
-- **Split-Screen Integrado**: O jogo oficial roda em Chromium com persistência total de cookies (`partition="persist:idledex"`).
-- **Injeção de Protocolo no Preload (`preload-game.js`)**: Intercepta a criação do `window.WebSocket` da página e escuta/transmite frames binários e pacotes JSON diretamente pela mesma conexão da aba.
-- **Barra Lateral Cibernética Retrátil (`app/app.js`)**:
-  - **Radar Tático (Grid 20x20)**: Canvas matricial em tempo real plotando a posição do jogador (azul), monstros selvagens (vermelho/rosa pulsante) e outras entidades (cinza).
-  - **Painel de Batalha**: Monitoramento de duelo ao vivo com barras dinâmicas de HP do Pokémon ativo e do oponente.
-  - **Telemetria & KPIs**: Rank, XP acumulado, vitórias, derrotas, capturas, shinies raros, moedas e cristais.
-  - **Mochila (Inventário)**: Pokébolas, Greatbolas, Ultrabolas e Poções em tempo real.
-  - **Parâmetros Estratégicos**: Modos equilibrado/coleção/venda, limites de IV, gatilhos de fuga, poção e captura, com salvamento atômico em disco.
-- **Bandeja do Sistema (Tray)**: Permite minimizar para a bandeja e continuar caçando em segundo plano sem congelamento (`backgroundThrottling: false`).
+**IdleDex Desktop Suite** is a dedicated, zero-external-dependency automation client and operational dashboard engineered for the browser MMORPG *IdleDex*. Built upon Electron 33 with native multi-partition sandbox isolation, it provides seamless, human-like automation while intercepting live WebSocket frames directly in-memory — eliminating any need for browser extensions, external Python runtimes, memory injection, or manual cookie extraction.
+
+Designed from the ground up to respect true game mechanics, IdleDex Desktop combines intelligent heuristic pathfinding, IV calculation, dynamic ball economy management, and autonomous NPC delivery routines into an elegant, high-density dark interface.
 
 ---
 
-## 📦 Compilação da Aplicação Desktop
-Para gerar novamente a distribuição desktop portátil (`win-unpacked`):
-```cmd
-npm run pack
-```
-Os arquivos e executável serão gerados em `dist-desktop/win-unpacked/IdleDex Desktop.exe`.
+## 🚀 Key Features
+
+* 🎮 **Zero-Injection WebSocket Interception**: Intercepts official game protocol messages (`welcome`, `spawn`, `battle`, `party`, `inventory`, `area_pokedex`) via in-memory preload hooks without modifying game bytecode or client source files.
+* 🧭 **Intelligent Roaming & Grass Navigation**: Autonomous movement loop using real client movement sequences, collision-aware boundary checks, and intelligent wild grass detection.
+* ⚔️ **Smart Combat & Capture Engine**:
+  * Prioritizes captures based on missing Pokédex entries, shiny/golden rarity, high IV thresholds, or custom player watchlists.
+  * Ball tier hierarchy management (Pokéball ➔ Great Ball ➔ Ultra Ball ➔ Master Ball) based on target rarity and current server allowances.
+  * Damage optimization selecting super-effective moves while holding back lethal hits on high-value catch targets.
+* 🏥 **Autonomous Recovery & Center Healing**: Continuous HP/PP telemetry with automatic potion application and smart Pokémon Center travel before team faints.
+* 🔬 **Laboratory Auto-Travel & NPC Deliveries**: Evaluates Box excess, travels autonomously to Professor Oak's lab when batches are ready, completes research deliveries, and returns to hunting routes without human intervention.
+* 📊 **Live Radar & Telemetry Dashboard**: Real-time HUD showing wild spawns, team vitals, capture rates, gold/dust hourly yields, and active route Pokédex completion percentages.
+* 🔒 **Anti-Leak & Complete Session Isolation**: Credentials, OAuth tokens, and cookies are stored exclusively in the user's local operating system profile (`%APPDATA%`). The compiled `.exe` contains zero personal data and can be safely shared.
+* 🎨 **Master Ball Identity & Dark Aesthetic**: Custom high-resolution Master Ball visual branding across application icons, multi-tier `.ico` assets, system tray, and Vercel/Linear-inspired dark UI.
 
 ---
 
-## 🐍 Modo Legado / Alternativo (Python Standalone Engine)
+## 🏗️ Architecture & Security Model
 
----
-
-## 🔑 Renovação de Token Sem Reiniciar (Zero-Downtime)
-
-Quando seu token do jogo expirar ou se você estiver iniciando pela primeira vez:
-1. Acesse o jogo no navegador (`https://idledex.com`) e copie seu token de sessão (via Cookie `session_token` no DevTools Application ou Storage).
-2. Abra o dashboard do bot: [http://localhost:8080/dashboard](http://localhost:8080/dashboard).
-3. Caso o token não esteja configurado ou tenha expirado, um alerta vermelho pulsante e um modal de renovação aparecerão imediatamente no topo da tela.
-4. Cole o token (ou cookie completo) e clique em **"Salvar & Conectar"**.
-5. O bot sanitiza o token, persiste automaticamente no arquivo `config.json` e dispara a reconexão imediata ao WebSocket do gateway sem necessidade de reiniciar o executável!
-
----
-
-## 📊 Recursos do Dashboard Web (`:8080`)
-
-- **Radar Canvas 20x20**: Visualização matricial em tempo real da posição do jogador (`P`) e das criaturas selvagens (`W`) detectadas pelo radar binário.
-- **Painel de Batalha**: Monitoramento ao vivo do combate ativo com barras de progresso dinâmicas de HP do seu pet vs HP do monstro selvagem.
-- **Cards de Telemetria e KPIs**:
-  - Status da conexão WebSocket (Online / Desconectado / Token Expirado).
-  - Shard ativo e Latência de Heartbeat (`ping`).
-  - Total de Capturas e Taxa de Sucesso.
-  - Ouro acumulado e saldo de DolarDex.
-- **Controle Dinâmico de Estratégia**:
-  - Sliders para Limite Mínimo de IV de Captura e IV de Venda.
-  - Seleção de estratégia de inventário (`balanced`, `collection`, `monetize`).
-  - Toggle de Auto-Battle, Auto-Catch e Auto-Idle.
-  - Botão **"Salvar Ajustes"** que sincroniza em tempo real com o backend via `/api/config`.
-- **Feed de Logs em Tempo Real**: Console estilo terminal com auto-scroll para inspecionar eventos do gateway, encontros e capturas.
-
----
-
-## 🛠️ Endpoints da API REST Local
-
-O bot expõe uma API REST leve no endereço `http://localhost:8080`:
-
-| Endpoint | Método | Descrição |
-|---|---|---|
-| `/dashboard` | `GET` | Interface visual de controle e telemetria |
-| `/visualizer` | `GET` | Mapa visual da grade de entidades |
-| `/state` | `GET` | JSON com estado completo da sessão, jogador, inventário e logs |
-| `/logs` | `GET` | JSON contendo os últimos 100 eventos do terminal |
-| `/api/token` | `POST` | Atualiza o token de sessão e aciona reconexão imediata (`{"token": "..."}`) |
-| `/api/config` | `POST` | Atualiza parâmetros operacionais e persiste em `config.json` |
-| `/api/connect` | `POST` | Inicia o loop de conexão WebSocket |
-| `/api/disconnect` | `POST` | Desconecta do gateway do jogo |
-
----
-
-## ⚙️ Configuração (`config.json`)
-
-As configurações são mantidas em `config.json` e recarregadas a cada inicialização:
-
-```json
-{
-  "token": "seu_token_aqui",
-  "shard": 0,
-  "strategy": "balanced",
-  "min_iv_keep": 130,
-  "min_iv_sell": 130,
-  "auto_catch": true,
-  "auto_battle": true,
-  "auto_idle": true,
-  "discord_webhook": ""
-}
+```text
+idledex-bot/
+├── app/                        # High-density Desktop UI
+│   ├── index.html              # Main dashboard HUD & config panels
+│   ├── app.js                  # UI state management, radar canvas & IPC bridge
+│   ├── styles.css              # Linear/Vercel dark premium design system
+│   └── icon.png                # Master Ball raster asset (512x512)
+├── electron/                   # Electron Runtime & Sandboxing
+│   ├── main.js                 # Window lifecycle, secure partition & atomic config
+│   ├── preload-game.js         # In-memory WebSocket tap & bot decision engine
+│   └── tray-icon.png           # System tray icon (32x32)
+├── build/                      # Build Resources & Packaging Artifacts
+│   ├── icon.ico                # Multi-resolution Windows icon (16px - 256px)
+│   └── icon.png                # Source branding icon (512x512)
+├── tests/                      # Automated Regression & Verification Suites
+│   ├── regression-suite.js     # Protocol & combat engine regression tests
+│   └── smoke-electron.js       # Playwright-driven Electron launch verification
+├── research/                   # Reverse Engineering & Protocol Specifications
+│   ├── 2026-09-08-audit.md     # WebSocket protocol schemas and contracts
+│   └── 2026-09-09-usability.md # UX heuristics and delivery cycle audits
+├── dist-release/               # Compiled Portable Binaries (Git-Ignored)
+│   └── IdleDex_Desktop_Portable_2.5.0.exe
+├── package.json                # Project manifest & electron-builder configuration
+└── README.md                   # Technical documentation
 ```
 
+### Security & Privacy Architecture
+* **Strict Credential Partitioning**: The application uses Electron's isolated partition (`persist:idledex`). Google OAuth and session tokens are held by Chromium in local DPAPI-encrypted storage (`%APPDATA%/idledex-bot`).
+* **Zero Credential Bundling**: When compiling or sharing the portable `.exe`, **no session data or credentials are included**. A recipient launching the executable begins with a pristine, unauthenticated session.
+* **Atomic Configuration**: Player settings are stored locally in `bot-config.json` via write-to-temp and atomic rename, eliminating corruption risk during unexpected power loss.
+
 ---
 
-## 📦 Compilação do Executável Standalone
+## ⚙️ Game Mechanics & Engine Multipliers
 
-Para gerar novamente a distribuição standalone multi-arquivos (`--onedir`):
+The combat and decision engine strictly adheres to verified official server-side rules:
 
-```cmd
-pyinstaller idledex-bot.spec --noconfirm
+| Domain | Rule / Multiplier | Engine Behavior |
+| :--- | :--- | :--- |
+| **Capture Logic** | Exact HP % Thresholds | Arremessos aguardam confirmação do servidor (`catch_result`); nunca dispara comandos em spam. |
+| **Ball Hierarchy** | Pokéball ➔ Great ➔ Ultra ➔ Master | Alterna automaticamente para esferas superiores se o alvo for Shiny ou lendário. |
+| **IV Filtering** | 6 IVs Totais (0-186 scale) | Avaliação rigorosa: criaturas com IVs inferiores ao piso configurado são marcadas para liberação/NPC. |
+| **Proteção de Caixa** | Equipe + Locks + Shinies + Eventos | Protegidos contra liberação acidental; descarte desativado se o limite for zero. |
+| **Auto-Viagem Lab** | Lotes válidos de excedentes | Só viaja se houver lotes completos e cargas disponíveis com o Professor. |
+
+---
+
+## ⚡ Getting Started
+
+### Option A: Portable Standalone Executable (Recommended for End Users)
+1. Baixe o executável compilado `IdleDex_Desktop_Portable_2.5.0.exe` (com o ícone da **Master Ball**).
+2. Execute o arquivo diretamente em qualquer computador com Windows 10/11 x64 (não requer instalação de Node.js, Python ou extensões).
+3. Faça login normalmente na sua conta IdleDex pela janela embutida.
+4. Ajuste suas preferências no painel lateral, clique em **Salvar Configurações** e ative o botão **Ligar Bot**.
+
+### Option B: Running from Source (Developers)
+
+#### Prerequisites
+* Node.js `>= 18.0.0`
+* npm `>= 9.0.0`
+
+#### Installation & Development
+```bash
+# Clone the repository
+git clone https://github.com/lucasantannaeng/idledex-bot.git
+cd idledex-bot
+
+# Install dependencies
+npm ci
+
+# Run test suites
+npm test
+
+# Launch in development mode
+npm start
+
+# Launch with Chrome DevTools Protocol diagnostics enabled (port 9222)
+npm start -- --inspect-bot
 ```
 
-Os binários prontos para uso serão gerados na pasta `dist/idledex-bot/`.
+#### Compiling the Portable Executable
+```bash
+# Build standalone single-file portable .exe
+npm run dist:portable
+```
+O executável gerado estará disponível em `dist-release/IdleDex_Desktop_Portable_2.5.0.exe`.
+
+---
+
+## 🧪 Testing & Verification
+
+O projeto conta com suítes automatizadas de testes cobrindo integridade de empacotamento, regressão de protocolo e ciclo de vida Electron:
+
+```bash
+# Run all automated tests
+npm test
+
+# Run regression test suite directly
+node tests/regression-suite.js
+
+# Run Playwright Electron smoke test
+node tests/smoke-electron.js
+```
+
+---
+
+## 📄 License & Credits
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+Developed with high standards by **Luca Rodrigues Gomes de Sant'Anna** ([lucasantannaeng](https://github.com/lucasantannaeng)).
+
+*Disclaimer: IdleDex is a trademark of its respective creators. This software is an independent educational automation tool.*

@@ -30,7 +30,7 @@ function initMainWorldEngine() {
     console.log("[IdleDex Desktop] Inicializando motor autônomo no mundo principal...");
 
     let botConfig = {
-        enabled: true,
+        enabled: false,
         flee_hp_pct: 0.30,
         potion_hp_pct: 0.35,
         potion_mode: 'smart', // 'smart', 'potion', 'super-potion', 'hyper-potion', 'max-potion'
@@ -62,10 +62,28 @@ function initMainWorldEngine() {
     };
 
     let currentMapSpecies = [];
+    let configReady = false;
     let lastCapturedMon = null;
+    let battleKnownCreatureIds = new Set();
+    let pendingCaptures = [];
+    let lastProfessorState = null;
+    let collectorState = null;
+    let collectorDeliveryKey = null;
+    let lastHealRequest = null;
+    let rejectedHealState = null;
+    let nextHealAt = 0;
+    let nextRecoveryItemAt = 0;
     const releasedCreatureIds = new Set();
 
     let activeWs = null;
+    let commandGeneration = 0;
+    function scheduleSessionTask(callback, delay) {
+        const socket = activeWs;
+        const generation = commandGeneration;
+        return setTimeout(() => {
+            if (socket && activeWs === socket && socket.readyState === WebSocket.OPEN && generation === commandGeneration) callback();
+        }, delay);
+    }
     let inBattle = false;
     let actionInFlight = false;
     let lastTurnNumber = -1;
@@ -76,6 +94,8 @@ function initMainWorldEngine() {
     let battleTurnTimer = null;
     let battleWatchdog = null;
     let battleWindowOpen = false;
+    let battleReadyAt = 0;
+    let battleExpiresAt = Infinity;
 
     let myMon = null;
     let enemyMon = null;
@@ -102,6 +122,7 @@ function initMainWorldEngine() {
     let grassTiles = [];
     let currentMapBiome = "forest";
     let loadingMap = false;
+    let mapLoadVersion = 0;
 
     // Session metrics (Component 5)
     let sessionStartTime = Date.now();
@@ -109,6 +130,7 @@ function initMainWorldEngine() {
     let sessionXpGained = 0;
     let sessionSilverGained = 0;
     let reconnectCount = 0;
+    let hasConnected = false;
     let initialXp = null;
     let initialSilver = null;
 
@@ -138,9 +160,13 @@ function initMainWorldEngine() {
         bless: null
     };
     let lastMaintenanceCheck = 0;
+    let lastRecoveryCheck = 0;
     let wallet = { silver: 0, gold: 0 };
     let collection = {};
     let team = [];
+    let lastHuntMap = null;
+    try { lastHuntMap = sessionStorage.getItem('idledex-last-hunt-map'); } catch {}
+    let lastTravelCollectionKey = null;
 
     // State machine for Option 3: Auto-Travel & NPC Deliveries
     let autoTravelState = {
@@ -151,11 +177,46 @@ function initMainWorldEngine() {
         lastTravelTime: 0,
         cooldownMs: 180000, // 3 min cooldown between auto-travel runs
         timeoutTimer: null,
-        deliveriesDone: 0
+        deliveriesDone: 0,
+        pendingDelivery: null,
+        returnAttempts: 0
     };
 
-    function checkAutoTravelDeliveries() {
-        if (!botConfig.enabled || !botConfig.auto_travel_deliveries) return false;
+    function returnFromLab(reason) {
+        if (!autoTravelState.active || !botConfig.enabled) return;
+        clearTimeout(autoTravelState.timeoutTimer);
+        autoTravelState.phase = 'returning';
+        autoTravelState.pendingDelivery = null;
+        autoTravelState.returnAttempts++;
+        logEvent(`[AUTO-TRAVEL] ${reason} Retornando para ${getMapFriendlyName(autoTravelState.originMap)}.`, 'info');
+        sendEvent('map:travel', { mapId: autoTravelState.originMap });
+        autoTravelState.timeoutTimer = scheduleSessionTask(() => {
+            if (!autoTravelState.active || autoTravelState.phase !== 'returning') return;
+            if (autoTravelState.returnAttempts < 3) returnFromLab('Retorno ainda não confirmado.');
+            else {
+                botConfig.enabled = false;
+                logEvent('[AUTO-TRAVEL] Retorno recusado ou sem resposta. Bot pausado; escolha uma rota no jogo para retomar.', 'error');
+                emitTelemetry();
+            }
+        }, 10000);
+    }
+
+    function beginLabDelivery() {
+        autoTravelState.phase = 'delivering';
+        autoTravelState.pendingDelivery = null;
+        lastProfessorState = null;
+        clearTimeout(autoTravelState.timeoutTimer);
+        autoTravelState.timeoutTimer = scheduleSessionTask(() => {
+            if (autoTravelState.active && autoTravelState.phase === 'delivering') {
+                returnFromLab('Professor sem confirmação no prazo; nenhuma entrega adicional será enviada.');
+            }
+        }, 25000);
+        sendEvent('professor:open');
+        if (botConfig.auto_heal_center) requestAffordableHeal();
+    }
+
+    function checkAutoTravelDeliveries(manual = false) {
+        if (!botConfig.enabled || !botConfig.auto_travel_deliveries || !botConfig.auto_npc_quests) return false;
         if (inBattle || autoTravelState.active) return false;
         if (!currentMap || currentMap === "npclab" || currentMap.startsWith("lobby")) return false;
 
@@ -167,7 +228,7 @@ function initMainWorldEngine() {
         const speciesNames = {};
         for (const id in collection) {
             const mon = collection[id];
-            if (!mon || mon.isShiny || mon.shiny || mon.isLocked || (mon.eventTier && mon.eventTier > 0)) continue;
+            if (!isDonatableCreature(mon)) continue;
             const spId = mon.speciesId || mon.species;
             if (!spId) continue;
             speciesCounts[spId] = (speciesCounts[spId] || 0) + 1;
@@ -180,7 +241,7 @@ function initMainWorldEngine() {
 
         for (const spId in speciesCounts) {
             const count = speciesCounts[spId];
-            if (count > threshold) {
+            if (count > threshold && canDonateSpecies(spId, Math.max(6, threshold + 1))) {
                 eligibleSpecies = spId;
                 surplusCount = count - 1; // Preserve 1 copy for trainer
                 break;
@@ -188,6 +249,9 @@ function initMainWorldEngine() {
         }
 
         if (!eligibleSpecies) return false;
+        const collectionKey = JSON.stringify(Object.entries(speciesCounts).sort());
+        if (!manual && collectionKey === lastTravelCollectionKey) return false;
+        lastTravelCollectionKey = collectionKey;
 
         autoTravelState.active = true;
         autoTravelState.originMap = currentMap;
@@ -195,6 +259,8 @@ function initMainWorldEngine() {
         autoTravelState.phase = "traveling_to_lab";
         autoTravelState.lastTravelTime = now;
         autoTravelState.deliveriesDone = 0;
+        autoTravelState.pendingDelivery = null;
+        autoTravelState.returnAttempts = 0;
 
         // Immediately pause grass roaming
         if (roamInterval) {
@@ -206,12 +272,10 @@ function initMainWorldEngine() {
 
         // Watchdog timeout to prevent hang if packet is lost (25s)
         if (autoTravelState.timeoutTimer) clearTimeout(autoTravelState.timeoutTimer);
-        autoTravelState.timeoutTimer = setTimeout(() => {
+        autoTravelState.timeoutTimer = scheduleSessionTask(() => {
             if (autoTravelState.active && autoTravelState.phase !== "idle") {
-                logEvent(`⚠️ [AUTO-TRAVEL] Timeout de viagem/entrega (25s). Restaurando patrulha...`, "warning");
-                autoTravelState.active = false;
-                autoTravelState.phase = "idle";
-                if (botConfig.auto_roam && !inBattle) startRoamLoop();
+                logEvent(`⚠️ [AUTO-TRAVEL] Timeout de viagem/entrega (25s). Solicitando retorno ? rota...`, "warning");
+                returnFromLab('Viagem sem confirmação no prazo.');
             }
         }, 25000);
 
@@ -335,8 +399,14 @@ function initMainWorldEngine() {
     }
 
     async function loadMapCollision(mapId) {
-        if (!mapId || loadingMap) return;
+        if (!mapId) return;
+        const loadVersion = ++mapLoadVersion;
         loadingMap = true;
+        mapGrid = null;
+        mapFringeMask = null;
+        cleanGrassGrid = null;
+        grassTiles = [];
+        mapCols = mapRows = 0;
         try {
             let resp = await fetch(`/maps/${mapId}.collision.json`);
             if (!resp.ok) {
@@ -344,10 +414,15 @@ function initMainWorldEngine() {
                 resp = await fetch(`/maps/${mapId.replace(/_/g, '-')}.collision.json`);
             }
             if (!resp.ok) {
-                loadingMap = false;
                 return;
             }
             const data = await resp.json();
+            if (loadVersion !== mapLoadVersion || mapId !== currentMap) return;
+            if (!Number.isInteger(data.cols) || !Number.isInteger(data.rows) ||
+                data.cols <= 0 || data.rows <= 0 || !Array.isArray(data.grid) ||
+                data.grid.length !== data.cols * data.rows) {
+                throw new Error('Invalid collision grid');
+            }
             mapCols = data.cols || 0;
             mapRows = data.rows || 0;
             currentMapBiome = data.biome || "forest";
@@ -418,7 +493,7 @@ function initMainWorldEngine() {
         } catch (e) {
             // ignore network load errors
         } finally {
-            loadingMap = false;
+            if (loadVersion === mapLoadVersion) loadingMap = false;
         }
     }
 
@@ -497,7 +572,9 @@ function initMainWorldEngine() {
                 detail: {
                     channel: 'game-telemetry',
                     data: {
-                        connected: activeWs && activeWs.readyState === WebSocket.OPEN,
+                        connected: Boolean(activeWs && activeWs.readyState === WebSocket.OPEN),
+                        autoTravel: { active: autoTravelState.active, phase: autoTravelState.phase,
+                            originMap: autoTravelState.originMap, deliveriesDone: autoTravelState.deliveriesDone },
                         inBattle,
                         currentBattleId,
                         battleMoves,
@@ -623,6 +700,7 @@ function initMainWorldEngine() {
     }
 
     function configureAndStartIdle() {
+        if (!configReady) return;
         const idlePayload = {
             config: {
                 doBattle: true,
@@ -769,7 +847,7 @@ function initMainWorldEngine() {
     const BEST_NATURES_GEN1_TO_5 = {"bulbasaur": ["modest", "timid"], "ivysaur": ["modest", "timid"], "venusaur": ["modest", "timid", "calm"], "charmander": ["adamant", "jolly"], "charmeleon": ["adamant", "jolly"], "charizard": ["timid", "jolly", "modest", "adamant"], "squirtle": ["calm", "careful", "bold"], "wartortle": ["calm", "careful", "bold"], "blastoise": ["modest", "bold", "calm"], "caterpie": ["adamant", "jolly"], "metapod": ["impish", "relaxed", "adamant"], "butterfree": ["modest", "timid"], "weedle": ["adamant", "jolly"], "kakuna": ["impish", "relaxed", "adamant"], "beedrill": ["adamant", "jolly"], "pidgey": ["adamant", "jolly"], "pidgeotto": ["adamant", "jolly"], "pidgeot": ["adamant", "jolly"], "rattata": ["adamant", "jolly"], "raticate": ["adamant", "jolly"], "spearow": ["adamant", "jolly"], "fearow": ["adamant", "jolly"], "ekans": ["adamant", "jolly"], "arbok": ["adamant", "jolly"], "pikachu": ["adamant", "jolly"], "raichu": ["timid", "naive", "hasty"], "sandshrew": ["impish", "relaxed", "adamant"], "sandslash": ["adamant", "impish"], "nidoran-f": ["impish", "relaxed", "adamant"], "nidorina": ["impish", "relaxed", "adamant"], "nidoqueen": ["bold", "modest", "timid"], "nidoran-m": ["adamant", "jolly"], "nidorino": ["adamant", "jolly"], "nidoking": ["timid", "modest", "naive"], "clefairy": ["calm", "careful", "bold"], "clefable": ["bold", "calm"], "vulpix": ["modest", "timid"], "ninetales": ["timid", "modest"], "jigglypuff": ["calm", "careful", "bold"], "wigglytuff": ["modest", "calm"], "zubat": ["adamant", "jolly"], "golbat": ["adamant", "jolly"], "oddish": ["modest", "timid"], "gloom": ["modest", "timid"], "vileplume": ["bold", "modest", "calm"], "paras": ["adamant", "jolly"], "parasect": ["careful", "adamant"], "venonat": ["modest", "timid"], "venomoth": ["timid", "modest"], "diglett": ["adamant", "jolly"], "dugtrio": ["adamant", "jolly"], "meowth": ["adamant", "jolly"], "persian": ["adamant", "jolly"], "psyduck": ["modest", "timid"], "golduck": ["modest", "timid"], "mankey": ["adamant", "jolly"], "primeape": ["adamant", "jolly"], "growlithe": ["adamant", "jolly"], "arcanine": ["jolly", "adamant", "timid", "modest"], "poliwag": ["modest", "timid"], "poliwhirl": ["adamant", "jolly"], "poliwrath": ["adamant"], "abra": ["modest", "timid"], "kadabra": ["modest", "timid"], "alakazam": ["timid", "modest"], "machop": ["adamant", "jolly"], "machoke": ["adamant", "jolly"], "machamp": ["adamant", "brave"], "bellsprout": ["naive", "hasty"], "weepinbell": ["naive", "hasty"], "victreebel": ["modest", "adamant", "naive"], "tentacool": ["calm", "careful", "bold"], "tentacruel": ["timid", "calm", "bold"], "geodude": ["impish", "relaxed", "adamant"], "graveler": ["impish", "relaxed", "adamant"], "golem": ["adamant", "impish"], "ponyta": ["adamant", "jolly"], "rapidash": ["adamant", "jolly"], "slowpoke": ["impish", "relaxed", "adamant"], "slowbro": ["bold", "relaxed", "quiet"], "magnemite": ["modest", "timid"], "magneton": ["modest", "timid"], "farfetchd": ["adamant", "jolly"], "doduo": ["adamant", "jolly"], "dodrio": ["adamant", "jolly"], "seel": ["calm", "careful", "bold"], "dewgong": ["calm", "careful"], "grimer": ["impish", "relaxed", "adamant"], "muk": ["adamant", "careful"], "shellder": ["impish", "relaxed", "adamant"], "cloyster": ["jolly", "adamant", "impish"], "gastly": ["modest", "timid"], "haunter": ["modest", "timid"], "gengar": ["timid", "modest"], "onix": ["impish", "relaxed", "adamant"], "drowzee": ["calm", "careful", "bold"], "hypno": ["calm", "careful"], "krabby": ["adamant", "jolly"], "kingler": ["adamant", "jolly"], "voltorb": ["modest", "timid"], "electrode": ["timid", "naive"], "exeggcute": ["modest", "timid"], "exeggutor": ["modest", "quiet"], "cubone": ["adamant", "jolly"], "marowak": ["adamant", "brave"], "hitmonlee": ["adamant", "jolly"], "hitmonchan": ["adamant", "jolly"], "lickitung": ["calm", "careful", "bold"], "koffing": ["impish", "relaxed", "adamant"], "weezing": ["bold", "impish"], "rhyhorn": ["impish", "relaxed", "adamant"], "rhydon": ["adamant", "impish"], "chansey": ["bold", "calm"], "tangela": ["bold", "modest"], "kangaskhan": ["adamant", "jolly"], "horsea": ["modest", "timid"], "seadra": ["modest", "timid"], "goldeen": ["adamant", "jolly"], "seaking": ["adamant", "jolly"], "staryu": ["modest", "timid"], "starmie": ["timid", "modest"], "mr-mime": ["timid", "modest"], "scyther": ["adamant", "jolly"], "jynx": ["timid", "modest"], "electabuzz": ["timid", "naive"], "magmar": ["modest", "timid", "naive"], "pinsir": ["adamant", "jolly"], "tauros": ["adamant", "jolly"], "magikarp": ["adamant", "jolly"], "gyarados": ["adamant", "jolly"], "lapras": ["modest", "calm"], "ditto": ["timid", "jolly", "bold", "calm"], "eevee": ["adamant", "jolly"], "vaporeon": ["bold", "calm", "modest"], "jolteon": ["timid", "modest"], "flareon": ["adamant"], "porygon": ["modest", "timid"], "omanyte": ["modest", "timid"], "omastar": ["modest", "timid"], "kabuto": ["adamant", "jolly"], "kabutops": ["adamant", "jolly"], "aerodactyl": ["jolly", "adamant"], "snorlax": ["adamant", "careful", "brave"], "articuno": ["timid", "calm"], "zapdos": ["timid", "bold", "modest"], "moltres": ["timid", "modest"], "dratini": ["adamant", "jolly"], "dragonair": ["adamant", "jolly"], "dragonite": ["adamant", "jolly"], "mewtwo": ["timid", "modest"], "mew": ["timid", "jolly", "bold", "calm"], "chikorita": ["calm", "careful", "bold"], "bayleef": ["calm", "careful", "bold"], "meganium": ["calm", "bold"], "cyndaquil": ["modest", "timid"], "quilava": ["modest", "timid"], "typhlosion": ["timid", "modest"], "totodile": ["adamant", "jolly"], "croconaw": ["adamant", "jolly"], "feraligatr": ["adamant", "jolly"], "sentret": ["adamant", "jolly"], "furret": ["adamant", "jolly"], "hoothoot": ["calm", "careful", "bold"], "noctowl": ["calm", "modest"], "ledyba": ["adamant", "jolly"], "ledian": ["adamant", "jolly"], "spinarak": ["adamant", "jolly"], "ariados": ["adamant", "jolly"], "crobat": ["jolly", "timid"], "chinchou": ["calm", "careful", "bold"], "lanturn": ["modest", "calm"], "pichu": ["modest", "timid"], "cleffa": ["calm", "careful", "bold"], "igglybuff": ["calm", "careful", "bold"], "togepi": ["calm", "careful", "bold"], "togetic": ["bold", "calm"], "natu": ["modest", "timid"], "xatu": ["timid", "bold"], "mareep": ["modest", "timid"], "flaaffy": ["modest", "timid"], "ampharos": ["modest", "quiet"], "bellossom": ["calm", "modest"], "marill": ["adamant", "jolly"], "azumarill": ["adamant"], "sudowoodo": ["impish", "relaxed", "adamant"], "politoed": ["bold", "calm"], "hoppip": ["adamant", "jolly"], "skiploom": ["adamant", "jolly"], "jumpluff": ["adamant", "jolly"], "aipom": ["adamant", "jolly"], "sunkern": ["modest", "timid"], "sunflora": ["modest", "quiet"], "yanma": ["modest", "timid"], "wooper": ["impish", "relaxed", "adamant"], "quagsire": ["relaxed"], "espeon": ["timid", "modest"], "umbreon": ["calm", "careful"], "murkrow": ["adamant", "jolly"], "slowking": ["calm", "quiet"], "misdreavus": ["timid", "modest"], "unown": ["modest", "timid"], "wobbuffet": ["bold", "calm"], "girafarig": ["timid"], "pineco": ["impish", "relaxed", "adamant"], "forretress": ["relaxed", "impish"], "dunsparce": ["impish", "relaxed", "adamant"], "gligar": ["impish", "jolly"], "steelix": ["impish", "relaxed"], "snubbull": ["adamant", "jolly"], "granbull": ["adamant", "impish"], "qwilfish": ["jolly", "impish"], "scizor": ["adamant"], "shuckle": ["bold", "impish"], "heracross": ["adamant", "jolly"], "sneasel": ["adamant", "jolly"], "teddiursa": ["adamant", "jolly"], "ursaring": ["adamant"], "slugma": ["modest", "timid"], "magcargo": ["bold", "modest"], "swinub": ["adamant", "jolly"], "piloswine": ["adamant"], "corsola": ["impish", "relaxed", "adamant"], "remoraid": ["modest", "timid"], "octillery": ["modest", "quiet"], "delibird": ["adamant", "jolly"], "mantine": ["calm"], "skarmory": ["impish", "bold"], "houndour": ["modest", "timid"], "houndoom": ["timid", "hasty"], "kingdra": ["modest", "adamant"], "phanpy": ["impish", "relaxed", "adamant"], "donphan": ["adamant", "impish"], "porygon2": ["bold", "calm"], "stantler": ["adamant", "jolly"], "smeargle": ["jolly", "timid"], "tyrogue": ["adamant", "jolly"], "hitmontop": ["adamant", "impish"], "smoochum": ["modest", "timid"], "elekid": ["adamant", "jolly"], "magby": ["naive", "hasty"], "miltank": ["impish", "careful"], "blissey": ["bold", "calm"], "raikou": ["timid", "modest"], "entei": ["adamant", "jolly"], "suicune": ["bold", "timid", "calm"], "larvitar": ["adamant", "jolly"], "pupitar": ["adamant", "jolly"], "tyranitar": ["adamant", "jolly"], "lugia": ["bold", "timid"], "ho-oh": ["adamant", "careful"], "celebi": ["timid", "bold", "modest"], "treecko": ["modest", "timid"], "grovyle": ["modest", "timid"], "sceptile": ["timid", "modest", "naive"], "torchic": ["adamant", "jolly"], "combusken": ["adamant", "jolly"], "blaziken": ["adamant", "jolly"], "mudkip": ["impish", "relaxed", "adamant"], "marshtomp": ["impish", "relaxed", "adamant"], "swampert": ["adamant", "relaxed"], "poochyena": ["adamant", "jolly"], "mightyena": ["adamant", "jolly"], "zigzagoon": ["adamant", "jolly"], "linoone": ["adamant", "jolly"], "wurmple": ["modest", "timid"], "silcoon": ["impish", "relaxed", "adamant"], "beautifly": ["modest", "timid"], "cascoon": ["impish", "relaxed", "adamant"], "dustox": ["calm", "careful", "bold"], "lotad": ["modest", "timid"], "lombre": ["modest", "timid"], "ludicolo": ["modest", "timid"], "seedot": ["adamant", "jolly"], "nuzleaf": ["adamant", "jolly"], "shiftry": ["adamant", "naughty"], "taillow": ["adamant", "jolly"], "swellow": ["jolly", "adamant"], "wingull": ["modest", "timid"], "pelipper": ["bold", "calm"], "ralts": ["modest", "timid"], "kirlia": ["modest", "timid"], "gardevoir": ["timid", "modest"], "surskit": ["modest", "timid"], "masquerain": ["timid", "modest"], "shroomish": ["adamant", "jolly"], "breloom": ["adamant", "jolly"], "slakoth": ["adamant", "jolly"], "vigoroth": ["adamant", "jolly"], "slaking": ["jolly", "adamant"], "nincada": ["adamant", "jolly"], "ninjask": ["jolly", "adamant"], "shedinja": ["adamant", "lonely"], "whismur": ["modest", "timid"], "loudred": ["modest", "timid"], "exploud": ["modest"], "makuhita": ["impish", "relaxed", "adamant"], "hariyama": ["adamant"], "azurill": ["adamant", "jolly"], "nosepass": ["impish", "relaxed", "adamant"], "skitty": ["adamant", "jolly"], "delcatty": ["adamant", "jolly"], "sableye": ["bold", "calm"], "mawile": ["adamant"], "aron": ["impish", "relaxed", "adamant"], "lairon": ["impish", "relaxed", "adamant"], "aggron": ["adamant"], "meditite": ["adamant", "jolly"], "medicham": ["jolly", "adamant"], "electrike": ["modest", "timid"], "manectric": ["timid", "modest"], "plusle": ["modest", "timid"], "minun": ["modest", "timid"], "volbeat": ["calm", "careful", "bold"], "illumise": ["calm", "careful", "bold"], "roselia": ["timid", "modest"], "gulpin": ["calm", "careful", "bold"], "swalot": ["calm", "bold"], "carvanha": ["adamant", "jolly"], "sharpedo": ["adamant", "jolly"], "wailmer": ["calm", "careful", "bold"], "wailord": ["modest", "calm"], "numel": ["naive", "hasty"], "camerupt": ["quiet", "modest"], "torkoal": ["bold", "relaxed"], "spoink": ["modest", "timid"], "grumpig": ["calm", "modest"], "spinda": ["adamant", "jolly"], "trapinch": ["adamant", "jolly"], "vibrava": ["adamant", "jolly"], "flygon": ["adamant", "jolly"], "cacnea": ["adamant", "jolly"], "cacturne": ["adamant", "mild"], "swablu": ["calm", "careful", "bold"], "altaria": ["careful", "adamant", "modest"], "zangoose": ["jolly", "adamant"], "seviper": ["modest", "adamant"], "lunatone": ["modest", "timid"], "solrock": ["impish", "relaxed", "adamant"], "barboach": ["impish", "relaxed", "adamant"], "whiscash": ["adamant"], "corphish": ["adamant", "jolly"], "crawdaunt": ["adamant"], "baltoy": ["calm", "careful", "bold"], "claydol": ["bold", "calm"], "lileep": ["calm", "careful", "bold"], "cradily": ["careful"], "anorith": ["adamant", "jolly"], "armaldo": ["adamant", "jolly"], "feebas": ["calm", "careful", "bold"], "milotic": ["bold", "calm"], "castform": ["modest", "timid"], "kecleon": ["adamant"], "shuppet": ["adamant", "jolly"], "banette": ["adamant", "jolly"], "duskull": ["calm", "careful", "bold"], "dusclops": ["bold", "calm"], "tropius": ["calm", "careful", "bold"], "chimecho": ["calm", "bold"], "absol": ["jolly", "adamant"], "wynaut": ["calm", "careful", "bold"], "snorunt": ["modest", "timid"], "glalie": ["jolly"], "spheal": ["calm", "careful", "bold"], "sealeo": ["calm", "careful", "bold"], "walrein": ["calm", "bold"], "clamperl": ["modest", "timid"], "huntail": ["adamant", "jolly"], "gorebyss": ["modest", "timid"], "relicanth": ["adamant"], "luvdisc": ["modest", "timid"], "bagon": ["adamant", "jolly"], "shelgon": ["impish", "relaxed", "adamant"], "salamence": ["jolly", "naive", "adamant", "timid"], "beldum": ["adamant", "jolly"], "metang": ["impish", "relaxed", "adamant"], "metagross": ["adamant", "jolly"], "regirock": ["impish", "careful"], "regice": ["calm", "modest"], "registeel": ["calm", "careful"], "latias": ["timid", "calm"], "latios": ["timid", "modest"], "kyogre": ["timid", "modest"], "groudon": ["adamant", "jolly"], "rayquaza": ["jolly", "naive", "adamant"], "jirachi": ["jolly", "timid"], "deoxys": ["timid", "naive", "hasty"], "turtwig": ["impish", "relaxed", "adamant"], "grotle": ["impish", "relaxed", "adamant"], "torterra": ["adamant", "impish"], "chimchar": ["naive", "hasty"], "monferno": ["naive", "hasty"], "infernape": ["naive", "jolly", "hasty", "timid"], "piplup": ["modest", "timid"], "prinplup": ["modest", "timid"], "empoleon": ["modest", "calm"], "starly": ["adamant", "jolly"], "staravia": ["adamant", "jolly"], "staraptor": ["jolly", "adamant"], "bidoof": ["impish", "relaxed", "adamant"], "bibarel": ["adamant"], "kricketot": ["adamant", "jolly"], "kricketune": ["adamant", "jolly"], "shinx": ["adamant", "jolly"], "luxio": ["adamant", "jolly"], "luxray": ["adamant", "jolly"], "budew": ["modest", "timid"], "roserade": ["timid", "modest"], "cranidos": ["adamant", "jolly"], "rampardos": ["jolly", "adamant"], "shieldon": ["impish", "relaxed", "adamant"], "bastiodon": ["impish", "careful"], "burmy": ["calm", "careful", "bold"], "wormadam": ["calm", "careful", "bold"], "mothim": ["modest", "timid"], "combee": ["calm", "careful", "bold"], "vespiquen": ["impish", "careful"], "pachirisu": ["impish"], "buizel": ["adamant", "jolly"], "floatzel": ["adamant", "jolly"], "cherubi": ["modest", "timid"], "cherrim": ["timid", "modest"], "shellos": ["calm", "careful", "bold"], "gastrodon": ["relaxed", "calm"], "ambipom": ["jolly"], "drifloon": ["modest", "timid"], "drifblim": ["modest", "timid"], "buneary": ["adamant", "jolly"], "lopunny": ["jolly"], "mismagius": ["timid"], "honchkrow": ["adamant"], "glameow": ["adamant", "jolly"], "purugly": ["adamant", "jolly"], "chingling": ["modest", "timid"], "stunky": ["adamant", "jolly"], "skuntank": ["adamant"], "bronzor": ["calm", "careful", "bold"], "bronzong": ["relaxed", "sassy"], "bonsly": ["impish", "relaxed", "adamant"], "mime-jr": ["modest", "timid"], "happiny": ["calm", "careful", "bold"], "chatot": ["modest", "timid"], "spiritomb": ["bold", "calm"], "gible": ["adamant", "jolly"], "gabite": ["adamant", "jolly"], "garchomp": ["jolly", "adamant"], "munchlax": ["calm", "careful", "bold"], "riolu": ["adamant", "jolly"], "lucario": ["jolly", "timid", "adamant"], "hippopotas": ["impish", "relaxed", "adamant"], "hippowdon": ["impish"], "skorupi": ["impish", "relaxed", "adamant"], "drapion": ["jolly", "adamant"], "croagunk": ["adamant", "jolly"], "toxicroak": ["jolly", "adamant"], "carnivine": ["adamant", "jolly"], "finneon": ["modest", "timid"], "lumineon": ["timid", "bold"], "mantyke": ["calm", "careful", "bold"], "snover": ["naive", "hasty"], "abomasnow": ["quiet"], "weavile": ["jolly"], "magnezone": ["modest", "timid"], "lickilicky": ["careful", "adamant"], "rhyperior": ["adamant"], "tangrowth": ["relaxed"], "electivire": ["jolly"], "magmortar": ["modest", "timid"], "togekiss": ["timid", "modest"], "yanmega": ["modest", "timid"], "leafeon": ["jolly", "adamant"], "glaceon": ["modest", "timid"], "gliscor": ["impish", "jolly"], "mamoswine": ["jolly", "adamant"], "porygon-z": ["timid"], "gallade": ["jolly", "adamant"], "probopass": ["bold", "calm"], "dusknoir": ["adamant", "impish"], "froslass": ["timid"], "rotom": ["bold", "timid", "calm", "modest"], "uxie": ["bold", "relaxed"], "mesprit": ["timid", "modest"], "azelf": ["timid", "jolly"], "dialga": ["modest", "timid"], "palkia": ["timid", "hasty"], "heatran": ["timid", "modest", "calm"], "regigigas": ["adamant", "jolly"], "giratina": ["bold", "impish", "modest"], "cresselia": ["bold", "calm"], "phione": ["modest", "timid"], "manaphy": ["timid"], "darkrai": ["timid"], "shaymin": ["timid"], "arceus": ["jolly", "timid", "adamant", "modest"], "snivy": ["modest", "timid"], "servine": ["modest", "timid"], "serperior": ["timid"], "tepig": ["adamant", "jolly"], "pignite": ["adamant", "jolly"], "emboar": ["adamant"], "oshawott": ["modest", "timid"], "dewott": ["modest", "timid"], "samurott": ["adamant", "modest"], "patrat": ["adamant", "jolly"], "watchog": ["adamant", "jolly"], "lillipup": ["adamant", "jolly"], "herdier": ["adamant", "jolly"], "stoutland": ["adamant"], "purrloin": ["adamant", "jolly"], "liepard": ["jolly"], "pansage": ["modest", "timid"], "simisage": ["modest", "timid"], "pansear": ["modest", "timid"], "simisear": ["modest", "timid"], "panpour": ["modest", "timid"], "simipour": ["modest", "timid"], "munna": ["calm", "careful", "bold"], "musharna": ["bold", "calm"], "pidove": ["adamant", "jolly"], "tranquill": ["adamant", "jolly"], "unfezant": ["adamant", "jolly"], "blitzle": ["modest", "timid"], "zebstrika": ["timid"], "roggenrola": ["impish", "relaxed", "adamant"], "boldore": ["impish", "relaxed", "adamant"], "gigalith": ["brave", "adamant"], "woobat": ["modest", "timid"], "swoobat": ["timid"], "drilbur": ["adamant", "jolly"], "excadrill": ["jolly", "adamant"], "audino": ["bold", "calm"], "timburr": ["adamant", "jolly"], "gurdurr": ["impish", "relaxed", "adamant"], "conkeldurr": ["adamant", "brave"], "tympole": ["modest", "timid"], "palpitoad": ["modest", "timid"], "seismitoad": ["modest", "relaxed"], "throh": ["careful"], "sawk": ["jolly"], "sewaddle": ["adamant", "jolly"], "swadloon": ["impish", "relaxed", "adamant"], "leavanny": ["jolly"], "venipede": ["adamant", "jolly"], "whirlipede": ["impish", "relaxed", "adamant"], "scolipede": ["jolly"], "cottonee": ["calm", "careful", "bold"], "whimsicott": ["timid"], "petilil": ["modest", "timid"], "lilligant": ["timid", "modest"], "basculin": ["jolly"], "sandile": ["adamant", "jolly"], "krokorok": ["adamant", "jolly"], "krookodile": ["jolly", "adamant"], "darumaka": ["adamant", "jolly"], "darmanitan": ["jolly", "adamant"], "maractus": ["modest", "timid"], "dwebble": ["impish", "relaxed", "adamant"], "crustle": ["adamant"], "scraggy": ["adamant", "jolly"], "scrafty": ["careful", "adamant"], "sigilyph": ["timid"], "yamask": ["impish", "relaxed", "adamant"], "cofagrigus": ["bold", "quiet"], "tirtouga": ["impish", "relaxed", "adamant"], "carracosta": ["adamant"], "archen": ["adamant", "jolly"], "archeops": ["jolly", "naive"], "trubbish": ["impish", "relaxed", "adamant"], "garbodor": ["impish"], "zorua": ["naive", "hasty"], "zoroark": ["timid", "naive"], "minccino": ["adamant", "jolly"], "cinccino": ["jolly"], "gothita": ["modest", "timid"], "gothorita": ["modest", "timid"], "gothitelle": ["calm"], "solosis": ["brave", "quiet", "relaxed", "sassy"], "duosion": ["brave", "quiet", "relaxed", "sassy"], "reuniclus": ["quiet", "bold"], "ducklett": ["modest", "timid"], "swanna": ["timid", "modest"], "vanillite": ["modest", "timid"], "vanillish": ["modest", "timid"], "vanilluxe": ["modest", "timid"], "deerling": ["adamant", "jolly"], "sawsbuck": ["jolly", "adamant"], "emolga": ["timid"], "karrablast": ["adamant", "jolly"], "escavalier": ["brave", "adamant"], "foongus": ["calm", "careful", "bold"], "amoonguss": ["calm", "bold"], "frillish": ["calm", "careful", "bold"], "jellicent": ["bold", "calm"], "alomomola": ["bold", "impish"], "joltik": ["modest", "timid"], "galvantula": ["timid"], "ferroseed": ["impish", "relaxed", "adamant"], "ferrothorn": ["relaxed", "sassy"], "klink": ["adamant", "jolly"], "klang": ["adamant", "jolly"], "klinklang": ["adamant"], "tynamo": ["modest", "timid"], "eelektrik": ["modest", "timid"], "eelektross": ["quiet", "modest", "adamant"], "elgyem": ["brave", "quiet", "relaxed", "sassy"], "beheeyem": ["quiet"], "litwick": ["modest", "timid"], "lampent": ["modest", "timid"], "chandelure": ["timid", "modest"], "axew": ["adamant", "jolly"], "fraxure": ["adamant", "jolly"], "haxorus": ["jolly", "adamant"], "cubchoo": ["adamant", "jolly"], "beartic": ["adamant"], "cryogonal": ["timid", "calm"], "shelmet": ["modest", "timid"], "accelgor": ["timid"], "stunfisk": ["bold", "calm"], "mienfoo": ["adamant", "jolly"], "mienshao": ["jolly", "naive"], "druddigon": ["adamant"], "golett": ["adamant", "jolly"], "golurk": ["adamant"], "pawniard": ["adamant", "jolly"], "bisharp": ["adamant", "jolly"], "bouffalant": ["adamant"], "rufflet": ["adamant", "jolly"], "braviary": ["jolly", "adamant"], "vullaby": ["impish", "relaxed", "adamant"], "mandibuzz": ["bold", "impish"], "heatmor": ["naive", "hasty"], "durant": ["jolly"], "deino": ["modest", "timid"], "zweilous": ["adamant", "jolly"], "hydreigon": ["timid", "modest"], "larvesta": ["modest", "timid"], "volcarona": ["timid", "modest"], "cobalion": ["jolly", "timid"], "terrakion": ["jolly", "adamant"], "virizion": ["jolly", "timid"], "tornadus": ["timid", "naive"], "thundurus": ["timid", "naive"], "reshiram": ["timid", "modest"], "zekrom": ["adamant", "jolly"], "landorus": ["jolly", "naive"], "kyurem": ["timid", "modest", "hasty"], "keldeo": ["timid", "modest"], "meloetta": ["timid", "modest", "naive"], "genesect": ["naive", "hasty", "timid"]};
 
     function evaluateCapturedCreature(caught) {
-        if (!caught) return null;
+        if (!caught || !hasCompleteIVs(caught)) return null;
         const speciesId = String(caught.speciesId || (caught.name ? caught.name.toLowerCase() : "")).toLowerCase();
         const nature = String(caught.nature || "").toLowerCase();
         const ivs = caught.ivs || {};
@@ -998,7 +1076,8 @@ function initMainWorldEngine() {
             if (!item) continue;
             const kind = String(item.kind || "").toLowerCase();
             const iid = String(item.id || item.itemId || "").toLowerCase();
-            const qty = Number(item.quantity || item.qty || 1);
+            const qty = Number(item.quantity ?? item.qty ?? 0);
+            if (!Number.isFinite(qty) || qty <= 0) continue;
 
             if (kind.includes("ball") || iid.includes("ball")) {
                 if (iid.includes("master")) balls.masterball += qty;
@@ -1026,10 +1105,100 @@ function initMainWorldEngine() {
         inventory = { ball: balls, potions, revives, boosts, potion: totalPotions };
         emitTelemetry();
     }
+    function withHealth(mon) {
+        if (!mon) return mon;
+        return { ...mon, ...(Number.isFinite(mon.hp) && mon.maxHp > 0
+            ? { hpPercent: Math.max(0, Math.min(1, mon.hp / mon.maxHp)) } : {}) };
+    }
+
+    const rewardRequests = new Map();
+    function requestReward(t, d) {
+        const now = Date.now();
+        for (const [key, sentAt] of rewardRequests) {
+            if (now - sentAt >= 60000) rewardRequests.delete(key);
+        }
+        const key = JSON.stringify([t, d]);
+        if (rewardRequests.has(key) || !activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+        rewardRequests.set(key, now);
+        sendEvent(t, d);
+    }
+
+    function applyBattleEvents(events) {
+        if (!Array.isArray(events)) return;
+        for (const event of events) {
+            let side = event.who;
+            let hp;
+            if (event.e === 'attack') {
+                side = event.by === 'you' ? 'foe' : 'you';
+                hp = event.targetHp;
+            } else if (event.e === 'heal' || event.e === 'residual') {
+                hp = event.hpAfter;
+            } else if (event.e === 'faint') {
+                hp = 0;
+            } else if ((event.e === 'swap' || event.e === 'swap_enemy') && event.view) {
+                if (event.e === 'swap') {
+                    myMon = withHealth(event.view);
+                    battleMoves = event.view.moves || [];
+                } else enemyMon = withHealth(event.view);
+            }
+            if (!Number.isFinite(hp)) continue;
+            if (side === 'you' && myMon) {
+                myMon = withHealth({ ...myMon, hp });
+                const id = myMon.creatureId || myMon.id;
+                team = team.map(mon => mon.id === id ? withHealth({ ...mon, hp }) : mon);
+            } else if (side === 'foe' && enemyMon) {
+                enemyMon = withHealth({ ...enemyMon, hp });
+            }
+        }
+    }
+
+    function updateCreatures(creatures, patch = false) {
+        if (!Array.isArray(creatures)) return;
+        if (!patch) collection = {};
+        for (const mon of creatures) {
+            if (mon?.id) collection[mon.id] = withHealth({ ...(collection[mon.id] || {}), ...mon });
+        }
+        team = Object.values(collection).filter(mon => mon.teamSlot !== null && mon.teamSlot !== undefined)
+            .sort((a, b) => a.teamSlot - b.teamSlot);
+        if (!creatures.some(mon => Object.hasOwn(mon, 'teamSlot'))) {
+            team = Object.values(collection);
+        }
+        if (!inBattle) myMon = team.find(mon => mon.isLeader) || team[0] || null;
+        resolveCapturedCreatures();
+    }
+
+    function resolveCapturedCreatures() {
+        pendingCaptures = pendingCaptures.filter(capture => {
+            const candidates = Object.values(collection).filter(mon =>
+                !capture.knownIds.has(mon.id) && String(mon.speciesId) === String(capture.speciesId) &&
+                (!capture.id || mon.id === capture.id));
+            if (candidates.length !== 1 || !hasCompleteIVs(candidates[0])) return true;
+            const mon = candidates[0];
+            const evaluation = evaluateCapturedCreature(mon);
+            lastCapturedMon = evaluation;
+            logEvent(`📊 ${mon.name || mon.speciesId}: IV ${evaluation.ivTotal}/186 (${evaluation.grade}).`, 'info');
+            if (botConfig.enabled) {
+                if (botConfig.auto_lock_valuable && (isProtectedCreature(mon) || evaluation.grade === 'S')) {
+                    if (!mon.isLocked) sendEvent('creature:lock', { creatureId: mon.id, locked: true });
+                } else {
+                    checkMonIVStrategy(mon);
+                }
+            }
+            return false;
+        });
+    }
+
 function handleGameMessage(msg) {
         if (!msg) return;
         const t = msg.t || msg.type;
         const d = msg.d !== undefined ? msg.d : msg;
+
+        if (t === 'error') {
+            const code = d?.code || msg.code || 'unknown';
+            if (code === 'heal_insufficient_funds') rejectedHealState = lastHealRequest;
+            logEvent(`Servidor recusou uma ação: ${code}`, 'warning');
+            return;
+        }
 
         // Welcome Packet — Official IdleDex Initial State
         if (t === "welcome") {
@@ -1039,8 +1208,12 @@ function handleGameMessage(msg) {
             }
             if (d.map) {
                 currentMap = d.map;
+                if (typeof currentMap === 'string' && currentMap.startsWith('route_')) {
+                    lastHuntMap = currentMap;
+                    try { sessionStorage.setItem('idledex-last-hunt-map', currentMap); } catch {}
+                }
                 loadMapCollision(currentMap);
-                setTimeout(() => { sendEvent("map:preview", { mapId: currentMap }); }, 600);
+                scheduleSessionTask(() => { sendEvent("map:preview", { mapId: currentMap }); }, 600);
             }
 
             // Extract initial entities & player position from snapshot
@@ -1074,10 +1247,7 @@ function handleGameMessage(msg) {
                 // Extract player progression, team, wallet & inventory from snapshot
                 if (d.snapshot.player) {
                     const p = d.snapshot.player;
-                    if (Array.isArray(p.team) && p.team.length > 0) {
-                        team = p.team;
-                        myMon = team[0];
-                    }
+                    updateCreatures(p.team);
                     if (p.wallet) {
                         wallet = {
                             silver: p.wallet.silver ?? p.wallet.coins ?? 0,
@@ -1094,9 +1264,10 @@ function handleGameMessage(msg) {
             }
 
             logEvent(`🎮 Conectado ao mapa ${currentMap || 'Mundo'} (Treinador: ${playerId || 'Player'})`, "success");
+            sendEvent('box:open');
             emitTelemetry();
 
-            setTimeout(() => {
+            scheduleSessionTask(() => {
                 configureAndStartIdle();
                 startRoamLoop();
             }, 1000);
@@ -1192,38 +1363,17 @@ function handleGameMessage(msg) {
                 loadMapCollision(currentMap);
             }
             if (d.x !== undefined && d.y !== undefined) playerPos = { x: Number(d.x), y: Number(d.y) };
+            if (typeof currentMap === 'string' && currentMap.startsWith('route_')) {
+                lastHuntMap = currentMap;
+                try { sessionStorage.setItem('idledex-last-hunt-map', currentMap); } catch {}
+            }
             logEvent(`🗺️ Transição de mapa para: ${getMapFriendlyName(currentMap)}`, "info");
-            setTimeout(() => { sendEvent("map:preview", { mapId: currentMap }); }, 300);
+            scheduleSessionTask(() => { sendEvent("map:preview", { mapId: currentMap }); }, 300);
 
             // AUTO-TRAVEL STATE MACHINE TRANSITIONS
             if (autoTravelState.active) {
                 if (currentMap === autoTravelState.targetMap && autoTravelState.phase === "traveling_to_lab") {
-                    autoTravelState.phase = "delivering";
-                    logEvent(`🏛️ [AUTO-TRAVEL] Chegada ao Laboratório do Professor confirmada! Solicitando entregas...`, "info");
-
-                    setTimeout(() => {
-                        sendEvent("professor:open");
-                    }, 600);
-
-                    // Auto-Heal team at Pokémon Center/Nurse if available in lab
-                    if (botConfig.auto_heal_center && Array.isArray(team) && team.length > 0) {
-                        const needsHeal = team.some(m => m.hp !== undefined && m.maxHp !== undefined && m.hp < m.maxHp);
-                        if (needsHeal) {
-                            setTimeout(() => {
-                                sendEvent("heal:full", { creatureIds: team.map(m => m.id) });
-                                logEvent(`💚 [AUTO-TRAVEL] Equipe curada no Centro do Laboratório!`, "success");
-                            }, 1200);
-                        }
-                    }
-
-                    // Return trip scheduled after delivery window (3.5s)
-                    setTimeout(() => {
-                        if (autoTravelState.active && autoTravelState.phase === "delivering") {
-                            autoTravelState.phase = "returning";
-                            logEvent(`🔄 [AUTO-TRAVEL] Entregas finalizadas! Retornando para a rota de caça (${getMapFriendlyName(autoTravelState.originMap)})...`, "info");
-                            sendEvent("map:travel", { mapId: autoTravelState.originMap });
-                        }
-                    }, 3500);
+                    beginLabDelivery();
                 }
                 else if (currentMap === autoTravelState.originMap && autoTravelState.phase === "returning") {
                     if (autoTravelState.timeoutTimer) {
@@ -1234,7 +1384,7 @@ function handleGameMessage(msg) {
                     autoTravelState.phase = "idle";
                     autoTravelState.lastTravelTime = Date.now();
                     logEvent(`🎯 [AUTO-TRAVEL] Retorno à rota ${getMapFriendlyName(currentMap)} concluído com sucesso! Retomando patrulha na grama alta.`, "success");
-                    if (botConfig.auto_roam && !inBattle) {
+                    if (!inBattle) {
                         startRoamLoop();
                     }
                 }
@@ -1258,7 +1408,7 @@ function handleGameMessage(msg) {
                 emitTelemetry();
 
                 if (botConfig.auto_route_switch) {
-                    setTimeout(() => {
+                    scheduleSessionTask(() => {
                         if (!inBattle && botConfig.enabled && !autoTravelState.active) {
                             checkAutoRouteSwitch();
                         }
@@ -1275,8 +1425,10 @@ function handleGameMessage(msg) {
             }
 
             inBattle = true;
+            battleKnownCreatureIds = new Set(Object.keys(collection));
             currentBattleId = d.battleId || d.id || null;
-            if (d.foe) enemyMon = d.foe;
+            myMon = withHealth(d.leader || myMon);
+            enemyMon = withHealth(d.foe || null);
 
             // Extract moves from leader
             if (d.leader && Array.isArray(d.leader.moves) && d.leader.moves.length > 0) {
@@ -1366,9 +1518,7 @@ function handleGameMessage(msg) {
 
         // Active Team
         else if (t === "team" || t === "team:patch") {
-            if (Array.isArray(d)) team = d;
-            else if (d.team) team = d.team;
-            if (team.length > 0) myMon = team[0];
+            updateCreatures(Array.isArray(d) ? d : (d.creatures || d.team), t === 'team:patch');
             emitTelemetry();
         }
 
@@ -1382,11 +1532,11 @@ function handleGameMessage(msg) {
 
         // Daily Quests (Auto Claim)
         else if (t === "daily:list" || t === "daily:state") {
-            if (botConfig.auto_claim_dailies && d) {
+            if (botConfig.enabled && botConfig.auto_claim_dailies && d) {
                 const quests = d.quests || (Array.isArray(d) ? d : []);
                 for (const q of quests) {
-                    if (q && q.completed && !q.claimed) {
-                        sendEvent("daily:claim", { questId: q.id });
+                    if (q && q.id && Number.isFinite(q.progress) && Number.isFinite(q.goal) && q.progress >= q.goal && !q.claimed) {
+                        requestReward("daily:claim", { questId: q.id });
                         logEvent(`🎁 [MISSÃO DIÁRIA] Reivindicando: ${q.name || q.id}`, "success");
                     }
                 }
@@ -1395,19 +1545,18 @@ function handleGameMessage(msg) {
 
         // Login Streak Calendar Bonus
         else if (t === "calendar:state") {
-            if (botConfig.auto_claim_dailies && d && d.claimable === true) {
-                sendEvent("daily:bonus");
+            if (botConfig.enabled && botConfig.auto_claim_dailies && d && d.claimable === true) {
+                requestReward("daily:bonus");
                 logEvent(`📅 [LOGIN CONSECUTIVO] Bônus de calendário resgatado!`, "success");
             }
         }
 
         // Pokédex Milestones
         else if (t === "pokedex:list" || t === "pokedex:state") {
-            if (botConfig.auto_claim_dailies && d) {
-                const hasUnclaimed = (d.unclaimedMilestones && d.unclaimedMilestones > 0) || 
-                                     (Array.isArray(d.milestones) && d.milestones.some(m => m.reached && !m.claimed));
+            if (botConfig.enabled && botConfig.auto_claim_dailies && d) {
+                const hasUnclaimed = Array.isArray(d.milestones) && d.milestones.some(m => m.ready === true);
                 if (hasUnclaimed) {
-                    sendEvent("pokedex:claim-all");
+                    requestReward("pokedex:claim-all");
                     logEvent(`📖 [POKÉDEX] Resgatando marcos completados da Pokédex!`, "success");
                 }
             }
@@ -1415,20 +1564,23 @@ function handleGameMessage(msg) {
 
         // Gamepass / Battle Pass
         else if (t === "gamepass:state") {
-            if (botConfig.auto_claim_dailies && d) {
-                if (d.unclaimedTiers > 0 || d.hasUnclaimed) {
-                    sendEvent("gamepass:claim-all");
+            if (botConfig.enabled && botConfig.auto_claim_dailies && d) {
+                const missionsReady = Array.isArray(d.missions) && d.missions.some(m => !m.claimed && m.progress >= m.goal);
+                const tiersReady = Array.isArray(d.tiers) && d.tiers.some(tier => d.points >= tier.points &&
+                    (!tier.freeClaimed || (d.premium && !tier.premiumClaimed)));
+                if (missionsReady || tiersReady) {
+                    requestReward("gamepass:claim-all");
                     logEvent(`🎫 [GAMEPASS] Resgatando recompensas do Passe de Batalha!`, "success");
                 }
             }
         }
 
         // Official News & Announcements Reward Claim
-        else if (t === "news:list") {
-            if (botConfig.auto_claim_dailies && d && Array.isArray(d.posts)) {
+        else if (t === "news:page" || t === "news:list") {
+            if (botConfig.enabled && botConfig.auto_claim_dailies && d && Array.isArray(d.posts)) {
                 for (const post of d.posts) {
-                    if (post && post.reward && !post.claimed) {
-                        sendEvent("news:claim", { postId: post.id });
+                    if (post && post.id && Array.isArray(post.reward) && post.reward.length > 0 && !post.claimed) {
+                        requestReward("news:claim", { postId: post.id });
                         logEvent(`📰 [NOTÍCIAS] Recompensa de post resgatada: ${post.title || post.id}`, "success");
                     }
                 }
@@ -1437,23 +1589,41 @@ function handleGameMessage(msg) {
 
         // Professor Oak Delivery (Bronze Coins)
         else if (t === "professor:state") {
-            if (botConfig.auto_npc_quests && d && Array.isArray(d.lots) && !d.outOfCharges) {
+            if (botConfig.enabled && botConfig.auto_npc_quests && currentMap === 'npclab' && d && Array.isArray(d.lots)) {
                 const lotSize = d.lotSize || 5;
+                const stateKey = JSON.stringify([d.charges, lotSize, d.lots]);
+                const isTrip = autoTravelState.active && autoTravelState.phase === 'delivering';
+                if (autoTravelState.active && !isTrip) return;
+                if (isTrip && autoTravelState.pendingDelivery) {
+                    const pending = autoTravelState.pendingDelivery;
+                    const remaining = d.lots.find(lot => lot.speciesId === pending.speciesId)?.available ?? 0;
+                    if (!(d.charges < pending.charges || remaining < pending.available)) return;
+                    autoTravelState.deliveriesDone++;
+                    autoTravelState.pendingDelivery = null;
+                }
+                if (d.charges < lotSize || !Number.isFinite(d.charges)) {
+                    if (isTrip) returnFromLab('Sem cargas suficientes para outro lote.');
+                    return;
+                }
+                if (stateKey === lastProfessorState) return;
                 for (const lot of d.lots) {
-                    if (lot && lot.available > lotSize) {
+                    if (lot && lot.available > lotSize && canDonateSpecies(lot.speciesId, lotSize + 1)) {
+                        lastProfessorState = stateKey;
+                        if (isTrip) autoTravelState.pendingDelivery = {
+                            speciesId: lot.speciesId, charges: d.charges, available: lot.available,
+                        };
                         sendEvent("professor:deliver", { speciesId: lot.speciesId });
                         logEvent(`🔬 [PROFESSOR] Entregando lote de ${lot.name || lot.speciesId} (+${lot.bronzePerLot || 1} Moedas de Bronze)`, "success");
-                        if (autoTravelState.active) {
-                            autoTravelState.deliveriesDone++;
-                        }
+                        return;
                     }
                 }
+                if (isTrip) returnFromLab('Não há mais lotes elegíveis para entrega.');
             }
         }
 
         // DexQuest Delivery
         else if (t === "dexquest:state") {
-            if (botConfig.auto_npc_quests && d && d.target && d.target.have > 0) {
+            if (botConfig.enabled && botConfig.auto_npc_quests && d && d.target && d.target.have > 0 && canDonateSpecies(d.target.speciesId, 1)) {
                 sendEvent("dexquest:deliver", { speciesId: d.target.speciesId });
                 logEvent(`🎯 [DEXQUEST] Entregando ${d.target.name || d.target.speciesId} para missão de rota!`, "success");
             }
@@ -1461,10 +1631,19 @@ function handleGameMessage(msg) {
 
         // Collector Delivery
         else if (t === "collector:state") {
-            if (botConfig.auto_npc_quests && d && d.deliverable && !d.delivered) {
-                sendEvent("collector:deliver");
-                logEvent(`🏺 [COLECIONADOR] Entregando coleção completada!`, "success");
+            collectorState = d;
+            if (botConfig.enabled && botConfig.auto_npc_quests && d?.mapId === currentMap && d.deliverable && !d.delivered) {
+                sendEvent('collector:preview');
             }
+        }
+        else if (t === 'collector:preview') {
+            if (!botConfig.enabled || !botConfig.auto_npc_quests || !collectorState?.deliverable || collectorState.delivered) return;
+            if (d?.mapId !== currentMap || d.window !== collectorState.window || !Array.isArray(d.creatureIds) || !d.creatureIds.length) return;
+            const key = JSON.stringify([d.mapId, d.window, d.creatureIds]);
+            if (key === collectorDeliveryKey || !d.creatureIds.every(id => isDonatableCreature(collection[id]))) return;
+            collectorDeliveryKey = key;
+            sendEvent('collector:deliver');
+            logEvent('🏺 [COLECIONADOR] Entrega enviada após conferir a prévia.', 'info');
         }
 
         // Combat Turn & Control
@@ -1474,15 +1653,21 @@ function handleGameMessage(msg) {
                 return;
             }
 
-            if (d.myMon) myMon = d.myMon;
-            if (d.foe || d.opponent) enemyMon = d.foe || d.opponent;
+            if (d.myMon || d.leader) myMon = withHealth(d.myMon || d.leader);
+            if (d.foe || d.opponent) enemyMon = withHealth(d.foe || d.opponent);
+            applyBattleEvents(d.turn?.events);
             if (d.moves && Array.isArray(d.moves) && d.moves.length > 0) battleMoves = d.moves;
             if (d.leader && Array.isArray(d.leader.moves) && d.leader.moves.length > 0) battleMoves = d.leader.moves;
             if (d.leaderMoves && Array.isArray(d.leaderMoves) && d.leaderMoves.length > 0) battleMoves = d.leaderMoves;
             if (d.canThrow !== undefined) canThrowBall = !!d.canThrow;
             if (d.canHeal !== undefined) canUsePotion = !!d.canHeal;
             if (d.canRevive !== undefined) canRevive = !!d.canRevive;
-            battleWindowOpen = (d.open !== false);
+            battleWindowOpen = d.open !== false && (canThrowBall || canUsePotion);
+            const animationMs = t === 'battle:turn' && Number.isFinite(d.animateMs) ? Math.max(0, d.animateMs) : 0;
+            const windowMs = t === 'battle:turn' ? d.turnMs : d.windowMs;
+            battleReadyAt = Date.now() + animationMs;
+            battleExpiresAt = Number.isFinite(windowMs) && windowMs > 0 ? Date.now() + windowMs : Infinity;
+            if (d.final !== undefined) battleWindowOpen = false;
 
             // Unlock action dispatch on new turn from server
             if (d.turn !== undefined && d.turn !== lastTurnNumber) {
@@ -1497,12 +1682,12 @@ function handleGameMessage(msg) {
             if (!botConfig.enabled || !battleWindowOpen) return;
 
             if (battleTurnTimer) clearTimeout(battleTurnTimer);
-            battleTurnTimer = setTimeout(() => {
+            battleTurnTimer = scheduleSessionTask(() => {
                 if (!inBattle || !botConfig.enabled || !currentBattleId || actionInFlight) return;
                 if (isThrowBarOpen()) {
                     processBattleTurn();
                 }
-            }, 300);
+            }, animationMs + 20);
         }
 
         // Combat Finished
@@ -1530,11 +1715,18 @@ function handleGameMessage(msg) {
                 battleWatchdog = null;
             }
 
-            const victory = d.victory;
-            const captured = d.captured;
+            const victory = d.result === 'win' || d.victory === true;
+            const captured = d.result === 'capture' || d.captured === true;
             const foeName = (enemyMon && (enemyMon.name || enemyMon.species)) || "Criatura";
 
             if (captured) {
+                lastCapturedMon = null;
+                pendingCaptures.push({
+                    speciesId: d.caught?.speciesId ?? enemyMon?.speciesId,
+                    id: d.caught?.id ?? d.caught?.creatureId,
+                    knownIds: battleKnownCreatureIds,
+                });
+                if (pendingCaptures.length > 10) pendingCaptures.shift();
                 if (d.caught) {
                     const evalData = evaluateCapturedCreature(d.caught);
                     if (evalData) {
@@ -1545,7 +1737,7 @@ function handleGameMessage(msg) {
                         logEvent(`🎉 [CAPTURA] ${evalData.name}${star} Lv${evalData.level}! ${natMsg}, ${tierMsg}`, evalData.grade === "S" ? "success" : "info");
 
                         // Auto-lock valuable creatures (Shinies, Event Tiers, Grade S)
-                        if (botConfig.auto_lock_valuable && evalData.id) {
+                        if (botConfig.enabled && botConfig.auto_lock_valuable && evalData.id) {
                             const isValuable = evalData.isShiny || evalData.grade === "S" || (d.caught.eventTier && d.caught.eventTier > 0);
                             if (isValuable) {
                                 sendEvent("creature:lock", { creatureId: evalData.id, locked: true });
@@ -1560,12 +1752,15 @@ function handleGameMessage(msg) {
                 }
                 progress.captures = (progress.captures || 0) + 1;
                 sessionCaptures++;
+                resolveCapturedCreatures();
             } else if (victory) {
                 logEvent(`⚔️ Vitória sobre ${foeName}!`, "success");
                 progress.wins = (progress.wins || 0) + 1;
-            } else {
+            } else if (d.result === 'lose' || d.victory === false) {
                 logEvent(`💀 Derrota contra ${foeName}...`, "warning");
                 progress.losses = (progress.losses || 0) + 1;
+            } else {
+                logEvent(`Duelo encerrado (${d.result || 'sem resultado informado'}).`, 'info');
             }
 
             enemyMon = null;
@@ -1573,12 +1768,12 @@ function handleGameMessage(msg) {
 
             // Resume roaming after battle exit animation completes (or trigger auto-travel delivery / route switch)
             if (botConfig.enabled) {
-                setTimeout(() => {
+                scheduleSessionTask(() => {
                     if (!inBattle && botConfig.enabled) {
                         const traveled = checkAutoTravelDeliveries();
                         if (!traveled) {
                             const switchedRoute = checkAutoRouteSwitch();
-                            if (!switchedRoute && botConfig.auto_roam) {
+                            if (!switchedRoute) {
                                 startRoamLoop();
                             }
                         }
@@ -1588,15 +1783,38 @@ function handleGameMessage(msg) {
         }
     }
 
+    function hasCompleteIVs(mon) {
+        return ['hp', 'atk', 'def', 'spa', 'spd', 'spe'].every(key =>
+            Number.isInteger(mon?.ivs?.[key]) && mon.ivs[key] >= 0 && mon.ivs[key] <= 31);
+    }
+
+    function isProtectedCreature(mon) {
+        return !mon || mon.isShiny || mon.shiny || mon.isLocked || mon.isLeader || mon.mega ||
+            (mon.eventTier > 0) || (mon.form?.eventTier > 0) ||
+            (mon.teamSlot !== undefined && mon.teamSlot !== null) ||
+            team.some(member => member.id === mon.id);
+    }
+
+    function isDonatableCreature(mon) {
+        return !isProtectedCreature(mon) && Number.isInteger(mon?.boxSlot) && mon.boxSlot >= 0 &&
+            hasCompleteIVs(mon) && evaluateCapturedCreature(mon).grade !== 'S';
+    }
+
+    function canDonateSpecies(speciesId, count) {
+        const candidates = Object.values(collection).filter(mon => String(mon.speciesId) === String(speciesId) &&
+            Number.isInteger(mon.boxSlot) && mon.boxSlot >= 0 && !mon.isLocked && !mon.isShiny && !mon.mega);
+        return candidates.length >= count && candidates.every(isDonatableCreature);
+    }
+
     function checkMonIVStrategy(mon) {
-        if (!mon || !mon.id || releasedCreatureIds.has(mon.id)) return;
+        if (!botConfig.enabled || !mon || !mon.id || releasedCreatureIds.has(mon.id)) return;
 
         // Strict Safety Gate: Never release shiny, special event tiers, or locked creatures
-        if (mon.isShiny || mon.shiny || (mon.eventTier && mon.eventTier > 0) || mon.isLocked) {
+        if (isProtectedCreature(mon) || !hasCompleteIVs(mon) || !Number.isInteger(mon.boxSlot) || mon.boxSlot < 0) {
             return;
         }
 
-        const stats = mon.stats || mon.ivs || {};
+        const stats = mon.ivs;
         const ivSum = (stats.hp || 0) + (stats.atk || 0) + (stats.def || 0) + 
                       (stats.spAtk || stats.spa || 0) + (stats.spDef || stats.spd || 0) + (stats.speed || stats.spe || 0);
         const ivPct = Math.round((ivSum / 186) * 100);
@@ -1620,11 +1838,23 @@ function handleGameMessage(msg) {
             const faintedMember = team.find(m => m && (m.hp === 0 || m.isFainted));
             if (faintedMember) {
                 const chosenRevive = getBestRevive();
-                if (chosenRevive) {
+                if (chosenRevive && Date.now() >= nextRecoveryItemAt) {
+                    nextRecoveryItemAt = Date.now() + 10000;
                     logEvent(`💊 Revivendo ${faintedMember.name || 'Pokémon'} fora de combate com ${chosenRevive}...`, "info");
                     sendEvent("item:use", { itemId: chosenRevive, creatureId: faintedMember.id, quantity: 1 });
                     return;
                 }
+            }
+        }
+
+        const injuredMember = team.find(mon => mon.hp > 0 && mon.maxHp > 0 && mon.hp / mon.maxHp <= botConfig.potion_hp_pct);
+        if (injuredMember && Date.now() >= nextRecoveryItemAt) {
+            const potion = getBestPotion(injuredMember.hp, injuredMember.maxHp);
+            if (potion) {
+                nextRecoveryItemAt = Date.now() + 10000;
+                sendEvent('item:use', { itemId: potion, creatureId: injuredMember.id });
+                logEvent(`🧪 Recuperando integrante da equipe com ${potion} antes do próximo encontro.`, 'info');
+                return;
             }
         }
 
@@ -1639,8 +1869,7 @@ function handleGameMessage(msg) {
             const hasRevives = (inventory.revives && (inventory.revives.revive > 0 || inventory.revives["max-revive"] > 0));
 
             if (allFainted || (teamHpPct <= 0.25 && !hasPotions && !hasRevives)) {
-                logEvent(`🏥 Acionando Centro Pokémon para cura global da equipe (HP Equipe: ${Math.round(teamHpPct * 100)}%)...`, "info");
-                sendEvent("heal:full", { creatureIds: team.map(m => m.id) });
+                requestAffordableHeal();
             }
         }
 
@@ -1650,18 +1879,19 @@ function handleGameMessage(msg) {
             lastMaintenanceCheck = now;
 
             if (botConfig.auto_claim_dailies) {
-                // Silent Non-Intrusive Claims: Claim rewards directly without popping up UI modals ("miss click")
-                // and without triggering server 'bad_message undefined' rejections.
-                sendEvent("daily:bonus");
-                sendEvent("pokedex:claim-all");
-                sendEvent("gamepass:claim-all");
+                // The official UI opens modals separately; these requests only refresh state.
+                sendEvent("daily:open");
+                sendEvent("calendar:open");
+                sendEvent("pokedex:open");
+                sendEvent("gamepass:open");
+                sendEvent("news:list");
             }
 
             if (botConfig.auto_npc_quests) {
                 // Only interact with specific NPCs if the player is physically on their respective map,
                 // eliminating server errors 'professor_not_here' and 'dexquest_not_here'.
                 if (currentMap === "npclab" || currentMap === "pallet-town" || currentMap.includes("lab")) {
-                    sendEvent("professor:deliver");
+                    sendEvent("professor:open");
                 }
             }
 
@@ -1682,9 +1912,33 @@ function handleGameMessage(msg) {
         }
     }
 
+    function requestAffordableHeal() {
+        const stateKey = JSON.stringify([wallet.silver, progress.rank, team.map(mon => [mon.id, mon.hp, mon.level])]);
+        if (Date.now() < nextHealAt || stateKey === rejectedHealState) return false;
+        let budget = Math.max(0, wallet.silver || 0);
+        const injured = team.filter(mon => mon.hp < mon.maxHp);
+        const selected = [];
+        for (const mon of injured) {
+            const cost = progress.rank <= 20 ? 0 : mon.level * 2;
+            if (!Number.isFinite(cost) || cost > budget) continue;
+            selected.push(mon.id);
+            budget -= cost;
+        }
+        // The official free rescue applies only when every party/Box creature is fainted.
+        const playable = Object.values(collection).filter(mon => mon.teamSlot != null || mon.boxSlot != null);
+        if (!selected.length && injured.length && playable.length && playable.every(mon => mon.hp <= 0)) selected.push(injured[0].id);
+        if (!selected.length) return false;
+        lastHealRequest = stateKey;
+        nextHealAt = Date.now() + 10000;
+        sendEvent('heal:full', { creatureIds: selected });
+        logEvent(`🏥 Recuperação solicitada para ${selected.length} integrante(s), conforme o saldo disponível.`, 'info');
+        return true;
+    }
+
     
     // Check if the duel throw/combat bar is open and ready to accept turn input
     function isThrowBarOpen() {
+        if (Date.now() < battleReadyAt || Date.now() >= battleExpiresAt) return false;
         if (battleWindowOpen) return true;
         const throwBar = document.querySelector('.hud-throw-bar');
         if (!throwBar) {
@@ -1737,7 +1991,9 @@ function handleGameMessage(msg) {
 
         const isShiny = !!(enemyMon && (enemyMon.isShiny || enemyMon.shiny));
         const foeSpecies = (enemyMon && (enemyMon.species || enemyMon.name)) || "";
-        const isUncaught = foeSpecies ? !collection[foeSpecies] : false;
+        const speciesKey = enemyMon?.speciesId ?? foeSpecies;
+        const isUncaught = speciesKey !== '' && !Object.values(collection).some(mon =>
+            String(mon.speciesId ?? mon.species ?? mon.name) === String(speciesKey));
         const foeSpeciesId = (enemyMon && (enemyMon.speciesId || foeSpecies.toLowerCase())) || "";
         const foeLevel = (enemyMon && (enemyMon.level || enemyMon.lvl)) || 1;
         const myLevel = (myMon && (myMon.level || myMon.lvl)) || 1;
@@ -1842,6 +2098,9 @@ function handleGameMessage(msg) {
         // - Wild foe HP already <= catch_hp_pct threshold
         const isDirectThrow = isShiny || (myLevel - foeLevel >= 5) || (isUncaught && foeLevel <= 15) || (foeHpPct <= botConfig.catch_hp_pct);
 
+        // A healing window is not permission to throw a ball, even for shinies.
+        if (isCaptureTarget && totalBalls > 0 && !canThrowBall) return;
+
         if (isCaptureTarget && totalBalls > 0) {
             const chosenBall = getBestBall(foeHpPct, isShiny, isUncaught);
             if (chosenBall && (isDirectThrow || canThrowBall)) {
@@ -1923,17 +2182,34 @@ function handleGameMessage(msg) {
             }, 80);
         }
 
-        moveSeq++;
-        sendEvent("move", { dir, n: moveSeq });
+        // The game's keyboard loop owns prediction, rate limiting and move sequence.
     }
 
     // Active Roam & Patrol loop with BFS grass navigation
     function startRoamLoop() {
         if (roamInterval) clearInterval(roamInterval);
         roamInterval = setInterval(() => {
-            if (!botConfig.enabled || !botConfig.auto_roam || inBattle || !activeWs || activeWs.readyState !== WebSocket.OPEN) {
+            if (!botConfig.enabled || inBattle || autoTravelState.active || !activeWs || activeWs.readyState !== WebSocket.OPEN) {
                 return;
             }
+
+            if (currentMap === 'npclab') {
+                if (botConfig.auto_travel_deliveries && botConfig.auto_npc_quests) {
+                    autoTravelState.active = true;
+                    autoTravelState.originMap = /^route_\d+$/.test(lastHuntMap || '') ? lastHuntMap : 'route_001';
+                    autoTravelState.returnAttempts = 0;
+                    autoTravelState.deliveriesDone = 0;
+                    beginLabDelivery();
+                }
+                return;
+            }
+            if (Date.now() - lastRecoveryCheck >= 3000) {
+                lastRecoveryCheck = Date.now();
+                checkOutOfBattleMaintenance();
+            }
+            // Maintenance can start a trip in this very tick.
+            if (autoTravelState.active) return;
+            if (!botConfig.auto_roam) return;
 
             // Zero-ball auto-pause: if balls are exhausted and player only wants to capture (flee unselected)
             if (botConfig.pause_on_no_balls && getTotalBalls() === 0 && botConfig.unselected_action === "flee") {
@@ -1947,10 +2223,7 @@ function handleGameMessage(msg) {
                 return;
             }
 
-            // Out-of-battle maintenance (revives, nurse joy, dailies, NPC deliveries, boosts)
-            if (roamStepIdx % 15 === 0) {
-                checkOutOfBattleMaintenance();
-            }
+            if (team.length && team.every(mon => mon.hp <= 0)) return;
 
             // Fallback position from player entity if playerPos not yet initialized
             if (playerPos.x === null || playerPos.y === null) {
@@ -2057,33 +2330,57 @@ function handleGameMessage(msg) {
     // Native WebSocket Hook in Main World
     const OrigWebSocket = window.WebSocket;
     function HookedWebSocket(...args) {
-        console.log("[IdleDex Desktop] Novo WebSocket interceptado com sucesso:", args[0]);
-        const isReconnect = (reconnectCount > 0 || (activeWs && activeWs.readyState === WebSocket.CLOSED));
+        console.log("[IdleDex Desktop] Novo WebSocket interceptado com sucesso");
         const ws = new OrigWebSocket(...args);
+        commandGeneration++;
         activeWs = ws;
 
         ws.addEventListener('open', () => {
-            if (isReconnect) {
+            if (activeWs !== ws) return;
+            if (hasConnected) {
                 reconnectCount++;
                 logEvent(`🔄 [RECONEXÃO #${reconnectCount}] Conexão WebSocket restabelecida com o servidor!`, "success");
             } else {
                 logEvent("✅ Conexão WebSocket estabelecida com o servidor!", "success");
             }
+            hasConnected = true;
             emitTelemetry();
-            setTimeout(configureAndStartIdle, 1000);
+            scheduleSessionTask(() => {
+                if (activeWs === ws && ws.readyState === OrigWebSocket.OPEN) configureAndStartIdle();
+            }, 1000);
         });
 
         ws.addEventListener('close', (event) => {
-            logEvent(`🔌 WebSocket desconectado (code: ${event.code}).`, "warning");
-            emitTelemetry();
+            if (activeWs !== ws) return;
             // Reset state related to this WebSocket
             activeWs = null;
+            pendingCaptures = [];
             inBattle = false;
             battleWindowOpen = false;
             lastTurnNumber = -1;
+            currentBattleId = null;
+            actionInFlight = false;
+            battleMoves = [];
+            enemyMon = null;
+            clearTimeout(battleTurnTimer);
+            clearInterval(battleWatchdog);
+            clearInterval(roamInterval);
+            battleTurnTimer = battleWatchdog = roamInterval = null;
+            ++mapLoadVersion;
+            loadingMap = false;
+            mapGrid = cleanGrassGrid = mapFringeMask = null;
+            grassTiles = [];
+            playerPos = { x: null, y: null };
+            entities = [];
+            clearTimeout(autoTravelState.timeoutTimer);
+            autoTravelState.active = false;
+            autoTravelState.phase = 'idle';
+            logEvent(`🔌 WebSocket desconectado (code: ${event.code}).`, "warning");
+            emitTelemetry();
         });
 
         ws.addEventListener('message', (event) => {
+            if (activeWs !== ws) return;
             if (event.data instanceof ArrayBuffer) {
                 parseBinaryFrame(event.data);
             } else if (typeof event.data === 'string') {
@@ -2109,8 +2406,12 @@ function handleGameMessage(msg) {
     window.addEventListener('idledex-from-preload', (event) => {
         const { cmd, payload } = event.detail || {};
         if (cmd === 'toggle-bot') {
+            commandGeneration++;
             botConfig.enabled = (payload && payload.enabled !== undefined) ? payload.enabled : !botConfig.enabled;
             if (!botConfig.enabled) {
+                clearTimeout(autoTravelState.timeoutTimer);
+                autoTravelState.active = false;
+                autoTravelState.phase = 'idle';
                 // Clean pause: instantly cancel all loops and pending timers
                 if (roamInterval) {
                     clearInterval(roamInterval);
@@ -2140,11 +2441,21 @@ function handleGameMessage(msg) {
             }
             emitTelemetry();
         } else if (cmd === 'update-config') {
+            if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
+            if (payload.enabled !== undefined && payload.enabled !== botConfig.enabled) {
+                commandGeneration++;
+                if (!payload.enabled) {
+                    clearTimeout(autoTravelState.timeoutTimer);
+                    autoTravelState.active = false;
+                    autoTravelState.phase = 'idle';
+                }
+            }
             const prevMode = botConfig.strategy_mode;
-            Object.assign(botConfig, payload);
             if (payload && payload.strategy_mode && payload.strategy_mode !== prevMode) {
                 applyStrategyPreset(payload.strategy_mode);
             }
+            Object.assign(botConfig, payload);
+            configReady = true;
             logEvent("⚙️ Configurações do bot atualizadas", "info");
             configureAndStartIdle();
             emitTelemetry();
@@ -2162,7 +2473,7 @@ function handleGameMessage(msg) {
                 sendEvent("gamepass:claim-all");
             }
             else if (payload.action === 'trigger-auto-travel') {
-                checkAutoTravelDeliveries();
+                checkAutoTravelDeliveries(true);
             }
         }
     });

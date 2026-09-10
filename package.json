@@ -1,21 +1,39 @@
 {
   "name": "idledex-desktop",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "IdleDex Desktop App with Built-in Chromium and Autonomous Bot",
   "main": "electron/main.js",
   "scripts": {
+    "test": "node --test tests/*.test.cjs",
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --dir"
+    "dist": "electron-builder --dir",
+    "dist:installer": "electron-builder --win nsis",
+    "dist:portable": "electron-builder --win portable"
   },
   "build": {
     "appId": "com.idledex.desktop",
     "productName": "IdleDex Desktop",
     "directories": {
-      "output": "dist-desktop"
+      "output": "dist-release"
     },
     "win": {
-      "target": "dir"
+      "executableName": "IdleDex_Desktop",
+      "icon": "build/icon.ico",
+      "target": [
+        "dir"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "IdleDex Desktop",
+      "artifactName": "IdleDex_Desktop_Setup_${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "IdleDex_Desktop_Portable_${version}.${ext}"
     },
     "asar": false,
     "files": [

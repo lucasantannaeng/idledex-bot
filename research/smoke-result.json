@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "checkedAt": "2026-09-10T00:04:25.264Z",
+  "source": "D:\\Projetos\\1.Autorais\\idledex-bot\\dist-desktop\\win-unpacked\\resources\\app",
+  "help": {
+    "tutorialOpen": true,
+    "sections": 34,
+    "closed": true,
+    "missing": [],
+    "quick": "HP inimigo para captura",
+    "inView": true
+  },
+  "accountReset": true,
+  "enabled": false,
+  "catchHp": 0,
+  "label": "BOT PAUSADO",
+  "input": "0"
+}

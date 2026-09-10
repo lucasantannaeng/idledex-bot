@@ -3,27 +3,34 @@
  * Manages native window, system tray, persistent session, and IPC communication.
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, session, webContents } = require('electron');
+const { resetGameSession, googleAccountChooser } = require('./account-session');
 const path = require('path');
 const fs = require('fs');
 
-// Enable Remote Debugging Protocol on port 9222 for live automated simulation & inspection
-app.commandLine.appendSwitch('remote-debugging-port', '9222');
-app.commandLine.appendSwitch('remote-allow-origins', '*');
+// Explicit opt-in for local diagnostics; normal launches expose no debug port.
+if (process.argv.includes('--inspect-bot') || process.env.IDLEDEX_DEBUG === '1') {
+    app.commandLine.appendSwitch('remote-debugging-port', '9222');
+}
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 
+const ownsInstance = app.requestSingleInstanceLock();
+if (!ownsInstance) app.quit();
+app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+    }
+});
+
 const CONFIG_PATH = path.join(app.getPath('userData'), 'bot-config.json');
 
 function loadConfig() {
-    try {
-        if (fs.existsSync(CONFIG_PATH)) {
-            return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-        }
-    } catch (e) {}
-    return {
+    const defaults = {
         enabled: true,
         strategy_mode: 'balanced',
         iv_collection_threshold: 150,
@@ -54,11 +61,24 @@ function loadConfig() {
         auto_travel_deliveries: true,
         auto_travel_surplus_threshold: 5,
     };
+    try {
+        if (fs.existsSync(CONFIG_PATH)) {
+            const saved = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+            if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+                return { ...defaults, ...saved };
+            }
+        }
+    } catch (e) {}
+    return defaults;
 }
 
 function saveConfig(cfg) {
     try {
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 4), 'utf-8');
+        if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return false;
+        fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+        const temporaryPath = CONFIG_PATH + '.tmp';
+        fs.writeFileSync(temporaryPath, JSON.stringify(cfg, null, 4), 'utf-8');
+        fs.renameSync(temporaryPath, CONFIG_PATH);
         return true;
     } catch (e) {
         return false;
@@ -71,7 +91,8 @@ function createWindow() {
         height: 920,
         minWidth: 1040,
         minHeight: 700,
-        title: 'IdleDex Desktop Suite v2.0',
+        title: 'IdleDex Desktop',
+        icon: path.join(__dirname, '../build/icon.png'),
         backgroundColor: '#0a0e17',
         autoHideMenuBar: true,
         show: true,
@@ -164,6 +185,22 @@ ipcMain.handle('save-config', (event, cfg) => {
     return saveConfig(cfg);
 });
 
+let switchingAccount = false;
+ipcMain.handle('switch-account', async event => {
+    if (!mainWindow || event.sender !== mainWindow.webContents ||
+        event.senderFrame !== mainWindow.webContents.mainFrame || switchingAccount) return { ok: false };
+    switchingAccount = true;
+    try {
+        if (!saveConfig({ ...loadConfig(), enabled: false })) throw new Error('Could not save paused state');
+        await resetGameSession(session.fromPartition('persist:idledex'), webContents.getAllWebContents());
+        return { ok: true };
+    } catch (error) {
+        return { ok: false };
+    } finally {
+        switchingAccount = false;
+    }
+});
+
 ipcMain.on('minimize-to-tray', () => {
     if (mainWindow) mainWindow.hide();
 });
@@ -176,6 +213,14 @@ ipcMain.on('toggle-fullscreen', () => {
 
 // App lifecycle
 app.whenReady().then(() => {
+    if (!ownsInstance) return;
+    session.fromPartition('persist:idledex').webRequest.onBeforeRequest(
+        { urls: ['https://accounts.google.com/o/oauth2/*'] },
+        (details, callback) => {
+            const redirectURL = googleAccountChooser(details.url);
+            callback(redirectURL ? { redirectURL } : {});
+        },
+    );
     // Force preload on ALL webviews from main process — guaranteed to run
     // before the webview loads, eliminating JS-based race conditions
     app.on('web-contents-created', (event, contents) => {

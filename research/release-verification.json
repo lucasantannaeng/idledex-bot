@@ -1,0 +1,33 @@
+{
+  "checkedAt": "2026-09-10T00:35:39.903Z",
+  "version": "2.5.0",
+  "sourceMatchesDistribution": true,
+  "smoke": {
+    "passed": true,
+    "checkedAt": "2026-09-10T00:04:25.264Z",
+    "source": "D:\\Projetos\\1.Autorais\\idledex-bot\\dist-desktop\\win-unpacked\\resources\\app",
+    "help": {
+      "tutorialOpen": true,
+      "sections": 34,
+      "closed": true,
+      "missing": [],
+      "quick": "HP inimigo para captura",
+      "inView": true
+    },
+    "accountReset": true,
+    "enabled": false,
+    "catchHp": 0,
+    "label": "BOT PAUSADO",
+    "input": "0"
+  },
+  "hashes": {
+    "electron\\account-session.js": "a181a0dcb40954f7c505bbb286efeb8854dc76c15527d6dbc01dfc79bd65cf3e",
+    "electron\\main.js": "2a4abd5c8da85ff0d01c3726e28013ce25d216732238feac798b6e9b5b90958f",
+    "electron\\preload-dashboard.js": "a926595b874bee324a3a6fba21ec70537e5633b0dbb08be09930794d00f16ef4",
+    "electron\\preload-game.js": "0030668e87f111a81b268d0ff20d6e422b6896b8de5238f5eff5dd6451833ab1",
+    "app\\app.js": "72ca1fb53b4eace0c9066938f3f3eeeaee4d68ac4b2dd2615f7f2bded55e17ac",
+    "app\\help.js": "b65af70a964ab9b044bd07cc1199974d545456d5e5f7db787ce002deb453123f",
+    "app\\index.html": "6926665ffa33a91cf991b0373b7d4dca5ac2b65beed6d076214bc658a6d7a80b",
+    "app\\styles.css": "af267c6132e5e94c1100505657e5934f5f1781c0383c19685683448413ae415e"
+  }
+}

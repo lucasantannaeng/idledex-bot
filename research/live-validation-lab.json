@@ -1,0 +1,703 @@
+{
+  "startedAt": "2026-09-09T02:31:17.152Z",
+  "sent": {
+    "idle:config": 3,
+    "idle:stop": 3,
+    "professor:open": 2,
+    "heal:full": 1,
+    "map:travel": 1,
+    "ping": 6,
+    "box:open": 2,
+    "map:preview": 1
+  },
+  "received": {
+    "idle:state": 3,
+    "professor:state": 2,
+    "state": 1,
+    "wallet": 1,
+    "notice": 1,
+    "team": 3,
+    "shard:redirect": 1,
+    "season:state": 1,
+    "progress:state": 1,
+    "premium:state": 1,
+    "skins:owned": 1,
+    "forms:catalog": 1,
+    "welcome": 1,
+    "shop:catalog": 1,
+    "chat:history": 3,
+    "starter:offer": 1,
+    "raid:state": 1,
+    "social:friend-ids": 1,
+    "news:state": 1,
+    "collector:state": 1,
+    "fountain:state": 1,
+    "pong": 6,
+    "entity:leave": 3,
+    "item-effects:state": 1,
+    "map:preview": 1,
+    "entity:enter": 1,
+    "chat:msg": 9
+  },
+  "errors": [],
+  "moves": [],
+  "lab": [
+    {
+      "direction": "received",
+      "t": "professor:state",
+      "d": {
+        "bronze": 20,
+        "charges": 20,
+        "chargeCap": 40,
+        "msToNextCharge": 264612,
+        "lotSize": 5,
+        "lots": [
+          {
+            "speciesId": 100,
+            "name": "voltorb",
+            "available": 5,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 116,
+            "name": "horsea",
+            "available": 5,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 128,
+            "name": "tauros",
+            "available": 4,
+            "bronzePerCreature": 2,
+            "bronzePerLot": 10
+          },
+          {
+            "speciesId": 16,
+            "name": "pidgey",
+            "available": 2,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 29,
+            "name": "nidoran-f",
+            "available": 2,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 86,
+            "name": "seel",
+            "available": 2,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 114,
+            "name": "tangela",
+            "available": 2,
+            "bronzePerCreature": 2,
+            "bronzePerLot": 10
+          },
+          {
+            "speciesId": 118,
+            "name": "goldeen",
+            "available": 2,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 131,
+            "name": "lapras",
+            "available": 2,
+            "bronzePerCreature": 5,
+            "bronzePerLot": 25
+          }
+        ]
+      }
+    },
+    {
+      "direction": "sent",
+      "t": "map:travel",
+      "d": {
+        "mapId": "route_014"
+      }
+    },
+    {
+      "direction": "received",
+      "t": "professor:state",
+      "d": {
+        "bronze": 20,
+        "charges": 20,
+        "chargeCap": 40,
+        "msToNextCharge": 264611,
+        "lotSize": 5,
+        "lots": [
+          {
+            "speciesId": 100,
+            "name": "voltorb",
+            "available": 5,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 116,
+            "name": "horsea",
+            "available": 5,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 128,
+            "name": "tauros",
+            "available": 4,
+            "bronzePerCreature": 2,
+            "bronzePerLot": 10
+          },
+          {
+            "speciesId": 16,
+            "name": "pidgey",
+            "available": 2,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 29,
+            "name": "nidoran-f",
+            "available": 2,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 86,
+            "name": "seel",
+            "available": 2,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 114,
+            "name": "tangela",
+            "available": 2,
+            "bronzePerCreature": 2,
+            "bronzePerLot": 10
+          },
+          {
+            "speciesId": 118,
+            "name": "goldeen",
+            "available": 2,
+            "bronzePerCreature": 1,
+            "bronzePerLot": 5
+          },
+          {
+            "speciesId": 131,
+            "name": "lapras",
+            "available": 2,
+            "bronzePerCreature": 5,
+            "bronzePerLot": 25
+          }
+        ]
+      }
+    }
+  ],
+  "samples": [
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    },
+    {
+      "connected": true,
+      "inBattle": false,
+      "map": "route_014",
+      "pos": {
+        "x": 50,
+        "y": 90
+      },
+      "enabled": true,
+      "onGrass": false,
+      "autoTravel": {
+        "active": false,
+        "phase": "idle",
+        "originMap": "route_014",
+        "deliveriesDone": 0
+      },
+      "captures": 0,
+      "party": [
+        {
+          "hp": 61,
+          "maxHp": 61
+        },
+        {
+          "hp": 17,
+          "maxHp": 17
+        },
+        {
+          "hp": 20,
+          "maxHp": 20
+        }
+      ],
+      "silver": 19050
+    }
+  ],
+  "finishedAt": "2026-09-09T02:31:47.471Z"
+}
