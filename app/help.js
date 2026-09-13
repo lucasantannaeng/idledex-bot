@@ -14,8 +14,8 @@ const HELP_TOPICS = [
     ]],
     ['radar', 'Radar, criaturas e alvos da área', 'Veja a posição, os encontros próximos e escolha espécies de interesse.', [
         'O radar representa uma região de 20 × 20 tiles em torno do personagem: azul é você, vermelho são criaturas e cinza são outras entidades. A lista próxima vem da telemetria do mapa; não é a lista completa de espécies que podem aparecer.',
-        'Spawns da Área mostra as espécies informadas pelo jogo para a rota atual. Marque as espécies que deseja capturar. Marcar Todos inclui as espécies exibidas; Desmarcar esvazia a lista. Uma lista vazia significa não restringir por espécie, e não desativar todas as capturas.',
-        'As alterações de alvos no Radar são salvas e enviadas ao jogo imediatamente. Filtros de shiny e de não registrados continuam valendo. Use Não Selecionados para escolher entre lutar por XP e fugir dos encontros fora dos filtros.'
+        'Spawns da Área mostra as espécies informadas pelo jogo para a rota atual. Use Marcar Todos para caçar todas as espécies da área (modo all); use Desmarcar Todos para não focar em nenhuma espécie comum da área (modo none, focando apenas em Shinies prioritários ou não registrados se ativos); ou selecione individualmente as espécies desejadas (modo selected).',
+        'As alterações de alvos no Radar são salvas de forma consistente e enviadas ao jogo após persistência. Variantes Shinies continuam com prioridade máxima absoluta de captura independente do modo de alvos da área. Use Não Selecionados para escolher entre lutar por XP e fugir dos encontros fora dos filtros.'
     ]],
     ['combat', 'Batalha e avaliação da captura', 'Acompanhe HP, ações e a qualidade da última captura.', [
         'O painel de batalha acompanha os participantes e seus pontos de vida. O motor aguarda a janela de ação e a permissão de arremesso do jogo; durante animações, é normal não enviar outro comando. Os percentuais nas configurações são relativos ao HP máximo.',
@@ -41,6 +41,7 @@ const HELP_TOPICS = [
     ]],
     ['cfg-catch', 'HP inimigo para captura', 'Tenta capturar quando o HP do alvo chega ao limiar.', [
         'Escolha de 10 a 90%. Com 50, um alvo de 100 HP se torna candidato ao arremesso ao chegar a 50 HP ou menos. Antes disso, o motor pode atacar para reduzir a vida.',
+        'Alvos prioritários (Shinies, alvos com grande desvantagem de nível onde qualquer golpe causaria nocaute, ou espécies inéditas de nível baixo) recebem arremesso direto sem ataque prévio.',
         'A espécie precisa passar pelos filtros de captura, deve haver uma esfera disponível e o jogo precisa permitir o arremesso. Um limiar alto antecipa tentativas e pode consumir mais esferas; um limiar baixo aumenta a exposição a derrotar o alvo.'
     ]],
     ['cfg-ball-priority', 'Prioridade de esferas', 'Equilibra economia e força das esferas disponíveis.', [
@@ -84,8 +85,8 @@ const HELP_TOPICS = [
         'Com a opção desativada, você pode mover o personagem manualmente; combate e outras automações continuam sujeitos ao estado geral do bot. Pausar Bot interrompe o motor como um todo.'
     ]],
     ['cfg-roam-delay', 'Intervalo entre passos', 'Controla o ritmo de solicitação de movimento.', [
-        'Use de 150 a 1000 milissegundos, em passos de 50. O padrão de 300 ms corresponde a cerca de três decisões de movimento por segundo quando a patrulha está livre.',
-        'Um valor menor não aumenta necessariamente a velocidade permitida pelo servidor. Se houver instabilidade, aumente o intervalo e observe a posição no Radar.'
+        'Use de 220 a 1000 milissegundos, em passos de 10 ou 50. O padrão de 300 ms corresponde a cerca de três decisões de movimento por segundo quando a patrulha está livre.',
+        'Um valor menor que 220 ms é bloqueado porque o motor oficial do cliente impõe um limite rígido de 200 ms por passo (Cn = 200 ms). Se houver instabilidade ou descompasso, aumente o intervalo e observe a posição no Radar.'
     ]],
     ['cfg-auto-route-switch', 'Troca automática de rota', 'Avança de rota quando os alvos estão registrados.', [
         'Ative para avançar sequencialmente entre rotas ao concluir as espécies da seleção, ou as espécies da rota quando não há seleção. A decisão depende da prévia atualizada do mapa.',
@@ -135,6 +136,11 @@ const HELP_TOPICS = [
     ['cfg-auto-boosts', 'Ativação automática de boosts', 'Permite consumir reforços disponíveis.', [
         'Ative para autorizar o motor a usar boosts como shiny e XP conforme estoque e estado do jogo. O efeito e a duração são definidos pelo jogo.',
         'Como são consumíveis, deixe desativado se pretende reservar os itens para outro momento. A presença de um contador na Mochila não significa que aquele boost já esteja ativo.'
+    ]],
+    ['cfg-close-to-tray', 'Minimizar para bandeja ao fechar', 'Oculta a janela na bandeja do sistema ao clicar no botão de fechar [X].', [
+        'Quando ativado, fechar a janela pelo botão [X] não encerra a aplicação nem a automação, apenas oculta a janela na bandeja do sistema (próximo ao relógio do Windows).',
+        'Para reabrir o aplicativo, clique no ícone da Pokébola na bandeja ou selecione Restaurar no menu de contexto.',
+        'Para encerrar completamente o aplicativo quando esta opção estiver ativa, use a opção "Sair Completamente" no menu de contexto do ícone da bandeja.'
     ]],
     ['save', 'Salvar e personalizar ajustes', 'Grava as opções e as envia ao motor.', [
         'Os campos de Config são uma edição em andamento. Clique em Salvar Ajustes para persistir no computador e aplicar ao jogo. Ao recarregar, o painel usa a última configuração salva.',
@@ -222,8 +228,8 @@ function initializeHelp() {
     for (const panel of ['combat', 'stats', 'inventory']) {
         for (const heading of document.querySelectorAll('#panel-' + panel + ' .card-title')) addHelp(heading, panel);
     }
-    for (const button of document.querySelectorAll('#panel-radar button[onclick^="selectAllAreaSpecies"]')) addHelp(button, 'radar');
-    addHelp(document.querySelector('button[onclick="clearLogs()"]'), 'logs');
+    for (const button of document.querySelectorAll('#panel-radar button[onclick^="selectAllAreaSpecies"], #btn-select-all-species, #btn-deselect-all-species')) addHelp(button, 'radar');
+    addHelp(document.querySelector('#btn-clear-logs, button[onclick="clearLogs()"]'), 'logs');
     document.getElementById('btn-tutorial').addEventListener('click', () => show(null, true));
     document.getElementById('help-close').addEventListener('click', () => dialog.close());
     dialog.addEventListener('close', () => returnFocus?.focus());

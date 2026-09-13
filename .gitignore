@@ -34,6 +34,8 @@ _agy_prompt.txt
 *.pem
 *.cert
 credentials.json
+config.json
+!config.example.json
 
 # Binaries & Packaging Outputs
 *.exe

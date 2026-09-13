@@ -1,0 +1,19 @@
+HTTP/1.1 101 Switching Protocols
+Date: Wed, 09 Sep 2026 13:26:42 GMT
+Connection: upgrade
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Headers: upgrade, connection, host, user-agent, accept, accept-encoding, origin, sec-websocket-key, sec-websocket-version, x-real-ip, x-forwarded-for, cdn-loop, cf-connecting-ip, cf-ipcountry, cf-ray, cf-visitor, x-forwarded-host, x-forwarded-port, x-forwarded-proto, x-forwarded-server
+Access-Control-Allow-Methods: GET
+Access-Control-Expose-Headers: upgrade, connection, host, user-agent, accept, accept-encoding, origin, sec-websocket-key, sec-websocket-version, x-real-ip, x-forwarded-for, cdn-loop, cf-connecting-ip, cf-ipcountry, cf-ray, cf-visitor, x-forwarded-host, x-forwarded-port, x-forwarded-proto, x-forwarded-server
+Referrer-Policy: strict-origin-when-cross-origin
+Sec-Websocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
+Server: cloudflare
+Upgrade: websocket
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+cf-cache-status: DYNAMIC
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=rPoQL3rmjBNQ%2Bv2PvqTpxjtSe8Kmm4F9XWpdDLFShC3BD0oGn%2Bo%2Bng82wSkb6Q7bfEh5869S1BEsZ6pffDy1f37y4JtjSg2Fv1whWYnAGWM1dJXzWcUkvJUxe%2F15wYqXyvECVLjxDIYpMw%3D%3D"}]}
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+CF-RAY: a38686b45cb82a36-GIG
+alt-svc: h3=":443"; ma=86400
+

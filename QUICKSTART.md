@@ -1,6 +1,6 @@
-﻿# Início rápido
+# Início rápido
 
-1. Abra `dist-desktop/win-unpacked/IdleDex_Desktop.exe`.
+1. Abra `dist-release/win-unpacked/IdleDex_Desktop.exe`.
 2. Faça login no jogo embutido e entre no mapa.
 3. Revise captura, recuperação, descarte e entregas nas configurações.
 4. Salve e confirme a mensagem de sucesso.

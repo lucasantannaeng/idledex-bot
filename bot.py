@@ -11,6 +11,8 @@ import struct
 import sys
 import threading
 import time
+import secrets
+import urllib.parse
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -152,44 +154,121 @@ def parse_binary_frame(data: bytes) -> Optional[dict]:
 # ============================================================================
 # HTTP DASHBOARD SERVER
 # ============================================================================
+dashboard_auth_token: Optional[str] = None
+
+
 class DashboardHandler(BaseHTTPRequestHandler):
-    """Exposes REST API and serves local dashboard UI."""
+    """Exposes REST API and serves local dashboard UI with loopback security."""
+
+    def _is_allowed_host(self) -> bool:
+        host = self.headers.get("Host", "")
+        if not host:
+            return False
+        hostname = host.split(":")[0].strip().lower()
+        return hostname in ("127.0.0.1", "localhost")
+
+    def _get_allowed_origin(self) -> Optional[str]:
+        origin = self.headers.get("Origin")
+        if not origin:
+            return None
+        try:
+            parsed = urllib.parse.urlparse(origin)
+            if parsed.scheme in ("http", "https") and parsed.hostname in ("127.0.0.1", "localhost"):
+                return origin
+        except Exception:
+            pass
+        return None
+
+    def _is_authenticated(self, payload: Any = None) -> bool:
+        expected = getattr(getattr(self, "server", None), "auth_token", None) or globals().get("dashboard_auth_token")
+        if not expected:
+            return True
+        token = self.headers.get("X-Auth-Token")
+        if not token:
+            auth_header = self.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:].strip()
+        if not token:
+            cookie_header = self.headers.get("Cookie", "")
+            for part in cookie_header.split(";"):
+                if "=" in part:
+                    k, v = part.strip().split("=", 1)
+                    if k == "dashboard_token":
+                        token = v
+                        break
+        if not token and isinstance(payload, dict):
+            token = payload.get("auth_token")
+        return bool(token and secrets.compare_digest(str(token), str(expected)))
 
     def _send_json(self, status: int, payload: Any):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        allowed_origin = self._get_allowed_origin()
+        if allowed_origin:
+            self.send_header("Access-Control-Allow-Origin", allowed_origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Auth-Token, Authorization")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
     def do_OPTIONS(self):
+        if not self._is_allowed_host():
+            self.send_response(400)
+            self.end_headers()
+            return
+        origin = self.headers.get("Origin")
+        if origin and not self._get_allowed_origin():
+            self.send_response(403)
+            self.end_headers()
+            return
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        allowed_origin = self._get_allowed_origin()
+        if allowed_origin:
+            self.send_header("Access-Control-Allow-Origin", allowed_origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Auth-Token, Authorization")
         self.end_headers()
 
     def do_GET(self):
+        if not self._is_allowed_host():
+            self.send_response(400)
+            self.end_headers()
+            return
+        origin = self.headers.get("Origin")
+        if origin and not self._get_allowed_origin():
+            self.send_response(403)
+            self.end_headers()
+            return
+
         clean_path = self.path.split("?")[0]
         bot = globals().get("current_bot")
+        auth_token = getattr(getattr(self, "server", None), "auth_token", None) or globals().get("dashboard_auth_token")
 
         if clean_path in ("/", "/dashboard"):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            if auth_token:
+                self.send_header("Set-Cookie", f"dashboard_token={auth_token}; Path=/; SameSite=Strict; HttpOnly")
             self.end_headers()
             try:
                 with open(resolve_resource("dashboard.html"), "rb") as f:
-                    self.wfile.write(f.read())
+                    html_content = f.read().decode("utf-8", errors="ignore")
+                    if auth_token and "</body>" in html_content:
+                        injection = f'<script>window.__DASHBOARD_AUTH_TOKEN__ = "{auth_token}";</script></body>'
+                        html_content = html_content.replace("</body>", injection, 1)
+                    self.wfile.write(html_content.encode("utf-8"))
             except Exception as e:
                 self.wfile.write(f"<h2>Dashboard HTML missing: {e}</h2>".encode())
 
         elif clean_path == "/visualizer":
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            if auth_token:
+                self.send_header("Set-Cookie", f"dashboard_token={auth_token}; Path=/; SameSite=Strict; HttpOnly")
             self.end_headers()
             try:
                 with open(resolve_resource("visualizer.html"), "rb") as f:
@@ -218,22 +297,57 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        clean_path = self.path.split("?")[0]
-        bot = globals().get("current_bot")
+        if not self._is_allowed_host():
+            self.send_response(400)
+            self.end_headers()
+            return
+        origin = self.headers.get("Origin")
+        if origin and not self._get_allowed_origin():
+            self.send_response(403)
+            self.end_headers()
+            return
 
-        length = int(self.headers.get("Content-Length", 0))
+        MAX_BODY_SIZE = 65536
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            self._send_json(400, {"ok": False, "error": "Invalid Content-Length"})
+            return
+
+        if length > MAX_BODY_SIZE:
+            self.close_connection = True
+            try:
+                discarded = 0
+                while discarded < length and discarded < 1048576:
+                    chunk = self.rfile.read(min(length - discarded, 65536))
+                    if not chunk:
+                        break
+                    discarded += len(chunk)
+            except Exception:
+                pass
+            self._send_json(413, {"ok": False, "error": "Payload Too Large"})
+            return
+
         raw_body = self.rfile.read(length).decode("utf-8", errors="ignore") if length > 0 else "{}"
         try:
             payload = json.loads(raw_body) if raw_body else {}
         except Exception:
-            payload = {}
+            self._send_json(400, {"ok": False, "error": "Invalid JSON format"})
+            return
+
+        clean_path = self.path.split("?")[0]
+        if clean_path in ("/api/token", "/api/config", "/api/connect", "/api/disconnect"):
+            if not self._is_authenticated(payload):
+                self._send_json(401, {"ok": False, "error": "Unauthorized: missing or invalid authentication token"})
+                return
+
+        bot = globals().get("current_bot")
 
         if clean_path == "/api/token":
-            # Token submission endpoint
             token_input = payload.get("token") or payload.get("cookies", {}).get("__Secure-better-auth.session_token", "")
             if not token_input and isinstance(payload.get("cookies"), str):
                 token_input = payload.get("cookies")
-            
+
             clean_token = clean_session_token(str(token_input))
             if not clean_token:
                 self._send_json(400, {"ok": False, "error": "Token vazio ou inválido"})
@@ -249,7 +363,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(500, {"ok": False, "error": "Bot instance offline"})
 
         elif clean_path == "/api/config":
-            # Config update endpoint
             if bot:
                 bot.config.update(payload)
                 log_event("⚙️ Configurações salvas e aplicadas!", "info")
@@ -278,14 +391,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
         pass  # Suppress verbose standard HTTP request logs
 
 
-def start_http_dashboard(port: int = 8080) -> HTTPServer:
-    """Start the dashboard web server on specified port with fallback."""
+def start_http_dashboard(port: int = 8080, host: str = "127.0.0.1") -> HTTPServer:
+    """Start the dashboard web server on specified loopback port with fallback."""
+    global dashboard_auth_token
+    if not dashboard_auth_token:
+        dashboard_auth_token = secrets.token_hex(16)
+
     for p in range(port, port + 10):
         try:
-            server = HTTPServer(("0.0.0.0", p), DashboardHandler)
+            server = HTTPServer((host, p), DashboardHandler)
+            server.auth_token = dashboard_auth_token
+            server.timeout = 5.0
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
-            log_event(f"🌐 Dashboard HTTP ativo em http://localhost:{p}/dashboard", "success")
+            log_event(f"🌐 Dashboard HTTP ativo em http://{host}:{p}/dashboard", "success")
             return server
         except OSError:
             log.warning(f"Porta {p} ocupada, tentando {p+1}...")

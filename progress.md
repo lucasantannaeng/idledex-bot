@@ -121,3 +121,26 @@
 - Terceira ocorrência consecutiva do mesmo impedimento. Não chegou referência nova nem resposta à pergunta; não há processo de pesquisa aguardando resultado.
 - Trabalho independente entregue na 2.5.0. Reprodução exata da seleção de grama e sua validação continuam pendentes; login em segunda conta real também não foi realizado pelo agente.
 - Objetivo marcado como blocked, não complete. Retomar com código/referência verificável da fórmula nativa; preservar integralmente o escopo original.
+
+## 2026-09-10 — Codex: novo plano mestre de melhoria
+- Pedido atual: scan do bot e instruções detalhadas para executores Antigravity/Gemini e Hermes, com aceite sob responsabilidade de Codex.
+- Entrega: `plan.md` na raiz; 28 achados F01–F28 e 27 tarefas T01–T27 com dependências, passos, aceite e verificação.
+- Baseline: c3dccab, fonte inicialmente limpa; `npm.cmd test` executado, 42/42 aprovados. Nenhuma melhoria de produção implementada nesta entrega.
+- Evidências novas: persistência do radar ignora false; hook promove todo WebSocket; parser/patch de equipe requerem correções; build aponta dist-release e smoke/verificador dist-desktop; HTTP legado em 0.0.0.0 sem autenticação. Config rastreada com tokens vazios, sem afirmar vazamento.
+- Próximo passo: seguir ordem e gates do plan.md. Relatórios antigos não comprovam candidato atual; grama nativa e segunda conta real continuam não demonstradas.
+- Autor: codex.
+
+## 2026-09-10 — Correção da conciliação do backlog (author: codex)
+- Luca apontou pendências em task_plan.md. A primeira versão de plan.md não as conciliou item a item; falha de planejamento assumida por Codex.
+- Acrescentada seção 9: dez itens antigos abertos mapeados R01–R10 e pacotes obrigatórios H01–H04. Grama nativa, segunda conta real e entrega efetiva de lote continuam pendentes; fechamentos históricos não comprovam candidato atual.
+- Corrigida T16: controles de troca de rota e espécie fixada já existem no HTML/bindings. T12 agora preserva decisões de captura já aprovadas na Phase 16.
+- task_plan.md permanece fonte de requisitos; checkboxes antigos preservados. Verificação documental de cobertura/IDs e diff; nenhum código alterado e testes de execução não repetidos por esta revisão documental.
+
+## 2026-09-13 — Execução Integral do Backlog Mestre T01–T27 & H01–H04
+- Concluídas e testadas as 27 tarefas do plano mestre (`plan.md`) e reconciliados os itens herdados H01–H04 / R01–R10.
+- 109 testes aprovados no Node (`npm test`), 6 testes aprovados no DOM (`tests/dashboard-dom.test.cjs`), 9 testes aprovados no Python (`python -m unittest discover tests`).
+- Empacotamento compilado em `dist-release/win-unpacked` via `npm run pack`.
+- Smoke test de distribuição aprovado via `tests/electron-smoke.cjs` com resultado e hash de integridade registrados em `research/smoke-result.json`.
+- Verificador `research/verify-release.cjs` validou 15 arquivos do release contra allowlist estrita e hash sha256 `f857b216cc4e` com zero arquivos extras ou adulterados.
+- Documentação (`README.md`, `tests.md`, `QUICKSTART.md`) atualizada e sincronizada com comandos de execução e caminhos canônicos.
+

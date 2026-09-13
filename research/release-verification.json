@@ -1,14 +1,34 @@
 {
-  "checkedAt": "2026-09-10T00:35:39.903Z",
+  "checkedAt": "2026-09-13T04:37:40.501Z",
   "version": "2.5.0",
   "sourceMatchesDistribution": true,
+  "candidatePath": "dist-release/win-unpacked/resources/app",
+  "candidateHash": "f857b216cc4ec9abc24b4b1fcc4098442f4794a64c1cd7a73e071e7cc129182f",
+  "shippedFileCount": 15,
+  "hashes": {
+    "electron/account-session.js": "a181a0dcb40954f7c505bbb286efeb8854dc76c15527d6dbc01dfc79bd65cf3e",
+    "electron/config-schema.js": "570dd06ea65650a293bc903ec71fa4c0c4a04e8f5932bf3ced28304dca79caa8",
+    "electron/icon.ico": "927ee25d59681a2ac4afec9e586b7bbf9b8ceb87528be1d14cc4e5aa5b6dcf0f",
+    "electron/icon.png": "66c6b57ddff4a6f8a27736770f4c9087ffa4c3aee6ad6f14847c480e71bf9296",
+    "electron/main.js": "0dc0188024508d22745e7bf2ae5a544eb3019a443f658d9dcb80f3eb9c401acf",
+    "electron/preload-dashboard.js": "a926595b874bee324a3a6fba21ec70537e5633b0dbb08be09930794d00f16ef4",
+    "electron/preload-game.js": "b3b2f2926bd3f5720ab77f17454be7e218efb9cdcf81635ccce98704aa033635",
+    "electron/tray-icon.ico": "927ee25d59681a2ac4afec9e586b7bbf9b8ceb87528be1d14cc4e5aa5b6dcf0f",
+    "electron/tray-icon.png": "8c8f7cd81237ad15cac46d11a5f0f1324aa4fdd5d9b531b7e84330575ff2d5e3",
+    "app/app.js": "c11ac691e863d7ea5f8c2ee1cbc164e12b8dce674b27a1f1b3d2e005b18623df",
+    "app/help.js": "5d1805a77143ec54de30535ea06dd107cacf6fceb466444519a59cdd40c6e6a5",
+    "app/icon.png": "66c6b57ddff4a6f8a27736770f4c9087ffa4c3aee6ad6f14847c480e71bf9296",
+    "app/index.html": "15ec053d9b8a0ff14d1f545f4cb4084761d82f87725586e71f87d53223d1d514",
+    "app/styles.css": "af267c6132e5e94c1100505657e5934f5f1781c0383c19685683448413ae415e"
+  },
   "smoke": {
     "passed": true,
-    "checkedAt": "2026-09-10T00:04:25.264Z",
-    "source": "D:\\Projetos\\1.Autorais\\idledex-bot\\dist-desktop\\win-unpacked\\resources\\app",
+    "checkedAt": "2026-09-13T04:35:21.900Z",
+    "source": "D:\\Projetos\\1.Autorais\\idledex-bot\\dist-release\\win-unpacked\\resources\\app",
+    "candidateHash": "f857b216cc4ec9abc24b4b1fcc4098442f4794a64c1cd7a73e071e7cc129182f",
     "help": {
       "tutorialOpen": true,
-      "sections": 34,
+      "sections": 35,
       "closed": true,
       "missing": [],
       "quick": "HP inimigo para captura",
@@ -19,15 +39,5 @@
     "catchHp": 0,
     "label": "BOT PAUSADO",
     "input": "0"
-  },
-  "hashes": {
-    "electron\\account-session.js": "a181a0dcb40954f7c505bbb286efeb8854dc76c15527d6dbc01dfc79bd65cf3e",
-    "electron\\main.js": "2a4abd5c8da85ff0d01c3726e28013ce25d216732238feac798b6e9b5b90958f",
-    "electron\\preload-dashboard.js": "a926595b874bee324a3a6fba21ec70537e5633b0dbb08be09930794d00f16ef4",
-    "electron\\preload-game.js": "0030668e87f111a81b268d0ff20d6e422b6896b8de5238f5eff5dd6451833ab1",
-    "app\\app.js": "72ca1fb53b4eace0c9066938f3f3eeeaee4d68ac4b2dd2615f7f2bded55e17ac",
-    "app\\help.js": "b65af70a964ab9b044bd07cc1199974d545456d5e5f7db787ce002deb453123f",
-    "app\\index.html": "6926665ffa33a91cf991b0373b7d4dca5ac2b65beed6d076214bc658a6d7a80b",
-    "app\\styles.css": "af267c6132e5e94c1100505657e5934f5f1781c0383c19685683448413ae415e"
   }
 }

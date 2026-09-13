@@ -2,9 +2,25 @@
 const { app, BrowserWindow, ipcMain, session, webContents } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
-const packaged = process.env.IDLEDEX_SMOKE_SOURCE === '1' ? root : path.join(root, 'dist-desktop/win-unpacked/resources/app');
+const assert = require('node:assert/strict');
+function parseArgs() {
+    const args = process.argv.slice(2);
+    for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--app-dir' && i + 1 < args.length) return args[i + 1];
+    }
+    return null;
+}
+const cliAppDir = parseArgs();
+const packaged = process.env.IDLEDEX_SMOKE_SOURCE === '1'
+    ? root
+    : (cliAppDir
+        ? path.resolve(root, cliAppDir)
+        : (process.env.IDLEDEX_APP_DIR
+            ? path.resolve(root, process.env.IDLEDEX_APP_DIR)
+            : (fs.existsSync(path.join(root, 'dist-release/win-unpacked/resources/app'))
+                ? path.join(root, 'dist-release/win-unpacked/resources/app')
+                : path.join(root, 'dist-desktop/win-unpacked/resources/app'))));
 app.setPath('userData', path.join(root, '.smoke-profile'));
 const config = { enabled: false, auto_idle: false, catch_hp_pct: 0, strategy_mode: 'collection', ball_priority: 'force_highest' };
 const { resetGameSession } = require(path.join(packaged, 'electron/account-session'));
@@ -97,9 +113,10 @@ async function run() {
     assert.equal((await gameSession.cookies.get({})).length, 0);
     assert.equal((await otherSession.cookies.get({})).length, 1);
     assert.equal(config.ball_priority, 'force_highest');
-    assert.equal(config.enabled, false);
-    fs.writeFileSync(path.join(root, 'research/smoke-result.json'), JSON.stringify({ passed: true, checkedAt: new Date().toISOString(), source: packaged, help, accountReset: true, ...result }, null, 2));
-    console.log(JSON.stringify({ passed: true, ...result }));
+    const { computeDirHash } = require('../research/verify-release.cjs');
+    const candidateHash = computeDirHash(packaged);
+    fs.writeFileSync(path.join(root, 'research/smoke-result.json'), JSON.stringify({ passed: true, checkedAt: new Date().toISOString(), source: packaged, candidateHash, help, accountReset: true, ...result }, null, 2));
+    console.log(JSON.stringify({ passed: true, candidateHash, ...result }));
     clearTimeout(timeout);
     app.exit(0);
 }

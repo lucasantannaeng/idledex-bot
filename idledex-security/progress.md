@@ -1,0 +1,4 @@
+# Progresso
+2026-09-09 13:46 UTC: usuário autorizou usar conta de teste do bot. Perfil persist:idledex consultado por Electron; get-session confirmou sessão autenticada. Cookie Secure/HttpOnly/SameSite=Lax. Nenhum valor de credencial exportado. Bloqueio de acesso a uma conta resolvido; segunda conta ainda indisponível para testes entre jogadores.
+2026-09-09, complemento: service worker revisado estaticamente; navegação de notificações restrita à mesma origem; configuração pública de push desabilitada; notificação com ID fictício rejeitada sem sessão. Evidências incorporadas ao relatório. Contas de teste ainda não fornecidas.
+2026-09-09: autorização confirmada pelo usuário. Coleta pública e testes sem sessão concluídos. Relatório parcial criado. Contas de teste e homologação solicitadas para próxima etapa. Sem processos de scan ativos.

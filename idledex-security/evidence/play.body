@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- §9.3: igual ao site de referência; §9.1: unidades dinâmicas -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="application-name" content="IdleDex" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="IdleDex" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- quem indexa é a landing (/); o jogo é área logada e não tem conteúdo
+         para busca (F12) -->
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180x180.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <title>IdleDex</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0a0a0a;
+        color: #fff;
+        font-family: "Inter", system-ui, sans-serif;
+        overflow: hidden;
+        overscroll-behavior: none; /* §9.1: página não tem scroll */
+        /*
+         * Nada de seleção nem do menu "Copiar/Consultar" no toque longo: o jogo
+         * usa segurar-o-dedo como GESTO (tooltip da criatura, arraste na Box), e
+         * o callout do iOS aparecia por cima interrompendo o gesto — o jogador
+         * tentava ver os stats e ganhava a lupa de seleção de texto.
+         *
+         * `-webkit-touch-callout` é o que mata o menu no iOS; `user-select`
+         * sozinho não basta. O que PRECISA ser selecionável (chat, campos de
+         * texto) reativa explicitamente — ver `.hud-selectable` no hud.css.
+         */
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      /* Campo de texto SEMPRE selecionável: sem isto o jogador não consegue
+         posicionar o cursor nem corrigir o que digitou. */
+      input,
+      textarea {
+        -webkit-touch-callout: default;
+        -webkit-user-select: text;
+        user-select: text;
+      }
+      /* canvas full-bleed (§9.1): nunca dentro de container com margens */
+      #game {
+        position: fixed;
+        inset: 0;
+        width: 100dvw;
+        height: 100dvh;
+      }
+      #game canvas {
+        image-rendering: pixelated;
+        touch-action: none;
+      }
+      /* HUD React ABSOLUTO por cima do canvas */
+      #root {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 10;
+      }
+      #root button,
+      #root input,
+      #root form {
+        pointer-events: auto;
+      }
+
+      .hud-dim {
+        opacity: 0.7;
+      }
+      .hud-center {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        opacity: 0.8;
+      }
+
+      /* O login saiu daqui na F12: ele é a primeira dobra da landing (apps/landing).
+         Sem sessão, o App manda para lá; com motivo (banido, moderação, ticket
+         vencido), mostra o SessionEndedPanel antes de sair. */
+
+      /* O feed e o toast de batalha vivem em hud.css, junto do resto da HUD.
+         Estavam DUPLICADOS aqui: o `top` daqui somado ao `bottom` de lá esticava
+         o toast num tarjão vertical na tela inteira. */
+      /* ── equipe (F6) ── */
+      .team-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: grid;
+        place-items: center;
+        pointer-events: auto;
+        z-index: 15;
+      }
+      .team-panel {
+        background: #111;
+        border: 1px solid #444;
+        width: min(560px, 94vw);
+        max-height: 84dvh;
+        overflow-y: auto;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .team-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .team-card {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        border: 1px solid #333;
+        padding: 8px;
+      }
+      .team-card.leader {
+        border-color: #4ade80;
+      }
+      .team-sprite {
+        width: 64px;
+        height: 64px;
+        background-size: 256px 256px;
+        background-position: 0 0;
+        background-repeat: no-repeat;
+        image-rendering: pixelated;
+        flex-shrink: 0;
+      }
+      .team-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 12px;
+        min-width: 0;
+      }
+      .team-badge {
+        margin-left: 8px;
+        color: #4ade80;
+        border: 1px solid #4ade80;
+        font-size: 10px;
+        padding: 1px 6px;
+      }
+      .team-hp {
+        font-size: 12px;
+      }
+      .team-meta {
+        font-size: 11px;
+        overflow-wrap: anywhere;
+      }
+      .team-card-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+      /* modal de evolução (F8) — mesmo 9-slice do .modal */
+      .evolve-modal {
+        width: min(360px, 88vw);
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+      }
+      .evolve-body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+      }
+      .evolve-arrow {
+        font-size: 22px;
+        color: #facc15;
+      }
+      .evolve-text {
+        font-size: 12px;
+      }
+      .evolve-actions {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-DwmEwqo-.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DsD01_IJ.css">
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="root"></div>
+  </body>
+</html>

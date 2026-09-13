@@ -11,6 +11,8 @@ let botEnabled = true;
 let currentConfig = null;
 let lastTelemetry = null;
 let currentTargetSpecies = [];
+let currentTargetMode = 'all'; // 'all' | 'selected' | 'none'
+let saveRevision = 0;
 let lastRenderedMapId = "";
 let gameReady = false;
 
@@ -106,6 +108,37 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // Render Initial Empty Radar Grid
     drawRadar([], { x: 0, y: 0 });
+
+    // Bind event listeners for UI buttons and controls (T04 CSP / no inline handlers)
+    document.getElementById('btn-switch-account')?.addEventListener('click', switchAccount);
+    document.getElementById('btn-toggle-bot')?.addEventListener('click', toggleBotState);
+    document.getElementById('btn-toggle-sidebar')?.addEventListener('click', toggleSidebar);
+    document.getElementById('btn-minimize-tray')?.addEventListener('click', minimizeToTray);
+
+    document.querySelectorAll('.sidebar-tabs .s-tab').forEach(tab => {
+        const panel = tab.getAttribute('data-panel');
+        if (panel) {
+            tab.addEventListener('click', () => switchPanel(panel));
+        }
+    });
+
+    const unselectedRadar = document.getElementById('cfg-unselected-action-radar');
+    unselectedRadar?.addEventListener?.('change', (e) => onRadarUnselectedActionChange(e.target.value));
+    document.getElementById('btn-select-all-species')?.addEventListener?.('click', () => selectAllAreaSpecies(true));
+    document.getElementById('btn-deselect-all-species')?.addEventListener?.('click', () => selectAllAreaSpecies(false));
+
+    const cfgStrategy = document.getElementById('cfg-strategy');
+    cfgStrategy?.addEventListener?.('change', (e) => onStrategyChange(e.target.value));
+
+    const discardRange = document.getElementById('cfg-discard-iv-pct');
+    const discardLbl = document.getElementById('lbl-discard-iv-pct');
+    if (discardRange && discardLbl) {
+        discardRange.addEventListener?.('input', () => {
+            discardLbl.textContent = `${discardRange.value}%`;
+        });
+    }
+    document.getElementById('btn-save-settings')?.addEventListener?.('click', saveBotSettings);
+    document.getElementById('btn-clear-logs')?.addEventListener?.('click', clearLogs);
 });
 
 // --- 2. TELEMETRY & DATA DISPATCH ---
@@ -114,9 +147,24 @@ function handleTelemetry(data) {
     if (!data) return;
     lastTelemetry = data;
 
-    // Update Bot Status Pill
-    if (data.config && data.config.enabled !== undefined && data.config.enabled !== botEnabled) {
-        setBotEnabledState(data.config.enabled);
+    // Update Bot Status Pill & persist auto-pause
+    if (data.config && data.config.enabled !== undefined) {
+        const autoIdle = !data.config.enabled && !!data.config.auto_idle;
+        if (data.config.enabled !== botEnabled) {
+            setBotEnabledState(data.config.enabled, autoIdle);
+            // If the bot auto-paused (e.g. out of balls, lab error), persist it to disk
+            if (!data.config.enabled && currentConfig && currentConfig.enabled) {
+                currentConfig.enabled = false;
+                if (window.electronAPI && window.electronAPI.saveConfig) {
+                    window.electronAPI.saveConfig(currentConfig).catch(() => {});
+                }
+            }
+        } else if (!data.config.enabled && pillText) {
+            const expectedText = autoIdle ? 'BOT PAUSADO (AUTO DO JOGO ATIVO)' : 'BOT PAUSADO';
+            if (pillText.textContent !== expectedText) {
+                pillText.textContent = expectedText;
+            }
+        }
     }
 
     // Shard / Map indicator
@@ -268,15 +316,18 @@ function updateEntitiesList(entities, playerPos) {
     if (!entitiesList) return;
 
     if (!Array.isArray(entities) || entities.length === 0) {
-        entitiesList.innerHTML = '<div style="color:var(--text-dim);">Nenhuma entidade detectada no alcance.</div>';
+        const emptyDiv = document.createElement('div');
+        emptyDiv.style.color = 'var(--text-dim)';
+        emptyDiv.textContent = 'Nenhuma entidade detectada no alcance.';
+        entitiesList.replaceChildren(emptyDiv);
         return;
     }
 
-    const px = playerPos && playerPos.x !== null ? playerPos.x : 0;
-    const py = playerPos && playerPos.y !== null ? playerPos.y : 0;
+    const px = playerPos && Number.isFinite(playerPos.x) ? playerPos.x : 0;
+    const py = playerPos && Number.isFinite(playerPos.y) ? playerPos.y : 0;
 
     const enemies = entities
-        .filter(e => e.is_enemy && e.x !== null && e.y !== null)
+        .filter(e => e && e.is_enemy && Number.isFinite(e.x) && Number.isFinite(e.y))
         .map(e => {
             const dist = Math.abs(e.x - px) + Math.abs(e.y - py);
             return { ...e, dist };
@@ -284,21 +335,34 @@ function updateEntitiesList(entities, playerPos) {
         .sort((a, b) => a.dist - b.dist);
 
     if (enemies.length === 0) {
-        entitiesList.innerHTML = '<div style="color:var(--text-dim);">Área limpa de criaturas selvagens.</div>';
+        const emptyDiv = document.createElement('div');
+        emptyDiv.style.color = 'var(--text-dim)';
+        emptyDiv.textContent = 'Área limpa de criaturas selvagens.';
+        entitiesList.replaceChildren(emptyDiv);
         return;
     }
 
-    let html = '';
+    const fragment = document.createDocumentFragment();
     for (const foe of enemies.slice(0, 6)) {
-        const cleanName = foe.name.replace(/^Wild:\s*/i, '').replace(/^Foe:\s*/i, '');
-        html += `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(15,23,42,0.6); padding:4px 8px; border-radius:4px; border-left:2px solid var(--rose);">
-                <span style="color:var(--text-bright); font-weight:500;">${escapeHtml(cleanName)}</span>
-                <span style="font-family:var(--font-mono); color:var(--cyan); font-size:0.72rem;">${foe.dist}m (${foe.x}, ${foe.y})</span>
-            </div>
-        `;
+        const rawName = String(foe.name || 'Desconhecido');
+        const cleanName = rawName.replace(/^Wild:\s*/i, '').replace(/^Foe:\s*/i, '');
+
+        const container = document.createElement('div');
+        container.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:rgba(15,23,42,0.6); padding:4px 8px; border-radius:4px; border-left:2px solid var(--rose);';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.style.cssText = 'color:var(--text-bright); font-weight:500;';
+        nameSpan.textContent = cleanName;
+
+        const metaSpan = document.createElement('span');
+        metaSpan.style.cssText = 'font-family:var(--font-mono); color:var(--cyan); font-size:0.72rem;';
+        metaSpan.textContent = `${foe.dist}m (${foe.x}, ${foe.y})`;
+
+        container.appendChild(nameSpan);
+        container.appendChild(metaSpan);
+        fragment.appendChild(container);
     }
-    entitiesList.innerHTML = html;
+    entitiesList.replaceChildren(fragment);
 }
 
 // --- 3.1 AREA SPAWNS & CAPTURE TARGETS UI ---
@@ -322,57 +386,123 @@ function updateAreaSpawnsUI(data) {
     const species = Array.isArray(data.availableSpecies) ? data.availableSpecies : [];
 
     if (species.length === 0) {
-        if (!mapId) {
-            listEl.innerHTML = '<div style="color:var(--text-dim); font-size:0.75rem;">Aguardando conexão com o jogo...</div>';
-        } else {
-            listEl.innerHTML = '<div style="color:var(--text-dim); font-size:0.75rem;">Nenhuma criatura selvagem nesta área.</div>';
-        }
+        const emptyDiv = document.createElement('div');
+        emptyDiv.style.cssText = 'color:var(--text-dim); font-size:0.75rem;';
+        emptyDiv.textContent = !mapId ? 'Aguardando conexão com o jogo...' : 'Nenhuma criatura selvagem nesta área.';
+        listEl.replaceChildren(emptyDiv);
         return;
     }
 
     // Only re-render list if map changed or list was empty to preserve scroll/input state
-    if (mapId !== lastRenderedMapId || listEl.children.length <= 1) {
-        lastRenderedMapId = mapId;
-
-        let html = '';
+    const existingInputs = typeof listEl.querySelectorAll === 'function'
+        ? Array.from(listEl.querySelectorAll('input[type="checkbox"]'))
+        : [];
+    if (mapId === lastRenderedMapId && existingInputs.length === species.length && existingInputs.length > 0) {
         for (const sp of species) {
-            const sid = sp.speciesId || "";
-            const isChecked = currentTargetSpecies.length === 0 || currentTargetSpecies.includes(sid);
-            const freqBadge = sp.frequency ? `<span style="font-size:0.68rem; padding:1px 5px; border-radius:3px; background:rgba(30,41,59,0.8); color:var(--cyan);">${sp.frequency}</span>` : '';
-            const caughtIco = sp.caught ? `<span title="Registrado na Pokédex" style="font-size:0.72rem;">📕</span>` : '';
+            const sid = String(sp.speciesId || "");
+            const input = existingInputs.find(cb => cb.value === sid);
+            if (input) {
+                let shouldCheck = false;
+                if (currentTargetMode === 'all') shouldCheck = true;
+                else if (currentTargetMode === 'none') shouldCheck = false;
+                else shouldCheck = currentTargetSpecies.includes(sid);
+                input.checked = shouldCheck;
 
-            html += `
-                <label style="display:flex; justify-content:space-between; align-items:center; background:rgba(15,23,42,0.5); padding:3px 7px; border-radius:4px; cursor:pointer; font-size:0.76rem;">
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <input type="checkbox" value="${escapeHtml(sid)}" ${isChecked ? 'checked' : ''} onchange="onAreaSpeciesToggle('${escapeHtml(sid)}', this.checked)">
-                        <span style="color:var(--text-bright); font-weight:500;">${escapeHtml(sp.name || sid)}</span>
-                        ${caughtIco}
-                    </div>
-                    <div style="display:flex; align-items:center; gap:5px;">
-                        <span style="color:var(--text-dim); font-size:0.70rem;">Lv${sp.minLevel}-${sp.maxLevel}</span>
-                        ${freqBadge}
-                    </div>
-                </label>
-            `;
+                const parentLabel = typeof input.closest === 'function' ? input.closest('label') : null;
+                const hasBadge = parentLabel && typeof parentLabel.querySelector === 'function' && parentLabel.querySelector('.caught-badge');
+                if (parentLabel && sp.caught && !hasBadge) {
+                    const leftDiv = input.parentElement;
+                    if (leftDiv && typeof leftDiv.appendChild === 'function') {
+                        const caughtIco = document.createElement('span');
+                        caughtIco.className = 'caught-badge';
+                        caughtIco.title = 'Registrado na Pokédex';
+                        caughtIco.style.fontSize = '0.72rem';
+                        caughtIco.textContent = '📕';
+                        leftDiv.appendChild(caughtIco);
+                    }
+                }
+            }
         }
-        listEl.innerHTML = html;
+        return;
     }
+
+    lastRenderedMapId = mapId;
+
+    const fragment = document.createDocumentFragment();
+    for (const sp of species) {
+        const sid = String(sp.speciesId || "");
+        let isChecked = false;
+        if (currentTargetMode === 'all') isChecked = true;
+        else if (currentTargetMode === 'none') isChecked = false;
+        else isChecked = currentTargetSpecies.includes(sid);
+
+        const label = document.createElement('label');
+        label.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:rgba(15,23,42,0.5); padding:3px 7px; border-radius:4px; cursor:pointer; font-size:0.76rem;';
+
+        const leftDiv = document.createElement('div');
+        leftDiv.style.cssText = 'display:flex; align-items:center; gap:6px;';
+
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = sid;
+        input.checked = isChecked;
+        input.addEventListener('change', () => onAreaSpeciesToggle(sid, input.checked));
+
+        const nameSpan = document.createElement('span');
+        nameSpan.style.cssText = 'color:var(--text-bright); font-weight:500;';
+        nameSpan.textContent = sp.name || sid;
+
+        leftDiv.appendChild(input);
+        leftDiv.appendChild(nameSpan);
+
+        if (sp.caught) {
+            const caughtIco = document.createElement('span');
+            caughtIco.className = 'caught-badge';
+            caughtIco.title = 'Registrado na Pokédex';
+            caughtIco.style.fontSize = '0.72rem';
+            caughtIco.textContent = '📕';
+            leftDiv.appendChild(caughtIco);
+        }
+
+        const rightDiv = document.createElement('div');
+        rightDiv.style.cssText = 'display:flex; align-items:center; gap:5px;';
+
+        const lvSpan = document.createElement('span');
+        lvSpan.style.cssText = 'color:var(--text-dim); font-size:0.70rem;';
+        const minLv = Number.isFinite(sp.minLevel) ? sp.minLevel : '?';
+        const maxLv = Number.isFinite(sp.maxLevel) ? sp.maxLevel : '?';
+        lvSpan.textContent = `Lv${minLv}-${maxLv}`;
+        rightDiv.appendChild(lvSpan);
+
+        if (sp.frequency) {
+            const freqBadge = document.createElement('span');
+            freqBadge.style.cssText = 'font-size:0.68rem; padding:1px 5px; border-radius:3px; background:rgba(30,41,59,0.8); color:var(--cyan);';
+            freqBadge.textContent = String(sp.frequency);
+            rightDiv.appendChild(freqBadge);
+        }
+
+        label.appendChild(leftDiv);
+        label.appendChild(rightDiv);
+        fragment.appendChild(label);
+    }
+    listEl.replaceChildren(fragment);
 }
 
 function onAreaSpeciesToggle(speciesId, isChecked) {
     if (!speciesId) return;
     const allCheckboxes = Array.from(document.querySelectorAll('#area-species-list input[type="checkbox"]'));
-    const checkedValues = allCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+    const checkedValues = allCheckboxes.filter(cb => cb.checked).map(cb => String(cb.value));
 
-    // If all are checked, we can store empty array to mean 'all' or explicit list
     currentTargetSpecies = checkedValues;
+    currentTargetMode = 'selected';
     saveAreaSettings();
 }
 
 function selectAllAreaSpecies(selectAll) {
     const allCheckboxes = Array.from(document.querySelectorAll('#area-species-list input[type="checkbox"]'));
     allCheckboxes.forEach(cb => { cb.checked = !!selectAll; });
-    currentTargetSpecies = selectAll ? allCheckboxes.map(cb => cb.value) : [];
+    currentTargetMode = selectAll ? 'all' : 'none';
+    currentTargetSpecies = selectAll ? allCheckboxes.map(cb => String(cb.value)) : [];
     saveAreaSettings();
 }
 
@@ -384,19 +514,36 @@ function onRadarUnselectedActionChange(val) {
 
 async function saveAreaSettings() {
     const unselectedAction = getVal('cfg-unselected-action-radar') || getVal('cfg-unselected-action') || 'battle';
-    if (!currentConfig) currentConfig = {};
-    currentConfig.target_species = currentTargetSpecies;
-    currentConfig.unselected_action = unselectedAction;
+    const thisRev = ++saveRevision;
+    const candidate = {
+        ...(currentConfig || {}),
+        target_species: currentTargetSpecies,
+        target_mode: currentTargetMode,
+        unselected_action: unselectedAction
+    };
 
-    // Persist
     if (window.electronAPI && window.electronAPI.saveConfig) {
-        await window.electronAPI.saveConfig(currentConfig);
+        try {
+            const ok = await window.electronAPI.saveConfig(candidate);
+            if (thisRev !== saveRevision) return;
+            if (!ok) {
+                appendLog('❌ Falha ao salvar alvos da área no disco. Alterações não aplicadas.', 'error');
+                return;
+            }
+        } catch (err) {
+            if (thisRev !== saveRevision) return;
+            appendLog(`❌ Erro ao salvar alvos da área: ${err.message}`, 'error');
+            return;
+        }
     }
-    if (gameView) {
+    if (thisRev !== saveRevision) return;
+    currentConfig = candidate;
+    if (gameView && gameReady) {
         gameView.send('host-command', { cmd: 'update-config', payload: currentConfig });
     }
     const actionDesc = unselectedAction === 'flee' ? 'Fugir Imediatamente' : 'Batalhar por XP';
-    appendLog(`🎯 Alvos da área atualizados: ${currentTargetSpecies.length > 0 ? currentTargetSpecies.join(', ') : 'Todos'} | Não selecionados: ${actionDesc}`, 'info');
+    const modeDesc = currentTargetMode === 'all' ? 'Todas as espécies' : (currentTargetMode === 'none' ? 'Nenhuma espécie comum' : `${currentTargetSpecies.length} selecionadas`);
+    appendLog(`🎯 Alvos da área atualizados: ${modeDesc} | Não selecionados: ${actionDesc}`, 'info');
 }
 
 // --- 3.2 LAST CAPTURE EVALUATION UI ---
@@ -422,23 +569,66 @@ function updateLastCaptureUI(mon) {
 
     if (bodyEl) {
         const star = mon.isShiny ? ' ✨SHINY' : '';
-        const bestNatBadge = mon.isBestNature 
-            ? `<span style="color:var(--emerald); font-weight:bold;">${mon.nature} (⭐ TOP NATURE!)</span>`
-            : `<span style="color:var(--cyan);">${mon.nature}</span>`;
-        
-        bodyEl.innerHTML = `
-            <div style="font-size:0.82rem; font-weight:600; color:var(--text-bright); margin-bottom:3px;">
-                ${escapeHtml(mon.name)}${star} <span style="color:var(--text-dim); font-size:0.72rem;">Lv${mon.level}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-                <span>Nature: ${bestNatBadge}</span>
-                <span style="font-family:var(--font-mono); color:var(--text-bright);">IV: <b>${mon.ivTotal}</b>/186 (${mon.ivPct}%)</span>
-            </div>
-            <div style="font-size:0.70rem; font-family:var(--font-mono); color:var(--text-dim); display:flex; gap:6px;">
-                <span>HP:${mon.ivs.hp}</span> <span>ATK:${mon.ivs.atk}</span> <span>DEF:${mon.ivs.def}</span>
-                <span>SPA:${mon.ivs.spa}</span> <span>SPD:${mon.ivs.spd}</span> <span>SPE:${mon.ivs.spe}</span>
-            </div>
-        `;
+        const levelText = Number.isFinite(mon.level) ? `Lv${mon.level}` : 'Lv?';
+        const ivTotal = Number.isFinite(mon.ivTotal) ? mon.ivTotal : 0;
+        const ivPct = Number.isFinite(mon.ivPct) ? mon.ivPct : 0;
+        const ivs = mon.ivs || {};
+
+        const fragment = document.createDocumentFragment();
+
+        // Row 1: Name, star, level
+        const row1 = document.createElement('div');
+        row1.style.cssText = 'font-size:0.82rem; font-weight:600; color:var(--text-bright); margin-bottom:3px;';
+        const nameText = document.createTextNode(`${mon.name || 'Desconhecido'}${star} `);
+        const lvSpan = document.createElement('span');
+        lvSpan.style.cssText = 'color:var(--text-dim); font-size:0.72rem;';
+        lvSpan.textContent = levelText;
+        row1.appendChild(nameText);
+        row1.appendChild(lvSpan);
+        fragment.appendChild(row1);
+
+        // Row 2: Nature & IV sum/pct
+        const row2 = document.createElement('div');
+        row2.style.cssText = 'display:flex; justify-content:space-between; margin-bottom:3px;';
+
+        const natSpan = document.createElement('span');
+        natSpan.textContent = 'Nature: ';
+        const natBadge = document.createElement('span');
+        if (mon.isBestNature) {
+            natBadge.style.cssText = 'color:var(--emerald); font-weight:bold;';
+            natBadge.textContent = `${mon.nature || 'Desconhecida'} (⭐ TOP NATURE!)`;
+        } else {
+            natBadge.style.cssText = 'color:var(--cyan);';
+            natBadge.textContent = String(mon.nature || 'Desconhecida');
+        }
+        natSpan.appendChild(natBadge);
+
+        const ivSpan = document.createElement('span');
+        ivSpan.style.cssText = 'font-family:var(--font-mono); color:var(--text-bright);';
+        ivSpan.textContent = 'IV: ';
+        const ivBold = document.createElement('b');
+        ivBold.textContent = String(ivTotal);
+        ivSpan.appendChild(ivBold);
+        ivSpan.appendChild(document.createTextNode(`/186 (${ivPct}%)`));
+
+        row2.appendChild(natSpan);
+        row2.appendChild(ivSpan);
+        fragment.appendChild(row2);
+
+        // Row 3: Individual IVs
+        const row3 = document.createElement('div');
+        row3.style.cssText = 'font-size:0.70rem; font-family:var(--font-mono); color:var(--text-dim); display:flex; gap:6px;';
+
+        const stats = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
+        for (const stat of stats) {
+            const statSpan = document.createElement('span');
+            const val = Number.isFinite(ivs[stat]) ? ivs[stat] : 0;
+            statSpan.textContent = `${stat.toUpperCase()}:${val}`;
+            row3.appendChild(statSpan);
+        }
+        fragment.appendChild(row3);
+
+        bodyEl.replaceChildren(fragment);
     }
 }
 
@@ -566,22 +756,62 @@ function setText(id, text) {
 // --- 6. USER CONTROLS & IPC DISPATCH ---
 
 async function toggleBotState() {
-    botEnabled = !botEnabled;
-    setBotEnabledState(botEnabled);
+    const nextState = !botEnabled;
+    const thisRev = ++saveRevision;
 
-    // Send command to guest webview
-    if (gameView && gameReady) {
-        gameView.send('host-command', { cmd: 'toggle-bot', payload: { enabled: botEnabled } });
-    }
-    currentConfig = { ...(currentConfig || {}), enabled: botEnabled };
-    if (window.electronAPI?.saveConfig) {
-        try {
-            if (!await window.electronAPI.saveConfig(currentConfig)) appendLog('Não foi possível salvar o estado do bot.', 'error');
-        } catch (error) { appendLog(`Falha ao salvar estado: ${error.message}`, 'error'); }
+    if (!nextState) {
+        // Emergency Pause: stop immediately in UI and guest, then persist
+        setBotEnabledState(false);
+        if (gameView && gameReady) {
+            gameView.send('host-command', { cmd: 'toggle-bot', payload: { enabled: false } });
+        }
+        const candidate = { ...(currentConfig || {}), enabled: false };
+        if (window.electronAPI?.saveConfig) {
+            try {
+                const ok = await window.electronAPI.saveConfig(candidate);
+                if (thisRev === saveRevision) {
+                    if (ok) {
+                        currentConfig = candidate;
+                    } else {
+                        appendLog('⚠️ Bot pausado, mas houve falha ao salvar no disco. Reinício pode carregar estado anterior.', 'warning');
+                    }
+                }
+            } catch (error) {
+                if (thisRev === saveRevision) {
+                    appendLog(`⚠️ Bot pausado, mas falhou ao gravar disco: ${error.message}`, 'warning');
+                }
+            }
+        } else {
+            currentConfig = candidate;
+        }
+    } else {
+        // Activation: candidate must be successfully persisted before activating in guest
+        const candidate = { ...(currentConfig || {}), enabled: true };
+        if (window.electronAPI?.saveConfig) {
+            try {
+                const ok = await window.electronAPI.saveConfig(candidate);
+                if (thisRev !== saveRevision) return;
+                if (!ok) {
+                    appendLog('❌ Falha ao persistir ativação do bot no disco. Bot não ativado.', 'error');
+                    return;
+                }
+            } catch (error) {
+                if (thisRev !== saveRevision) return;
+                appendLog(`❌ Erro ao persistir ativação do bot: ${error.message}`, 'error');
+                return;
+            }
+        }
+        if (thisRev !== saveRevision) return;
+        currentConfig = candidate;
+        setBotEnabledState(true);
+        if (gameView && gameReady) {
+            gameView.send('host-command', { cmd: 'toggle-bot', payload: { enabled: true } });
+        }
+        appendLog('▶️ Bot ativado e persistido com sucesso.', 'info');
     }
 }
 
-function setBotEnabledState(enabled) {
+function setBotEnabledState(enabled, autoIdleActive = false) {
     botEnabled = enabled;
     if (botStatusPill && pillDot && pillText && btnToggleBot) {
         if (botEnabled) {
@@ -593,7 +823,7 @@ function setBotEnabledState(enabled) {
         } else {
             botStatusPill.className = 'status-pill paused';
             pillDot.style.color = 'var(--amber)';
-            pillText.textContent = 'BOT PAUSADO';
+            pillText.textContent = autoIdleActive ? 'BOT PAUSADO (AUTO DO JOGO ATIVO)' : 'BOT PAUSADO';
             btnToggleBot.textContent = '▶️ Iniciar Bot';
             btnToggleBot.className = 'tb-btn';
         }
@@ -638,7 +868,12 @@ function applyConfigToInputs(cfg) {
     setVal('cfg-unselected-action', cfg.unselected_action || 'battle');
     setVal('cfg-unselected-action-radar', cfg.unselected_action || 'battle');
     if (Array.isArray(cfg.target_species)) {
-        currentTargetSpecies = cfg.target_species;
+        currentTargetSpecies = cfg.target_species.map(String);
+    }
+    if (cfg.target_mode) {
+        currentTargetMode = cfg.target_mode;
+    } else if (cfg.target_species !== undefined) {
+        currentTargetMode = currentTargetSpecies.length > 0 ? 'selected' : 'all';
     }
     setCheck('cfg-revive-battle', cfg.use_revive_battle !== false);
     setCheck('cfg-revive-overworld', cfg.use_revive_overworld !== false);
@@ -708,6 +943,7 @@ async function switchAccount() {
 }
 
 async function saveBotSettings() {
+    const thisRev = ++saveRevision;
     const updated = {
         ...currentConfig,
         enabled: botEnabled,
@@ -724,6 +960,7 @@ async function saveBotSettings() {
         ball_priority: getVal('cfg-ball-priority') || 'balanced',
         move_selection_mode: getVal('cfg-move-mode') || 'smart',
         target_species: currentTargetSpecies || [],
+        target_mode: currentTargetMode || 'all',
         unselected_action: getVal('cfg-unselected-action') || getVal('cfg-unselected-action-radar') || 'battle',
         min_iv_alert: 130,
         roam_step_delay_ms: parseInt(getVal('cfg-roam-delay'), 10) || 300,
@@ -747,10 +984,13 @@ async function saveBotSettings() {
         if (!window.electronAPI?.saveConfig || !await window.electronAPI.saveConfig(updated)) {
             throw new Error('Falha ao gravar configurações');
         }
+        if (thisRev !== saveRevision) return;
     } catch (error) {
+        if (thisRev !== saveRevision) return;
         appendLog('Não foi possível salvar as configurações. Tente novamente.', 'error');
         return;
     }
+    if (thisRev !== saveRevision) return;
     currentConfig = updated;
 
     // Push to guest webview
@@ -794,8 +1034,15 @@ function appendLog(message, level = 'info', customTime = null) {
 
     const time = customTime || new Date().toTimeString().split(' ')[0];
     const entry = document.createElement('div');
-    entry.className = `log-entry ${level}`;
-    entry.innerHTML = `<span style="color:var(--text-dim); font-family:var(--font-mono); margin-right:5px;">[${time}]</span> ${escapeHtml(message)}`;
+    const validLevel = ['info', 'success', 'warning', 'error'].includes(level) ? level : 'info';
+    entry.className = `log-entry ${validLevel}`;
+
+    const timeSpan = document.createElement('span');
+    timeSpan.style.cssText = 'color:var(--text-dim); font-family:var(--font-mono); margin-right:5px;';
+    timeSpan.textContent = `[${time}]`;
+
+    entry.appendChild(timeSpan);
+    entry.appendChild(document.createTextNode(` ${String(message ?? '')}`));
 
     logFeed.appendChild(entry);
 
@@ -810,7 +1057,14 @@ function appendLog(message, level = 'info', customTime = null) {
 
 function clearLogs() {
     if (logFeed) {
-        logFeed.innerHTML = '<div class="log-entry info"><span style="color:var(--text-dim);">[00:00:00]</span> Console limpo pelo usuário.</div>';
+        const entry = document.createElement('div');
+        entry.className = 'log-entry info';
+        const timeSpan = document.createElement('span');
+        timeSpan.style.color = 'var(--text-dim)';
+        timeSpan.textContent = '[00:00:00]';
+        entry.appendChild(timeSpan);
+        entry.appendChild(document.createTextNode(' Console limpo pelo usuário.'));
+        logFeed.replaceChildren(entry);
     }
 }
 
@@ -837,3 +1091,7 @@ window.onRadarUnselectedActionChange = onRadarUnselectedActionChange;
 window.saveAreaSettings = saveAreaSettings;
 window.onStrategyChange = onStrategyChange;
 window.switchAccount = switchAccount;
+window.handleTelemetry = handleTelemetry;
+window.appendLog = appendLog;
+window.getCurrentConfig = () => currentConfig;
+window.isBotEnabled = () => botEnabled;

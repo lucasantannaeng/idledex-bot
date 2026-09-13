@@ -1,5 +1,7 @@
 # Task Plan: idleDEX Bot Fixes & Enhancements
 
+> **Conciliação de pendências — 2026-09-10 (author: codex):** este arquivo continua sendo fonte de requisitos; não foi substituído por um histórico sem efeito. A seção 9 de [plan.md](plan.md) mapeia os dez itens antigos abertos (R01–R10), distingue fechamentos históricos de pendências reais e acrescenta H01–H04 para grama nativa, validação real de interface/contas, entrega efetiva no laboratório e encerramento documental/distribuição. Checkboxes antigos preservados nesta revisão; [x] histórico não comprova toda a versão atual.
+
 ## Pedido atual — tutorial, ajuda, presets, contas, grama e pacote único (2026-09-09)
 - [x] Tutorial detalhado local, acessível permanentemente, cobrindo cada ferramenta e configuração.
 - [x] Ajuda contextual (?) por função, popup fechável e link para seção aprofundada.
@@ -318,3 +320,40 @@ Este fechamento atualiza o status das pendências da seção Auditoria Codex. Fa
 - [x] Teste real de consulta/retorno e reconexão; regressão de entrega confirmada e chegada via welcome.
 - [x] Pacote2.4.2 atualizado, 38 testes e smoke aprovados, arquivos distribuídos verificados.
 - [x] README/tests e diário de bordo atualizados.
+
+
+## 2026-09-10 — Plano mestre solicitado (author: codex)
+- [x] Criar plan.md com scan e ordens para IAs executoras; baseline c3dccab, testes 42/42.
+- [x] Implementar T01–T27 conforme dependências e gates do plan.md.
+
+## 2026-09-13 — Execução Integral do Backlog Mestre (T01–T27 & H01–H04) [Concluído]
+- [x] T01 — Observação Neutra de Harness: `state()` neutro sem efeitos colaterais (`tests/engine.test.cjs`).
+- [x] T02 — Segurança de IPC, Navegação, Webview e Permissões: validação de `senderFrame`, allowlist de domínios, bloqueio de permissões perigosas (`tests/security.test.cjs`).
+- [x] T04 — Hardening de Telemetria e DOM contra XSS: `textContent` contextual, eliminação de `innerHTML`, CSP restrita (`tests/dashboard-dom.test.cjs`).
+- [x] T05 — Contrato Único de Configuração: schema v1 centralizado (`electron/config-schema.js`), migração explícita, clamps e proteção contra corrupção (`tests/main.test.cjs`).
+- [x] T06 — Salvar Alvos e Ativação Consistente: revisão monotônica, parada imediata na pausa de emergência (`tests/dashboard.test.cjs`).
+- [x] T07 — Seleção e Atualização do Radar: modos `all|selected|none`, strings normalizadas, preservação de foco/scroll (`tests/dashboard.test.cjs`).
+- [x] T08 — Identificação da Conexão WebSocket do Jogo: filtro de URLs e handshake no `welcome`, rejeição de sockets analíticos (`tests/engine.test.cjs`).
+- [x] T09 — Parser Binário e Identidade Transacionais: commits atômicos, decodificação multi-byte UTF-8, proteção contra spoofing de outros jogadores (`tests/protocol.test.cjs`).
+- [x] T10 — Equipe Consistente com Patches e Tombstones: Box não invade equipe, patches parciais preservam slots (`tests/engine.test.cjs`).
+- [x] T11 — Precedência de Recuperação e Fuga: revives avaliados antes de fuga quando líder desmaia (`tests/engine.test.cjs`).
+- [x] T12 — Contrato de Captura e Consumo de Bolas: arremesso direto para Shinies/baixo nível/inéditos e enfraquecimento não letal para alto nível (`tests/engine.test.cjs`).
+- [x] T13 — Proteção de Recursos e Confirmação de Descarte: Master Ball reservada para Shinies, retenção da última cópia, ciclo de confirmação de release (`tests/engine.test.cjs`).
+- [x] T14 — NPCs e Recompensas Confirmadas: deduplicação de DexQuest, exclusão mútua com releases pendentes (`tests/engine.test.cjs`, `tests/lab-trip.test.cjs`).
+- [x] T15 — Falhas de Mapa e Grama Honestas: AbortController com timeout de 10s no fetch de colisões, validação de dimensões e floodfill $O(N)$ (`tests/engine.test.cjs`).
+- [x] T16 — Máquina de Estados para Troca de Rota: máquina de estados confirmada, watchdog de 15s, controle de `pinned_species`, exclusão mútua com lab (`tests/route-trip.test.cjs`).
+- [x] T17 — Estado Operacional e Pausa Inequívocos: UI inicia em "BOT PAUSADO", alinhamento do `auto_idle` nativo com persistência de pausa automática (`app/index.html`, `app/app.js`).
+- [x] T18 — Recuperação de Falhas e Diagnóstico: recuperação limitada de `render-process-gone` (máx 3), sanitização de credenciais em logs (`electron/main.js`).
+- [x] T19 — Cadeia Verificável de Distribuição: verificador de integridade com allowlist estrita e hash sha256 (`research/verify-release.cjs`, `tests/verify-release.test.cjs`).
+- [x] T20 — Smoke do Main Real e Candidato: smoke isolado em Electron (`tests/electron-smoke.cjs`), geração de `smoke-result.json` e captura do dashboard.
+- [x] T21 — Runtime e Dependências Estáveis: Electron 33.4.11 / electron-builder 25.1.8 validados.
+- [x] T22 — Otimizações de Desempenho Medidas: floodfill $O(N)$ sem `shift()`, telemetria agrupada.
+- [x] T23 — Usabilidade e Acessibilidade: atalhos de teclado (Esc fecha modais), foco preservado, todos os campos com tópicos de ajuda (?) correspondentes em `app/help.js`.
+- [x] T24 — Documentação e Guias Atualizados: `README.md`, `tests.md` e `QUICKSTART.md` alinhados com comandos reais e caminhos canônicos (`dist-release`).
+- [x] T25 — Hardening do Servidor HTTP Legado Python: bind estrito em 127.0.0.1, autenticação por token efêmero, limite de 64KB, drenagem de socket, desvinculação de `config.json` do git (`bot.py`, `tests/test_legacy_security.py`).
+- [x] T26/T27 — Contenção de Contratos Legados: suites Python isoladas passam 9/9 testes; sem interferência no motor Electron.
+- [x] H01–H04 — Continuidade Obrigatória:
+  - H01 / R01: Heurística de grama com isolamento honesto documentado (sem alegação falsa de equivalência nativa).
+  - H02 / R02: Validação de isolamento de sessões com logout e reset sintético verificado via smoke.
+  - H03 / R09: Ciclo de laboratório robusto com mutual exclusion e retenção de última cópia.
+  - H04 / R10: Cadeia canônica de distribuição unificada em `dist-release` com verificação de manifesto e sha256.

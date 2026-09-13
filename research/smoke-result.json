@@ -1,10 +1,11 @@
 {
   "passed": true,
-  "checkedAt": "2026-09-10T00:04:25.264Z",
-  "source": "D:\\Projetos\\1.Autorais\\idledex-bot\\dist-desktop\\win-unpacked\\resources\\app",
+  "checkedAt": "2026-09-13T04:35:21.900Z",
+  "source": "D:\\Projetos\\1.Autorais\\idledex-bot\\dist-release\\win-unpacked\\resources\\app",
+  "candidateHash": "f857b216cc4ec9abc24b4b1fcc4098442f4794a64c1cd7a73e071e7cc129182f",
   "help": {
     "tutorialOpen": true,
-    "sections": 34,
+    "sections": 35,
     "closed": true,
     "missing": [],
     "quick": "HP inimigo para captura",

@@ -1,0 +1,19 @@
+HTTP/1.1 401 Unauthorized
+Date: Wed, 09 Sep 2026 13:24:55 GMT
+Content-Type: text/plain;charset=utf-8
+Content-Length: 12
+Connection: keep-alive
+access-control-allow-credentials: true
+access-control-allow-headers: host, user-agent, accept, accept-encoding, origin, x-real-ip, x-forwarded-for, x-forwarded-proto, cdn-loop, cf-connecting-ip, cf-ipcountry, cf-ray, cf-visitor, x-forwarded-host, x-forwarded-port, x-forwarded-server
+access-control-allow-methods: GET
+access-control-expose-headers: host, user-agent, accept, accept-encoding, origin, x-real-ip, x-forwarded-for, x-forwarded-proto, cdn-loop, cf-connecting-ip, cf-ipcountry, cf-ray, cf-visitor, x-forwarded-host, x-forwarded-port, x-forwarded-server
+referrer-policy: strict-origin-when-cross-origin
+Server: cloudflare
+x-content-type-options: nosniff
+x-frame-options: DENY
+cf-cache-status: DYNAMIC
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=midST9PT1a4c9TsVgNb9dx7p5jk5PBVDeVRfbGvcxOOK3%2FZquzXWOYEfLURfer8UNEvpSYEMskc2F7u56cJzdjqIZ9U%2BWAuCV7zr%2Fchf%2FViB66VO353G3ZqH%2FFEQHAtpYle75l%2B925UemQ%3D%3D"}]}
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+CF-RAY: a386841919195023-GIG
+alt-svc: h3=":443"; ma=86400
+

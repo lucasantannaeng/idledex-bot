@@ -31,8 +31,24 @@ function createEngine(fetch = async () => ({ ok: false })) {
         emit(type, data = {}) { for (const fn of this.listeners[type] || []) fn(data); }
         open() { this.readyState = 1; this.emit('open'); }
         close() { this.readyState = 3; this.emit('close', { code: 1000 }); }
-        message(data) { this.emit('message', { data: JSON.stringify(data) }); }
-        send(data) { this.sent.push(JSON.parse(data)); }
+        message(data) {
+            if (typeof data === 'string' || data instanceof ArrayBuffer || ArrayBuffer.isView(data) || (typeof Blob !== 'undefined' && data instanceof Blob)) {
+                this.emit('message', { data });
+            } else {
+                this.emit('message', { data: JSON.stringify(data) });
+            }
+        }
+        binary(buffer) {
+            const data = buffer instanceof ArrayBuffer ? buffer : (buffer && buffer.buffer ? buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) : buffer);
+            this.emit('message', { data });
+        }
+        send(data) {
+            try {
+                this.sent.push(typeof data === 'string' ? JSON.parse(data) : data);
+            } catch {
+                this.sent.push(data);
+            }
+        }
     }
     const window = {
         WebSocket: Socket,
@@ -46,7 +62,8 @@ function createEngine(fetch = async () => ({ ok: false })) {
         document: { querySelector() { return null; }, querySelectorAll() { return []; } },
         CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
         KeyboardEvent: class { constructor(type, options) { this.type = type; Object.assign(this, options); } },
-        Uint8Array, ArrayBuffer, DataView, TextDecoder, atob, Date: Clock,
+        Uint8Array, ArrayBuffer, DataView, TextDecoder, atob, Date: Clock, URL, Blob, AbortController,
+        performance: { now() { return now; } },
         setTimeout(fn, delay) { return schedule(fn, delay); },
         setInterval(fn, delay) { return schedule(fn, delay, true); },
         clearTimeout(id) { timers.delete(id); }, clearInterval(id) { timers.delete(id); },
@@ -64,13 +81,18 @@ function createEngine(fetch = async () => ({ ok: false })) {
     context = vm.createContext(sandbox);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../electron/preload-game.js'), 'utf8'), context);
     return {
-        socket() { return new window.WebSocket('wss://gateway.idledex.com'); },
+        socket(url = 'wss://gateway.idledex.com') { return new window.WebSocket(url); },
         state() {
-            window.dispatchEvent(new sandbox.CustomEvent('idledex-from-preload', { detail: { cmd: 'update-config', payload: {} } }));
+            return telemetry.at(-1);
+        },
+        publish(payload = {}) {
+            window.dispatchEvent(new sandbox.CustomEvent('idledex-from-preload', { detail: { cmd: 'update-config', payload } }));
             return telemetry.at(-1);
         },
         telemetry, timers,
+        now() { return now; },
         onKeyDown(callback) { window.addEventListener('keydown', callback); },
+        onKeyUp(callback) { window.addEventListener('keyup', callback); },
         advance(ms) {
             const end = now + ms;
             for (let steps = 0; steps < 10000; steps++) {

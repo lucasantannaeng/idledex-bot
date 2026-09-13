@@ -1,4 +1,4 @@
-﻿# Validação Electron
+# Validação Electron
 
 Na raiz do projeto:
 
@@ -29,8 +29,18 @@ Teste real em `research/live-validation-lab.json`: Professor respondeu, não hav
 Smoke final aprovado em 2026-09-09T02:34:02.961Z. Distribuição 2.4.2 conferida por verify-release.cjs.
 
 ## 2.5.0 — Usabilidade e contas
-- npm.cmd test: 41 testes aprovados.
+- npm.cmd test: 41 testes aprovados (baseline inicial).
 - tests/electron-smoke.cjs usa por padrão dist-desktop. IDLEDEX_SMOKE_SOURCE=1 permite testar fonte sem outro pacote.
 - Smoke offline: tutorial com 34 seções, todos os campos com ajuda, navegação à seção certa, fechamento e Escape, limpeza de cookies sintéticos de jogo/Google preservando outra partição e configuração.
-- research/verify-release.cjs exige smoke da distribuição, saída validada, igualdade dos oito arquivos e ausência de dist-candidate.
+- research/verify-release.cjs exige smoke da distribuição, saída validada, igualdade dos arquivos e ausência de dist-candidate.
 - Sem prova de fórmula nativa da grama e sem login numa segunda conta real. Não extrapolar o teste sintético para autenticação completa com o provedor.
+
+## 2.5.0 — Execução Integral do Backlog Mestre (T01–T27, H01–H04, R01–R10)
+- `npm test`: 109 testes aprovados (motor de combate, captura autoritativa, parsing binário transacional, segurança de IPC/webview, precedência de revives, máquina de estados de rotas, confirmação de descarte de Box, deduplicação de NPCs e integridade de distribuição).
+- `node --test tests/dashboard-dom.test.cjs`: 6 testes aprovados (CSP restrita sem scripts inline, sanitização contextual contra XSS, inicialização segura "BOT PAUSADO").
+- `python -m unittest discover tests`: 9 testes aprovados (contenção do servidor HTTP legado, bind estrito em loopback 127.0.0.1, autenticação por token local efêmero, limite de body 64KB, drenagem segura de socket em 413).
+- Empacotamento canônico: `npm run pack` compila para `dist-release/win-unpacked`.
+- Smoke de distribuição: `npx electron tests/electron-smoke.cjs --app-dir dist-release/win-unpacked/resources/app` aprovado, com registro de hash do candidato em `research/smoke-result.json` e captura em `research/smoke-dashboard.png`.
+- Verificador de integridade: `node research/verify-release.cjs --app-dir dist-release/win-unpacked/resources/app` aprovado (15 arquivos distribuídos conferidos contra allowlist estrita, hash do candidato correspondente ao smoke e zero vazamento de arquivos sensíveis).
+- Rastreabilidade H01–H04: heurística de grama isolada com floodfill/fringe sem alucinar equivalência nativa (H01/R01); isolamento sintético de sessões e logout auditado (H02/R02); máquina de estados do lab com retenção de última cópia e sem falsos acks (H03/R09); documentação e cadeia de distribuição canônica unificada (H04/R10).
+

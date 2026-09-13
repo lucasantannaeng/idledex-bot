@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-09-09T13:46:48.356Z",
+  "status": 200,
+  "authenticated": true,
+  "accountFingerprint": "3b0de6147e30f159",
+  "cookies": [
+    {
+      "name": "__Secure-better-auth.session_token",
+      "secure": true,
+      "httpOnly": true,
+      "sameSite": "lax",
+      "domain": "idledex.com",
+      "path": "/",
+      "expirationDate": 1789522249.979988
+    }
+  ]
+}

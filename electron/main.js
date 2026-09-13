@@ -3,7 +3,7 @@
  * Manages native window, system tray, persistent session, and IPC communication.
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, session, webContents } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, session, webContents, powerMonitor } = require('electron');
 const { resetGameSession, googleAccountChooser } = require('./account-session');
 const path = require('path');
 const fs = require('fs');
@@ -27,58 +27,48 @@ app.on('second-instance', () => {
     }
 });
 
+const { SCHEMA_VERSION, DEFAULT_CONFIG, normalizeConfig } = require('./config-schema');
 const CONFIG_PATH = path.join(app.getPath('userData'), 'bot-config.json');
 
 function loadConfig() {
-    const defaults = {
-        enabled: true,
-        strategy_mode: 'balanced',
-        iv_collection_threshold: 150,
-        iv_sell_threshold: 120,
-        flee_hp_pct: 0.30,
-        potion_hp_pct: 0.35,
-        potion_mode: 'smart',
-        use_revive_battle: true,
-        use_revive_overworld: true,
-        auto_heal_center: true,
-        catch_hp_pct: 0.50,
-        catch_only_shiny: false,
-        catch_only_uncaught: false,
-        ball_priority: 'balanced',
-        move_selection_mode: 'smart',
-        target_species: [],
-        unselected_action: 'battle',
-        min_iv_alert: 130,
-        discard_iv_pct: 50,
-        pause_on_no_balls: true,
-        roam_step_delay_ms: 300,
-        auto_idle: true,
-        auto_roam: true,
-        auto_claim_dailies: true,
-        auto_lock_valuable: true,
-        auto_use_boosts: false,
-        auto_npc_quests: true,
-        auto_travel_deliveries: true,
-        auto_travel_surplus_threshold: 5,
-        close_to_tray: false,
-    };
     try {
         if (fs.existsSync(CONFIG_PATH)) {
-            const saved = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+            let saved;
+            try {
+                saved = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+            } catch (parseErr) {
+                console.error('[CONFIG] Arquivo bot-config.json corrompido, adotando configuração segura padrão:', parseErr.message);
+                return normalizeConfig(DEFAULT_CONFIG);
+            }
             if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
-                return { ...defaults, ...saved };
+                if (typeof saved.schemaVersion === 'number' && saved.schemaVersion > SCHEMA_VERSION) {
+                    console.warn(`[CONFIG] Arquivo com versão futura de schema (${saved.schemaVersion} > ${SCHEMA_VERSION}); carregando sem sobrescrever.`);
+                }
+                return normalizeConfig(saved);
             }
         }
-    } catch (e) {}
-    return defaults;
+    } catch (e) {
+        console.error('[CONFIG] Erro ao carregar configuração:', e.message);
+    }
+    return normalizeConfig(DEFAULT_CONFIG);
 }
 
 function saveConfig(cfg) {
     try {
         if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return false;
+        if (fs.existsSync(CONFIG_PATH)) {
+            try {
+                const existing = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+                if (existing && typeof existing.schemaVersion === 'number' && existing.schemaVersion > SCHEMA_VERSION) {
+                    console.error(`[CONFIG] Tentativa de salvar bloqueada: arquivo possui versão futura de schema (${existing.schemaVersion} > ${SCHEMA_VERSION}).`);
+                    return false;
+                }
+            } catch (e) {}
+        }
+        const normalized = normalizeConfig(cfg);
         fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
         const temporaryPath = CONFIG_PATH + '.tmp';
-        fs.writeFileSync(temporaryPath, JSON.stringify(cfg, null, 4), 'utf-8');
+        fs.writeFileSync(temporaryPath, JSON.stringify(normalized, null, 4), 'utf-8');
         fs.renameSync(temporaryPath, CONFIG_PATH);
         return true;
     } catch (e) {
@@ -139,6 +129,23 @@ function createWindow() {
     });
 
     mainWindow.loadFile(path.join(__dirname, '../app/index.html'));
+
+    // Restrict navigation of the main window strictly to local files
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+        try {
+            const parsed = new URL(url);
+            if (parsed.protocol !== 'file:') {
+                event.preventDefault();
+            }
+        } catch (_) {
+            event.preventDefault();
+        }
+    });
+
+    // Deny popup creation from main dashboard window
+    mainWindow.webContents.setWindowOpenHandler(() => {
+        return { action: 'deny' };
+    });
 
     // Force window to appear visibly in foreground on user desktop
     mainWindow.once('ready-to-show', () => {
@@ -229,19 +236,62 @@ function createTray() {
     }
 }
 
+// Security Validation Helpers (T02)
+function isAuthorizedSender(event) {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    if (!event || !event.sender || !event.senderFrame) return false;
+    if (event.sender !== mainWindow.webContents) return false;
+    if (event.senderFrame !== mainWindow.webContents.mainFrame) return false;
+    return true;
+}
+
+function isAllowedGuestUrl(rawUrl) {
+    if (!rawUrl || rawUrl === 'about:blank') return true;
+    try {
+        const u = new URL(rawUrl);
+        if (u.protocol !== 'https:') return false;
+        if (u.hostname === 'idledex.com') return true;
+        if (u.hostname === 'accounts.google.com') return true;
+        return false;
+    } catch (_) {
+        return false;
+    }
+}
+
+function configureSessionPermissions(ses) {
+    if (!ses) return;
+    if (typeof ses.setPermissionRequestHandler === 'function') {
+        ses.setPermissionRequestHandler((wc, permission, callback) => {
+            callback(false);
+        });
+    }
+    if (typeof ses.setPermissionCheckHandler === 'function') {
+        ses.setPermissionCheckHandler(() => {
+            return false;
+        });
+    }
+}
+
+function sanitizeLogMessage(msg) {
+    return String(msg || '')
+        .replace(/(session_token|ws_token|token|key|cookie)=([a-zA-Z0-9_\-\.]+)/gi, '$1=[REDACTED]')
+        .replace(/(Bearer\s+)[a-zA-Z0-9_\-\.]+/gi, '$1[REDACTED]');
+}
+
 // IPC Handlers
-ipcMain.handle('get-config', () => {
+ipcMain.handle('get-config', (event) => {
+    if (!isAuthorizedSender(event)) return null;
     return loadConfig();
 });
 
 ipcMain.handle('save-config', (event, cfg) => {
+    if (!isAuthorizedSender(event)) return false;
     return saveConfig(cfg);
 });
 
 let switchingAccount = false;
-ipcMain.handle('switch-account', async event => {
-    if (!mainWindow || event.sender !== mainWindow.webContents ||
-        event.senderFrame !== mainWindow.webContents.mainFrame || switchingAccount) return { ok: false };
+ipcMain.handle('switch-account', async (event) => {
+    if (!isAuthorizedSender(event) || switchingAccount) return { ok: false };
     switchingAccount = true;
     try {
         if (!saveConfig({ ...loadConfig(), enabled: false })) throw new Error('Could not save paused state');
@@ -254,8 +304,9 @@ ipcMain.handle('switch-account', async event => {
     }
 });
 
-ipcMain.on('minimize-to-tray', () => {
-    if (mainWindow) {
+ipcMain.on('minimize-to-tray', (event) => {
+    if (!isAuthorizedSender(event)) return;
+    if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.hide();
         if (tray && typeof tray.displayBalloon === 'function') {
             try {
@@ -269,8 +320,9 @@ ipcMain.on('minimize-to-tray', () => {
     }
 });
 
-ipcMain.on('toggle-fullscreen', () => {
-    if (mainWindow) {
+ipcMain.on('toggle-fullscreen', (event) => {
+    if (!isAuthorizedSender(event)) return;
+    if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.setFullScreen(!mainWindow.isFullScreen());
     }
 });
@@ -278,40 +330,127 @@ ipcMain.on('toggle-fullscreen', () => {
 // App lifecycle
 app.whenReady().then(() => {
     if (!ownsInstance) return;
-    session.fromPartition('persist:idledex').webRequest.onBeforeRequest(
+
+    // Deny permissions by default across sessions
+    configureSessionPermissions(session.defaultSession);
+    const gameSession = session.fromPartition('persist:idledex');
+    configureSessionPermissions(gameSession);
+
+    gameSession.webRequest.onBeforeRequest(
         { urls: ['https://accounts.google.com/o/oauth2/*'] },
         (details, callback) => {
             const redirectURL = googleAccountChooser(details.url);
             callback(redirectURL ? { redirectURL } : {});
         },
     );
-    // Force preload on ALL webviews from main process — guaranteed to run
-    // before the webview loads, eliminating JS-based race conditions
+
     app.on('web-contents-created', (event, contents) => {
-        contents.on('will-attach-webview', (event, webPreferences, params) => {
+        contents.on('will-attach-webview', (attachEvent, webPreferences, params) => {
+            // Verify attachment owner is the authorized mainWindow
+            if (!mainWindow || mainWindow.isDestroyed() || contents !== mainWindow.webContents) {
+                attachEvent.preventDefault();
+                return;
+            }
+            // Verify partition matches persist:idledex
+            if (params.partition !== 'persist:idledex') {
+                attachEvent.preventDefault();
+                return;
+            }
+            // Verify src is allowed idledex URL or empty/about:blank
+            if (params.src && !isAllowedGuestUrl(params.src)) {
+                attachEvent.preventDefault();
+                return;
+            }
+
             const gamePreload = path.join(__dirname, 'preload-game.js');
-            console.log('[MAIN] will-attach-webview fired');
-            console.log('[MAIN] Forcing preload to:', gamePreload);
-            console.log('[MAIN] File exists:', fs.existsSync(gamePreload));
-            
-            // Force preload via webPreferences (overrides HTML attribute)
             webPreferences.preload = gamePreload;
             webPreferences.contextIsolation = false;
             webPreferences.sandbox = false;
-            
-            // Ensure no preloadURL from HTML attribute conflicts
             delete webPreferences.preloadURL;
         });
 
-        // Forward webview guest console messages to stdout for debugging
-        contents.on('did-attach-webview', (event, webContents) => {
-            console.log('[MAIN] did-attach-webview: guest attached');
-            webContents.on('console-message', (ev, level, msg) => {
+        // Forward webview guest console messages and secure guest navigation
+        contents.on('did-attach-webview', (attachEvent, guestContents) => {
+            guestContents.on('will-navigate', (navEvent, url) => {
+                if (!isAllowedGuestUrl(url)) {
+                    navEvent.preventDefault();
+                }
+            });
+            guestContents.on('will-redirect', (redirEvent, url) => {
+                if (!isAllowedGuestUrl(url)) {
+                    redirEvent.preventDefault();
+                }
+            });
+            guestContents.setWindowOpenHandler(({ url }) => {
+                if (isAllowedGuestUrl(url)) {
+                    return {
+                        action: 'allow',
+                        overrideBrowserWindowOptions: {
+                            webPreferences: {
+                                partition: 'persist:idledex',
+                            }
+                        }
+                    };
+                }
+                return { action: 'deny' };
+            });
+
+            guestContents.on('console-message', (ev, level, msg) => {
                 const lvl = ['V','I','W','E'][level] || '?';
-                console.log(`[GUEST ${lvl}] ${msg}`);
+                console.log(`[GUEST ${lvl}] ${sanitizeLogMessage(msg)}`);
+            });
+
+            let guestCrashCount = 0;
+            guestContents.on('render-process-gone', (event, details) => {
+                const reason = details?.reason || 'unknown';
+                const exitCode = details?.exitCode ?? -1;
+                console.warn(`[MAIN] Webview guest render-process-gone: reason=${reason}, exitCode=${exitCode}`);
+                try {
+                    const cfg = loadConfig();
+                    if (cfg && cfg.enabled) {
+                        cfg.enabled = false;
+                        saveConfig(cfg);
+                    }
+                } catch (_) {}
+                if (guestCrashCount < 3) {
+                    guestCrashCount++;
+                    console.log(`[MAIN] Tentando recuperar webview (tentativa ${guestCrashCount}/3)...`);
+                    setTimeout(() => {
+                        if (!guestContents.isDestroyed()) {
+                            guestContents.reload();
+                        }
+                    }, 2000);
+                } else {
+                    console.error('[MAIN] Limite de recuperação de renderizador excedido (3 tentativas). Webview suspenso.');
+                }
+            });
+
+            guestContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+                if (errorCode === -3) return; // ignore ABORTED
+                const sanitizedUrl = String(validatedURL || '').split('?')[0];
+                console.warn(`[MAIN] Webview did-fail-load: code=${errorCode} (${errorDescription}) em ${sanitizedUrl}`);
             });
         });
     });
+
+    if (typeof powerMonitor !== 'undefined' && powerMonitor && typeof powerMonitor.on === 'function') {
+        powerMonitor.on('suspend', () => {
+            console.log('[MAIN] Sistema entrando em suspensão. Pausando bot para segurança.');
+            try {
+                const cfg = loadConfig();
+                if (cfg && cfg.enabled) {
+                    cfg.enabled = false;
+                    saveConfig(cfg);
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('host-command', { cmd: 'toggle-bot', payload: { enabled: false } });
+                    }
+                }
+            } catch (_) {}
+        });
+        powerMonitor.on('resume', () => {
+            console.log('[MAIN] Sistema retornou da suspensão. Estado permanece pausado para segurança.');
+        });
+    }
 
     createWindow();
     createTray();
@@ -331,3 +470,16 @@ app.on('window-all-closed', () => {
         app.quit();
     }
 });
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        loadConfig,
+        saveConfig,
+        isAuthorizedSender,
+        isAllowedGuestUrl,
+        configureSessionPermissions,
+        sanitizeLogMessage,
+        getMainWindow: () => mainWindow,
+        setMainWindowForTesting: (win) => { mainWindow = win; },
+    };
+}

@@ -6,22 +6,38 @@
 
 const { webFrame, ipcRenderer } = require('electron');
 
-// 1. Preload -> Host Bridge
-window.addEventListener('idledex-to-preload', (event) => {
+// 1. Preload -> Host Bridge (T04: strictly allowlisted channels and validated payloads)
+const ALLOWED_PRELOAD_CHANNELS = new Set(['game-telemetry', 'game-log']);
+
+function handleIdledexToPreload(event, customIpc = (typeof ipcRenderer !== 'undefined' ? ipcRenderer : null)) {
     try {
         const { channel, data } = event.detail || {};
-        if (channel) {
-            ipcRenderer.sendToHost(channel, data);
+        if (typeof channel === 'string' && ALLOWED_PRELOAD_CHANNELS.has(channel) && data && typeof data === 'object') {
+            customIpc?.sendToHost(channel, data);
         }
     } catch (e) {}
-});
+}
 
-// 2. Host -> Preload Bridge
-ipcRenderer.on('host-command', (event, data) => {
+if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('idledex-to-preload', (e) => handleIdledexToPreload(e));
+}
+
+// 2. Host -> Preload Bridge (T04: strictly allowlisted host commands)
+const ALLOWED_HOST_COMMANDS = new Set(['update-config', 'toggle-bot', 'manual-action']);
+
+function handleHostCommand(event, data, customWindow = (typeof window !== 'undefined' ? window : null)) {
     try {
-        window.dispatchEvent(new CustomEvent('idledex-from-preload', { detail: data }));
+        if (data && typeof data === 'object' && ALLOWED_HOST_COMMANDS.has(data.cmd)) {
+            if (customWindow && customWindow.dispatchEvent) {
+                customWindow.dispatchEvent(new CustomEvent('idledex-from-preload', { detail: data }));
+            }
+        }
     } catch (e) {}
-});
+}
+
+if (typeof ipcRenderer !== 'undefined' && ipcRenderer.on) {
+    ipcRenderer.on('host-command', (e, d) => handleHostCommand(e, d));
+}
 
 // 3. Inject Main World Engine
 function initMainWorldEngine() {
@@ -43,9 +59,11 @@ function initMainWorldEngine() {
         ball_priority: 'balanced', // 'balanced', 'economy', 'force_highest'
         move_selection_mode: 'smart', // 'smart', 'max_damage', 'first'
         target_species: [], // array of speciesIds to catch in current area
+        target_mode: 'all', // 'all', 'selected', 'none'
         unselected_action: 'battle', // 'battle' (lutar por XP) ou 'flee' (fugir)
         min_iv_alert: 130,
         discard_iv_pct: 50, // Corte percentual de IV para descarte automático via creature:release
+        protect_last_copy: true, // Proteção de última cópia da espécie no cofre
         pause_on_no_balls: true, // Pausar patrulha se esgotar Pokébolas e foco for captura
         roam_step_delay_ms: 300,
         auto_idle: true,
@@ -69,11 +87,58 @@ function initMainWorldEngine() {
     let lastProfessorState = null;
     let collectorState = null;
     let collectorDeliveryKey = null;
+    let lastDexQuestState = null;
     let lastHealRequest = null;
     let rejectedHealState = null;
     let nextHealAt = 0;
     let nextRecoveryItemAt = 0;
     const releasedCreatureIds = new Set();
+    const pendingReleases = new Map(); // id -> { speciesName, ivSum, ivPct, cutoffPct, requestedAt }
+    let pokedexLoaded = false;
+    const pokedexCaughtSpecies = new Set();
+    let currentMapAbortController = null;
+    let mapAvailable = false;
+    let mapStatus = 'idle'; // 'idle' | 'loading' | 'available' | 'unavailable' | 'empty'
+    const routeSwitchState = {
+        active: false,
+        targetRoute: null,
+        requestedAt: 0,
+        attempts: 0,
+        timeoutTimer: null,
+    };
+
+    function isSpeciesUncaught(speciesId, speciesName) {
+        const sId = (speciesId !== undefined && speciesId !== null) ? String(speciesId) : '';
+        const sName = speciesName ? String(speciesName).toLowerCase() : '';
+
+        // 1. If currently in collection (party or box), it is definitely not uncaught
+        const inCollection = Object.values(collection).some(mon => {
+            const monId = (mon.speciesId !== undefined && mon.speciesId !== null) ? String(mon.speciesId) : '';
+            const monName = (mon.species || mon.name) ? String(mon.species || mon.name).toLowerCase() : '';
+            return (sId && monId === sId) || (sName && monName === sName);
+        });
+        if (inCollection) return false;
+
+        // 2. If permanent Pokédex data is loaded, consult it
+        // Species registered in Pokédex but missing from Box is NOT uncaught
+        if (pokedexLoaded) {
+            const registered = (sId && pokedexCaughtSpecies.has(sId)) || (sName && pokedexCaughtSpecies.has(sName));
+            return !registered;
+        }
+
+        // 3. If Pokédex is not loaded (unknown state), fallback to collection absence:
+        // "estado desconhecido não equivale automaticamente a falso"
+        return Boolean(sId || sName);
+    }
+
+    function addReleasedId(id) {
+        if (!id) return;
+        if (releasedCreatureIds.size >= 500) {
+            const firstKey = releasedCreatureIds.values().next().value;
+            if (firstKey !== undefined) releasedCreatureIds.delete(firstKey);
+        }
+        releasedCreatureIds.add(id);
+    }
 
     let activeWs = null;
     let commandGeneration = 0;
@@ -112,6 +177,7 @@ function initMainWorldEngine() {
     let roamInterval = null;
     let roamStepIdx = 0;
     let lastGrassDir = null;
+    let lastStepExecutedAt = 0;
 
     // Map collision, fringe mask, and validated tall grass coordinates
     let mapCols = 0;
@@ -217,7 +283,7 @@ function initMainWorldEngine() {
 
     function checkAutoTravelDeliveries(manual = false) {
         if (!botConfig.enabled || !botConfig.auto_travel_deliveries || !botConfig.auto_npc_quests) return false;
-        if (inBattle || autoTravelState.active) return false;
+        if (inBattle || autoTravelState.active || routeSwitchState.active) return false;
         if (!currentMap || currentMap === "npclab" || currentMap.startsWith("lobby")) return false;
 
         const now = Date.now();
@@ -304,7 +370,7 @@ function initMainWorldEngine() {
 
     function checkAutoRouteSwitch() {
         if (!botConfig.enabled || !botConfig.auto_route_switch) return false;
-        if (inBattle || autoTravelState.active) return false;
+        if (inBattle || autoTravelState.active || routeSwitchState.active) return false;
         if (!currentMap || !currentMap.startsWith("route_")) return false;
         if (!Array.isArray(currentMapSpecies) || currentMapSpecies.length === 0) return false;
 
@@ -326,8 +392,14 @@ function initMainWorldEngine() {
 
         // Target species (or all species if target list is empty)
         let relevantSpecies = currentMapSpecies;
-        if (Array.isArray(botConfig.target_species) && botConfig.target_species.length > 0) {
-            relevantSpecies = currentMapSpecies.filter(s => botConfig.target_species.includes(s.speciesId));
+        if (botConfig.target_mode === 'none') {
+            return false;
+        } else if (botConfig.target_mode === 'selected' && Array.isArray(botConfig.target_species) && botConfig.target_species.length > 0) {
+            const selectedSet = new Set(botConfig.target_species.map(String));
+            relevantSpecies = currentMapSpecies.filter(s => selectedSet.has(String(s.speciesId)));
+        } else if (Array.isArray(botConfig.target_species) && botConfig.target_species.length > 0 && botConfig.target_mode !== 'all') {
+            const selectedSet = new Set(botConfig.target_species.map(String));
+            relevantSpecies = currentMapSpecies.filter(s => selectedSet.has(String(s.speciesId)));
         }
 
         if (relevantSpecies.length === 0) return false;
@@ -342,19 +414,37 @@ function initMainWorldEngine() {
         const currentRouteNum = parseInt(match[1], 10);
         const nextRouteNum = currentRouteNum + 1;
         if (nextRouteNum > 150) {
-            logEvent(`🏁 [AUTO-ROTA] Todas as rotas (1-150) foram completadas!`, "info");
+            logEvent(`🏁 [AUTO-ROTA] Todas as rotas acessíveis completadas! Permanecendo em ${getMapFriendlyName(currentMap)}.`, "info");
             return false;
         }
 
         const nextRouteId = `route_${String(nextRouteNum).padStart(3, '0')}`;
         lastRouteSwitchTime = now;
 
-        logEvent(`🗺️ [AUTO-ROTA] Todas as espécies alvo de ${getMapFriendlyName(currentMap)} foram capturadas! Viajando automaticamente para ${getMapFriendlyName(nextRouteId)}...`, "success");
+        routeSwitchState.active = true;
+        routeSwitchState.targetRoute = nextRouteId;
+        routeSwitchState.requestedAt = now;
+        routeSwitchState.attempts = (routeSwitchState.attempts || 0) + 1;
+
+        logEvent(`🗺️ [AUTO-ROTA] Todas as espécies alvo de ${getMapFriendlyName(currentMap)} foram capturadas! Solicitando viagem para ${getMapFriendlyName(nextRouteId)}...`, "info");
 
         if (roamInterval) {
             clearInterval(roamInterval);
             roamInterval = null;
         }
+
+        if (routeSwitchState.timeoutTimer) clearTimeout(routeSwitchState.timeoutTimer);
+        routeSwitchState.timeoutTimer = scheduleSessionTask(() => {
+            if (routeSwitchState.active) {
+                logEvent(`⚠️ [AUTO-ROTA] Tempo limite aguardando confirmação de viagem para ${getMapFriendlyName(routeSwitchState.targetRoute)} (15s). Retomando patrulha em ${getMapFriendlyName(currentMap)}.`, "warning");
+                routeSwitchState.active = false;
+                routeSwitchState.targetRoute = null;
+                routeSwitchState.timeoutTimer = null;
+                if (!inBattle && botConfig.enabled) {
+                    startRoamLoop();
+                }
+            }
+        }, 15000);
 
         sendEvent("map:travel", { mapId: nextRouteId });
         return true;
@@ -395,34 +485,67 @@ function initMainWorldEngine() {
     function isFringe(x, y) {
         if (!mapFringeMask || x < 0 || y < 0 || x >= mapCols || y >= mapRows) return false;
         const r = y * mapCols + x;
-        return (mapFringeMask[r >> 3] & (1 << (r & 7))) !== 0;
+        const byteIdx = r >> 3;
+        if (byteIdx >= mapFringeMask.length) return false;
+        return (mapFringeMask[byteIdx] & (1 << (r & 7))) !== 0;
     }
 
     async function loadMapCollision(mapId) {
         if (!mapId) return;
         const loadVersion = ++mapLoadVersion;
+        if (currentMapAbortController) {
+            try { currentMapAbortController.abort(); } catch (e) {}
+            currentMapAbortController = null;
+        }
+
+        let controller = null;
+        if (typeof AbortController !== 'undefined') {
+            controller = new AbortController();
+            currentMapAbortController = controller;
+        }
+        const timeoutId = controller ? setTimeout(() => {
+            try { controller.abort(); } catch (e) {}
+        }, 10000) : null;
+
         loadingMap = true;
+        mapAvailable = false;
+        mapStatus = 'loading';
         mapGrid = null;
         mapFringeMask = null;
         cleanGrassGrid = null;
         grassTiles = [];
         mapCols = mapRows = 0;
+
         try {
-            let resp = await fetch(`/maps/${mapId}.collision.json`);
+            const fetchOpts = controller ? { signal: controller.signal } : {};
+            let resp = await fetch(`/maps/${mapId}.collision.json`, fetchOpts);
             if (!resp.ok) {
                 // Try hyphenated fallback if mapId contains underscore
-                resp = await fetch(`/maps/${mapId.replace(/_/g, '-')}.collision.json`);
+                resp = await fetch(`/maps/${mapId.replace(/_/g, '-')}.collision.json`, fetchOpts);
             }
+            if (timeoutId) clearTimeout(timeoutId);
+            if (loadVersion !== mapLoadVersion || mapId !== currentMap) return;
             if (!resp.ok) {
+                mapAvailable = false;
+                mapStatus = 'unavailable';
+                logEvent(`⚠️ [MAPA] Falha ao carregar colisão de ${mapId} (HTTP ${resp.status || 'erro'}). Movimento suspenso.`, "warning");
+                emitTelemetry();
                 return;
             }
+
             const data = await resp.json();
             if (loadVersion !== mapLoadVersion || mapId !== currentMap) return;
-            if (!Number.isInteger(data.cols) || !Number.isInteger(data.rows) ||
-                data.cols <= 0 || data.rows <= 0 || !Array.isArray(data.grid) ||
-                data.grid.length !== data.cols * data.rows) {
-                throw new Error('Invalid collision grid');
+            if (!data || typeof data !== 'object' ||
+                !Number.isInteger(data.cols) || !Number.isInteger(data.rows) ||
+                data.cols <= 0 || data.rows <= 0 || data.cols > 1000 || data.rows > 1000 ||
+                !Array.isArray(data.grid) || data.grid.length !== data.cols * data.rows) {
+                mapAvailable = false;
+                mapStatus = 'unavailable';
+                logEvent(`⚠️ [MAPA] Malha de colisão corrompida ou inválida em ${mapId}. Movimento suspenso.`, "error");
+                emitTelemetry();
+                return;
             }
+
             mapCols = data.cols || 0;
             mapRows = data.rows || 0;
             currentMapBiome = data.biome || "forest";
@@ -452,9 +575,10 @@ function initMainWorldEngine() {
                             const comp = [];
                             const queue = [{ x, y }];
                             visited[startIdx] = 1;
+                            let head = 0;
 
-                            while (queue.length > 0) {
-                                const curr = queue.shift();
+                            while (head < queue.length) {
+                                const curr = queue[head++];
                                 comp.push(curr);
                                 const neighbors = [
                                     { nx: curr.x + 1, ny: curr.y },
@@ -486,14 +610,30 @@ function initMainWorldEngine() {
                 }
             }
             if (grassTiles.length === 0) {
-                logEvent(`⚠️ Mapa sem grama alta detectado (${mapId}). Alternando para patrulha em caminhos transitáveis.`, "warning");
+                mapAvailable = true;
+                mapStatus = 'empty';
+                logEvent(`⚠️ [MAPA] Nenhum agrupamento de grama detectado em ${mapId}. Patrulha restrita a caminhos transitáveis.`, "warning");
             } else {
-                logEvent(`🌿 Malha de mapa calibrada (${mapId}): ${grassTiles.length} tiles de encontro genuínos identificados (ruídos e copas de árvores podados)`, "info");
+                mapAvailable = true;
+                mapStatus = 'available';
+                logEvent(`🌿 Malha de mapa processada (${mapId}): ${grassTiles.length} tiles de grama estimados por heurística de clusterização`, "info");
             }
         } catch (e) {
-            // ignore network load errors
+            if (timeoutId) clearTimeout(timeoutId);
+            if (loadVersion !== mapLoadVersion || mapId !== currentMap) return;
+            mapAvailable = false;
+            mapStatus = 'unavailable';
+            if (e?.name === 'AbortError') {
+                logEvent(`⚠️ [MAPA] Tempo limite ao carregar colisão de ${mapId} (10s). Movimento suspenso.`, "warning");
+            } else {
+                logEvent(`⚠️ [MAPA] Erro ao carregar mapa ${mapId}: ${e?.message || e}. Movimento suspenso.`, "warning");
+            }
         } finally {
-            if (loadVersion === mapLoadVersion) loadingMap = false;
+            if (loadVersion === mapLoadVersion) {
+                loadingMap = false;
+                if (currentMapAbortController === controller) currentMapAbortController = null;
+                emitTelemetry();
+            }
         }
     }
 
@@ -503,7 +643,7 @@ function initMainWorldEngine() {
     }
 
     function isWalkable(x, y) {
-        if (!mapGrid || x < 0 || y < 0 || x >= mapCols || y >= mapRows) return false;
+        if (!mapAvailable || !mapGrid || x < 0 || y < 0 || x >= mapCols || y >= mapRows) return false;
         const val = mapGrid[y * mapCols + x];
         return val === 1 || val === 2; // 1 = Grass, 2 = Path
     }
@@ -582,6 +722,13 @@ function initMainWorldEngine() {
                         currentMap,
                         currentMapName: getMapFriendlyName(currentMap),
                         currentMapBiome,
+                        mapStatus,
+                        mapAvailable,
+                        routeSwitch: {
+                            active: routeSwitchState.active,
+                            targetRoute: routeSwitchState.targetRoute,
+                            requestedAt: routeSwitchState.requestedAt
+                        },
                         availableSpecies: currentMapSpecies,
                         lastCapturedMon,
                         playerPos,
@@ -612,11 +759,17 @@ function initMainWorldEngine() {
         } catch (e) {}
     }
 
-    // Binary frame parser aligned with upstream xye(t)
+    // Binary frame parser aligned with upstream xye(t) (T09: strictly transactional)
     function parseBinaryFrame(buffer) {
         try {
-            const data = new Uint8Array(buffer);
-            if (data.length < 1 || data[0] !== 0x01) return null;
+            if (!buffer) return null;
+            const data = (buffer instanceof Uint8Array)
+                ? buffer
+                : (ArrayBuffer.isView(buffer)
+                    ? new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+                    : new Uint8Array(buffer));
+
+            if (data.length < 6 || data[0] !== 0x01) return null;
             const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
 
             let offset = 1;
@@ -624,53 +777,63 @@ function initMainWorldEngine() {
             offset += 4;
 
             const flags = data[offset++];
-            let ack;
+            let candidateAck = null;
             if (flags & 0x01) {
-                ack = view.getUint32(offset, true);
+                if (offset + 4 > data.length) return null; // Truncated ack
+                candidateAck = view.getUint32(offset, true);
                 offset += 4;
-                if (ack !== undefined) {
-                    moveSeq = Math.max(moveSeq, Number(ack));
-                }
             }
 
-            if (offset + 2 > data.length) return null;
+            if (offset + 2 > data.length) return null; // Truncated entityCount
             const entityCount = view.getUint16(offset, true);
             offset += 2;
 
+            // Sanity check entityCount against available buffer length (each entity is at least 2 bytes)
+            if (entityCount > 1000 || offset + (entityCount * 2) > data.length) {
+                return null;
+            }
+
             const parsedEntities = [];
+            let candidatePlayerPos = null;
+
             for (let i = 0; i < entityCount; i++) {
-                if (offset + 2 > data.length) break;
+                if (offset + 2 > data.length) return null; // Truncated entity header
                 const f = data[offset++];
-                const g = data[offset++]; // 1-byte length prefix (Uint8)
-                if (offset + g > data.length) break;
+                const g = data[offset++]; // UTF-8 byte length
+                if (offset + g > data.length) return null; // Truncated entity name string
 
                 const nameBytes = data.subarray(offset, offset + g);
-                const name = new TextDecoder('utf-8').decode(nameBytes);
+                const name = new TextDecoder('utf-8', { fatal: false }).decode(nameBytes);
                 offset += g;
 
                 let x = null, y = null, dir = null;
-                if ((f & 0x01) && offset + 2 <= data.length) {
+                if (f & 0x01) {
+                    if (offset + 2 > data.length) return null; // Truncated x coord
                     x = view.getUint16(offset, true);
                     offset += 2;
                 }
-                if ((f & 0x02) && offset + 2 <= data.length) {
+                if (f & 0x02) {
+                    if (offset + 2 > data.length) return null; // Truncated y coord
                     y = view.getUint16(offset, true);
                     offset += 2;
                 }
-                if ((f & 0x04) && offset < data.length) {
-                    dir = ["N", "E", "S", "W"][data[offset++]] || "S";
+                if (f & 0x04) {
+                    if (offset >= data.length) return null; // Truncated direction byte
+                    const dirCode = data[offset++];
+                    dir = ["N", "E", "S", "W"][dirCode] || "S";
                 }
 
                 const idStr = String(name || "").toLowerCase();
-                const isPlayer = (playerId && String(name) === String(playerId)) || idStr.includes("self") || idStr.includes("player:");
-                const isEnemy = !isPlayer && (
+                const isPlayer = Boolean(playerId && String(name) === String(playerId)) || name === "self" || name === "player:self";
+                const isOtherPlayer = !isPlayer && (idStr.startsWith("player:") || idStr.startsWith("user:"));
+                const isEnemy = !isPlayer && !isOtherPlayer && (
                     idStr.startsWith("wild:") ||
                     idStr.startsWith("foe:") ||
                     idStr.includes("wild")
                 );
 
                 if (isPlayer && x !== null && y !== null) {
-                    playerPos = { x, y };
+                    candidatePlayerPos = { x, y };
                 }
 
                 parsedEntities.push({
@@ -684,10 +847,19 @@ function initMainWorldEngine() {
                 });
             }
 
+            // Transactional commit: apply state updates atomically only after full frame validity is confirmed
+            if (candidateAck !== null) {
+                moveSeq = Math.max(moveSeq, Number(candidateAck));
+            }
+            if (candidatePlayerPos !== null) {
+                playerPos = candidatePlayerPos;
+            }
             entities = parsedEntities;
             emitTelemetry();
+            return true;
         } catch (err) {
-            // ignore binary parse errors
+            // Ignore binary parse errors without side-effects or throwing
+            return null;
         }
     }
 
@@ -969,7 +1141,6 @@ function initMainWorldEngine() {
             if (superCount > 0) return "super-ball";
             if (greatCount > 0) return "great-ball";
             if (pokeballCount > 0) return "poke-ball";
-            if (masterCount > 0) return "master-ball";
             return null;
         }
 
@@ -978,7 +1149,6 @@ function initMainWorldEngine() {
             if (greatCount > 0) return "great-ball";
             if (superCount > 0) return "super-ball";
             if (ultraCount > 0) return "ultra-ball";
-            if (masterCount > 0) return "master-ball";
             return null;
         }
 
@@ -1000,14 +1170,14 @@ function initMainWorldEngine() {
         if (greatCount > 0) return "great-ball";
         if (superCount > 0) return "super-ball";
         if (ultraCount > 0) return "ultra-ball";
-        if (masterCount > 0) return "master-ball";
 
         return null;
     }
 
-    function getTotalBalls() {
+    function getTotalBalls(isShiny = false) {
         const b = (inventory && inventory.ball) || {};
-        return (b.pokeball || 0) + (b.greatball || 0) + (b.superball || 0) + (b.ultraball || 0) + (b.masterball || 0);
+        const standard = (b.pokeball || 0) + (b.greatball || 0) + (b.superball || 0) + (b.ultraball || 0);
+        return isShiny ? standard + (b.masterball || 0) : standard;
     }
 
     function selectBattleMove(foeTypes, foeHpPct, isCaptureTarget) {
@@ -1156,13 +1326,45 @@ function initMainWorldEngine() {
         if (!Array.isArray(creatures)) return;
         if (!patch) collection = {};
         for (const mon of creatures) {
-            if (mon?.id) collection[mon.id] = withHealth({ ...(collection[mon.id] || {}), ...mon });
+            if (!mon?.id) continue;
+            if (mon.deleted || mon.removed) {
+                delete collection[mon.id];
+                if (pendingReleases.has(mon.id)) {
+                    const pending = pendingReleases.get(mon.id);
+                    pendingReleases.delete(mon.id);
+                    addReleasedId(mon.id);
+                    logEvent(`🗑️ Liberação confirmada de ${pending.speciesName} (IV: ${pending.ivSum}/186 - ${pending.ivPct}%)`, 'info');
+                }
+            } else {
+                collection[mon.id] = withHealth({ ...(collection[mon.id] || {}), ...mon });
+            }
         }
-        team = Object.values(collection).filter(mon => mon.teamSlot !== null && mon.teamSlot !== undefined)
-            .sort((a, b) => a.teamSlot - b.teamSlot);
-        if (!creatures.some(mon => Object.hasOwn(mon, 'teamSlot'))) {
-            team = Object.values(collection);
+
+        if (!patch) {
+            for (const [id, pending] of pendingReleases.entries()) {
+                if (!collection[id]) {
+                    pendingReleases.delete(id);
+                    addReleasedId(id);
+                    logEvent(`🗑️ Liberação confirmada de ${pending.speciesName} (IV: ${pending.ivSum}/186 - ${pending.ivPct}%)`, 'info');
+                }
+            }
         }
+
+        // Derive party from merged collection entries having explicit teamSlot
+        const allCreatures = Object.values(collection);
+        const hasSlottedSchema = allCreatures.some(mon => Object.hasOwn(mon, 'teamSlot'));
+
+        if (hasSlottedSchema) {
+            team = allCreatures
+                .filter(mon => mon.teamSlot !== null && mon.teamSlot !== undefined)
+                .sort((a, b) => a.teamSlot - b.teamSlot);
+        } else if (!patch && allCreatures.length > 0) {
+            // Legacy schema snapshot where teamSlot field does not exist at all
+            team = allCreatures.slice(0, 6);
+        } else {
+            team = [];
+        }
+
         if (!inBattle) myMon = team.find(mon => mon.isLeader) || team[0] || null;
         resolveCapturedCreatures();
     }
@@ -1196,12 +1398,45 @@ function handleGameMessage(msg) {
         if (t === 'error') {
             const code = d?.code || msg.code || 'unknown';
             if (code === 'heal_insufficient_funds') rejectedHealState = lastHealRequest;
+            if (code === 'creature_locked' || code === 'release_failed' || String(code).includes('release')) {
+                for (const [id, pending] of pendingReleases.entries()) {
+                    logEvent(`⚠️ Liberação recusada pelo servidor para ${pending.speciesName}: ${code}`, 'warning');
+                }
+                pendingReleases.clear();
+            }
+            if (code === 'travel_forbidden' || code === 'route_locked' || code === 'map_invalid' || String(code).includes('travel') || String(code).includes('route')) {
+                if (routeSwitchState.active) {
+                    logEvent(`⚠️ [AUTO-ROTA] Viagem para rota ${getMapFriendlyName(routeSwitchState.targetRoute)} recusada pelo servidor: ${code}. Permanecendo em ${getMapFriendlyName(currentMap)}.`, 'warning');
+                    if (routeSwitchState.timeoutTimer) {
+                        clearTimeout(routeSwitchState.timeoutTimer);
+                        routeSwitchState.timeoutTimer = null;
+                    }
+                    routeSwitchState.active = false;
+                    routeSwitchState.targetRoute = null;
+                    if (!inBattle && botConfig.enabled) {
+                        startRoamLoop();
+                    }
+                }
+            }
             logEvent(`Servidor recusou uma ação: ${code}`, 'warning');
+            return;
+        }
+
+        if (t === 'shard:redirect') {
+            const shardId = d?.shard !== undefined ? d.shard : (msg.shard !== undefined ? msg.shard : null);
+            logEvent(`🔀 Redirecionado para Shard ${shardId !== null ? shardId : 'novo'}`, "info");
+            emitTelemetry();
             return;
         }
 
         // Welcome Packet — Official IdleDex Initial State
         if (t === "welcome") {
+            const now = Date.now();
+            for (const [id, pending] of pendingReleases.entries()) {
+                if (now - pending.requestedAt > 30000) {
+                    pendingReleases.delete(id);
+                }
+            }
             if (d.playerId) {
                 playerId = String(d.playerId);
                 try { sessionStorage.setItem('idledex_playerId', playerId); } catch (e) {}
@@ -1211,6 +1446,16 @@ function handleGameMessage(msg) {
                 if (typeof currentMap === 'string' && currentMap.startsWith('route_')) {
                     lastHuntMap = currentMap;
                     try { sessionStorage.setItem('idledex-last-hunt-map', currentMap); } catch {}
+                }
+                if (routeSwitchState.active && (currentMap === routeSwitchState.targetRoute || d.map === routeSwitchState.targetRoute)) {
+                    if (routeSwitchState.timeoutTimer) {
+                        clearTimeout(routeSwitchState.timeoutTimer);
+                        routeSwitchState.timeoutTimer = null;
+                    }
+                    logEvent(`🎯 [AUTO-ROTA] Chegada à rota ${getMapFriendlyName(currentMap)} confirmada via welcome!`, "success");
+                    routeSwitchState.active = false;
+                    routeSwitchState.targetRoute = null;
+                    routeSwitchState.attempts = 0;
                 }
                 loadMapCollision(currentMap);
                 scheduleSessionTask(() => { sendEvent("map:preview", { mapId: currentMap }); }, 600);
@@ -1390,6 +1635,21 @@ function handleGameMessage(msg) {
                 }
             }
 
+            // ROUTE SWITCH STATE MACHINE TRANSITIONS
+            if (routeSwitchState.active && (currentMap === routeSwitchState.targetRoute || (d && d.map === routeSwitchState.targetRoute))) {
+                if (routeSwitchState.timeoutTimer) {
+                    clearTimeout(routeSwitchState.timeoutTimer);
+                    routeSwitchState.timeoutTimer = null;
+                }
+                logEvent(`🎯 [AUTO-ROTA] Chegada à rota ${getMapFriendlyName(currentMap)} confirmada!`, "success");
+                routeSwitchState.active = false;
+                routeSwitchState.targetRoute = null;
+                routeSwitchState.attempts = 0;
+                if (!inBattle && botConfig.enabled) {
+                    startRoamLoop();
+                }
+            }
+
             emitTelemetry();
         }
 
@@ -1509,8 +1769,18 @@ function handleGameMessage(msg) {
             const mons = Array.isArray(d) ? d : (d.mons || d.monsters || []);
             for (const mon of mons) {
                 if (mon && mon.id) {
-                    collection[mon.id] = mon;
-                    checkMonIVStrategy(mon);
+                    if (mon.deleted || mon.removed) {
+                        delete collection[mon.id];
+                        if (pendingReleases.has(mon.id)) {
+                            const pending = pendingReleases.get(mon.id);
+                            pendingReleases.delete(mon.id);
+                            addReleasedId(mon.id);
+                            logEvent(`🗑️ Liberação confirmada de ${pending.speciesName} (IV: ${pending.ivSum}/186 - ${pending.ivPct}%)`, 'info');
+                        }
+                    } else {
+                        collection[mon.id] = mon;
+                        checkMonIVStrategy(mon);
+                    }
                 }
             }
             emitTelemetry();
@@ -1537,7 +1807,7 @@ function handleGameMessage(msg) {
                 for (const q of quests) {
                     if (q && q.id && Number.isFinite(q.progress) && Number.isFinite(q.goal) && q.progress >= q.goal && !q.claimed) {
                         requestReward("daily:claim", { questId: q.id });
-                        logEvent(`🎁 [MISSÃO DIÁRIA] Reivindicando: ${q.name || q.id}`, "success");
+                        logEvent(`🎁 [MISSÃO DIÁRIA] Solicitando resgate: ${q.name || q.id}...`, "info");
                     }
                 }
             }
@@ -1547,17 +1817,32 @@ function handleGameMessage(msg) {
         else if (t === "calendar:state") {
             if (botConfig.enabled && botConfig.auto_claim_dailies && d && d.claimable === true) {
                 requestReward("daily:bonus");
-                logEvent(`📅 [LOGIN CONSECUTIVO] Bônus de calendário resgatado!`, "success");
+                logEvent(`📅 [LOGIN CONSECUTIVO] Solicitando bônus de calendário...`, "info");
             }
         }
 
-        // Pokédex Milestones
+        // Pokédex Milestones & Entries
         else if (t === "pokedex:list" || t === "pokedex:state") {
+            if (d && Array.isArray(d.entries)) {
+                pokedexLoaded = true;
+                pokedexCaughtSpecies.clear();
+                for (const entry of d.entries) {
+                    if (!entry) continue;
+                    if (entry.caught === true) {
+                        if (entry.speciesId !== undefined && entry.speciesId !== null) {
+                            pokedexCaughtSpecies.add(String(entry.speciesId));
+                        }
+                        if (entry.name) {
+                            pokedexCaughtSpecies.add(String(entry.name).toLowerCase());
+                        }
+                    }
+                }
+            }
             if (botConfig.enabled && botConfig.auto_claim_dailies && d) {
                 const hasUnclaimed = Array.isArray(d.milestones) && d.milestones.some(m => m.ready === true);
                 if (hasUnclaimed) {
                     requestReward("pokedex:claim-all");
-                    logEvent(`📖 [POKÉDEX] Resgatando marcos completados da Pokédex!`, "success");
+                    logEvent(`📖 [POKÉDEX] Solicitando marcos da Pokédex...`, "info");
                 }
             }
         }
@@ -1570,7 +1855,7 @@ function handleGameMessage(msg) {
                     (!tier.freeClaimed || (d.premium && !tier.premiumClaimed)));
                 if (missionsReady || tiersReady) {
                     requestReward("gamepass:claim-all");
-                    logEvent(`🎫 [GAMEPASS] Resgatando recompensas do Passe de Batalha!`, "success");
+                    logEvent(`🎫 [GAMEPASS] Solicitando recompensas do Passe de Batalha...`, "info");
                 }
             }
         }
@@ -1581,7 +1866,7 @@ function handleGameMessage(msg) {
                 for (const post of d.posts) {
                     if (post && post.id && Array.isArray(post.reward) && post.reward.length > 0 && !post.claimed) {
                         requestReward("news:claim", { postId: post.id });
-                        logEvent(`📰 [NOTÍCIAS] Recompensa de post resgatada: ${post.title || post.id}`, "success");
+                        logEvent(`📰 [NOTÍCIAS] Solicitando recompensa do post: ${post.title || post.id}...`, "info");
                     }
                 }
             }
@@ -1599,6 +1884,7 @@ function handleGameMessage(msg) {
                     const remaining = d.lots.find(lot => lot.speciesId === pending.speciesId)?.available ?? 0;
                     if (!(d.charges < pending.charges || remaining < pending.available)) return;
                     autoTravelState.deliveriesDone++;
+                    logEvent(`🔬 [PROFESSOR] Entrega confirmada pelo servidor para espécie ${pending.speciesId}!`, "success");
                     autoTravelState.pendingDelivery = null;
                 }
                 if (d.charges < lotSize || !Number.isFinite(d.charges)) {
@@ -1613,7 +1899,7 @@ function handleGameMessage(msg) {
                             speciesId: lot.speciesId, charges: d.charges, available: lot.available,
                         };
                         sendEvent("professor:deliver", { speciesId: lot.speciesId });
-                        logEvent(`🔬 [PROFESSOR] Entregando lote de ${lot.name || lot.speciesId} (+${lot.bronzePerLot || 1} Moedas de Bronze)`, "success");
+                        logEvent(`🔬 [PROFESSOR] Solicitando entrega de lote de ${lot.name || lot.speciesId} (+${lot.bronzePerLot || 1} Moedas de Bronze)...`, "info");
                         return;
                     }
                 }
@@ -1624,14 +1910,24 @@ function handleGameMessage(msg) {
         // DexQuest Delivery
         else if (t === "dexquest:state") {
             if (botConfig.enabled && botConfig.auto_npc_quests && d && d.target && d.target.have > 0 && canDonateSpecies(d.target.speciesId, 1)) {
+                const questKey = JSON.stringify([d.target.speciesId, d.target.have, d.questId || d.id || currentMap]);
+                if (questKey === lastDexQuestState) return;
+                lastDexQuestState = questKey;
                 sendEvent("dexquest:deliver", { speciesId: d.target.speciesId });
-                logEvent(`🎯 [DEXQUEST] Entregando ${d.target.name || d.target.speciesId} para missão de rota!`, "success");
+                logEvent(`🎯 [DEXQUEST] Solicitando entrega de ${d.target.name || d.target.speciesId} para missão de rota...`, "info");
+            } else if (d?.target && d.target.have === 0 && lastDexQuestState !== null) {
+                lastDexQuestState = null;
+                logEvent('🎯 [DEXQUEST] Entrega confirmada pelo servidor para missão de rota!', 'success');
             }
         }
 
         // Collector Delivery
         else if (t === "collector:state") {
+            const wasDelivering = collectorState && !collectorState.delivered;
             collectorState = d;
+            if (wasDelivering && d.delivered) {
+                logEvent('🏺 [COLECIONADOR] Entrega confirmada com sucesso pelo servidor!', 'success');
+            }
             if (botConfig.enabled && botConfig.auto_npc_quests && d?.mapId === currentMap && d.deliverable && !d.delivered) {
                 sendEvent('collector:preview');
             }
@@ -1643,7 +1939,7 @@ function handleGameMessage(msg) {
             if (key === collectorDeliveryKey || !d.creatureIds.every(id => isDonatableCreature(collection[id]))) return;
             collectorDeliveryKey = key;
             sendEvent('collector:deliver');
-            logEvent('🏺 [COLECIONADOR] Entrega enviada após conferir a prévia.', 'info');
+            logEvent('🏺 [COLECIONADOR] Solicitando entrega após conferir a prévia...', 'info');
         }
 
         // Combat Turn & Control
@@ -1655,14 +1951,14 @@ function handleGameMessage(msg) {
 
             if (d.myMon || d.leader) myMon = withHealth(d.myMon || d.leader);
             if (d.foe || d.opponent) enemyMon = withHealth(d.foe || d.opponent);
-            applyBattleEvents(d.turn?.events);
+            applyBattleEvents(Array.isArray(d.turn?.events) ? d.turn.events : (Array.isArray(d.events) ? d.events : null));
             if (d.moves && Array.isArray(d.moves) && d.moves.length > 0) battleMoves = d.moves;
             if (d.leader && Array.isArray(d.leader.moves) && d.leader.moves.length > 0) battleMoves = d.leader.moves;
             if (d.leaderMoves && Array.isArray(d.leaderMoves) && d.leaderMoves.length > 0) battleMoves = d.leaderMoves;
             if (d.canThrow !== undefined) canThrowBall = !!d.canThrow;
             if (d.canHeal !== undefined) canUsePotion = !!d.canHeal;
             if (d.canRevive !== undefined) canRevive = !!d.canRevive;
-            battleWindowOpen = d.open !== false && (canThrowBall || canUsePotion);
+            battleWindowOpen = d.open !== false && (canThrowBall || canUsePotion || canRevive || d.canFlee !== false || d.turn !== undefined);
             const animationMs = t === 'battle:turn' && Number.isFinite(d.animateMs) ? Math.max(0, d.animateMs) : 0;
             const windowMs = t === 'battle:turn' ? d.turnMs : d.windowMs;
             battleReadyAt = Date.now() + animationMs;
@@ -1721,8 +2017,16 @@ function handleGameMessage(msg) {
 
             if (captured) {
                 lastCapturedMon = null;
+                const caughtSpeciesId = d.caught?.speciesId ?? enemyMon?.speciesId;
+                const caughtSpeciesName = d.caught?.name ?? enemyMon?.name ?? enemyMon?.species;
+                if (caughtSpeciesId !== undefined && caughtSpeciesId !== null) {
+                    pokedexCaughtSpecies.add(String(caughtSpeciesId));
+                }
+                if (caughtSpeciesName) {
+                    pokedexCaughtSpecies.add(String(caughtSpeciesName).toLowerCase());
+                }
                 pendingCaptures.push({
-                    speciesId: d.caught?.speciesId ?? enemyMon?.speciesId,
+                    speciesId: caughtSpeciesId,
                     id: d.caught?.id ?? d.caught?.creatureId,
                     knownIds: battleKnownCreatureIds,
                 });
@@ -1789,28 +2093,58 @@ function handleGameMessage(msg) {
     }
 
     function isProtectedCreature(mon) {
-        return !mon || mon.isShiny || mon.shiny || mon.isLocked || mon.isLeader || mon.mega ||
+        return !mon || mon.isShiny || mon.shiny || mon.isLocked || mon.locked || mon.isLeader || mon.mega ||
             (mon.eventTier > 0) || (mon.form?.eventTier > 0) ||
             (mon.teamSlot !== undefined && mon.teamSlot !== null) ||
             team.some(member => member.id === mon.id);
     }
 
     function isDonatableCreature(mon) {
-        return !isProtectedCreature(mon) && Number.isInteger(mon?.boxSlot) && mon.boxSlot >= 0 &&
-            hasCompleteIVs(mon) && evaluateCapturedCreature(mon).grade !== 'S';
+        return Boolean(
+            mon &&
+            !isProtectedCreature(mon) &&
+            !releasedCreatureIds.has(mon.id) &&
+            !pendingReleases.has(mon.id) &&
+            Number.isInteger(mon?.boxSlot) &&
+            mon.boxSlot >= 0 &&
+            hasCompleteIVs(mon) &&
+            evaluateCapturedCreature(mon).grade !== 'S'
+        );
     }
 
     function canDonateSpecies(speciesId, count) {
-        const candidates = Object.values(collection).filter(mon => String(mon.speciesId) === String(speciesId) &&
-            Number.isInteger(mon.boxSlot) && mon.boxSlot >= 0 && !mon.isLocked && !mon.isShiny && !mon.mega);
-        return candidates.length >= count && candidates.every(isDonatableCreature);
+        const candidates = Object.values(collection).filter(mon => 
+            String(mon.speciesId !== undefined ? mon.speciesId : (mon.species || '')) === String(speciesId) &&
+            isDonatableCreature(mon)
+        );
+        return candidates.length >= count;
+    }
+
+    function hasSurplusCopies(mon) {
+        if (!mon) return false;
+        const targetSpeciesId = String(mon.speciesId !== undefined ? mon.speciesId : (mon.species || ''));
+        if (!targetSpeciesId) return false;
+        const otherCopies = Object.values(collection).filter(c => {
+            if (!c || !c.id || c.id === mon.id) return false;
+            const sId = String(c.speciesId !== undefined ? c.speciesId : (c.species || ''));
+            if (sId !== targetSpeciesId) return false;
+            if (releasedCreatureIds.has(c.id)) return false;
+            if (pendingReleases.has(c.id)) return false;
+            return true;
+        });
+        return otherCopies.length >= 1;
     }
 
     function checkMonIVStrategy(mon) {
-        if (!botConfig.enabled || !mon || !mon.id || releasedCreatureIds.has(mon.id)) return;
+        if (!botConfig.enabled || !mon || !mon.id || releasedCreatureIds.has(mon.id) || pendingReleases.has(mon.id)) return;
 
-        // Strict Safety Gate: Never release shiny, special event tiers, or locked creatures
+        // Strict Safety Gate: Never release shiny, special event tiers, locked creatures, or party members
         if (isProtectedCreature(mon) || !hasCompleteIVs(mon) || !Number.isInteger(mon.boxSlot) || mon.boxSlot < 0) {
+            return;
+        }
+
+        // Conservative policy: protect last copy of each species
+        if (botConfig.protect_last_copy !== false && !hasSurplusCopies(mon)) {
             return;
         }
 
@@ -1823,10 +2157,16 @@ function handleGameMessage(msg) {
 
         // Auto release low IV creatures via official creature:release protocol
         if (cutoffPct > 0 && ivPct < cutoffPct) {
-            releasedCreatureIds.add(mon.id);
-            sendEvent("creature:release", { creatureIds: [mon.id] });
             const speciesName = mon.species || mon.name || 'Criatura';
-            logEvent(`🗑️ Liberação automática de ${speciesName} (IV: ${ivSum}/186 - ${ivPct}% < ${cutoffPct}%)`, "info");
+            pendingReleases.set(mon.id, {
+                speciesName,
+                ivSum,
+                ivPct,
+                cutoffPct,
+                requestedAt: Date.now(),
+            });
+            sendEvent("creature:release", { creatureIds: [mon.id] });
+            logEvent(`📤 Solicitando liberação de ${speciesName} (IV: ${ivSum}/186 - ${ivPct}% < ${cutoffPct}%)...`, "info");
         }
     }
 
@@ -1990,11 +2330,9 @@ function handleGameMessage(msg) {
         const myMaxHp = (myMon && myMon.maxHp !== undefined) ? myMon.maxHp : 100;
 
         const isShiny = !!(enemyMon && (enemyMon.isShiny || enemyMon.shiny));
-        const foeSpecies = (enemyMon && (enemyMon.species || enemyMon.name)) || "";
-        const speciesKey = enemyMon?.speciesId ?? foeSpecies;
-        const isUncaught = speciesKey !== '' && !Object.values(collection).some(mon =>
-            String(mon.speciesId ?? mon.species ?? mon.name) === String(speciesKey));
-        const foeSpeciesId = (enemyMon && (enemyMon.speciesId || foeSpecies.toLowerCase())) || "";
+        const foeSpecies = (enemyMon && (enemyMon.name || enemyMon.species)) || "";
+        const foeSpeciesId = (enemyMon && (enemyMon.speciesId !== undefined && enemyMon.speciesId !== null ? enemyMon.speciesId : foeSpecies.toLowerCase())) || "";
+        const isUncaught = isSpeciesUncaught(enemyMon?.speciesId, enemyMon?.species || enemyMon?.name);
         const foeLevel = (enemyMon && (enemyMon.level || enemyMon.lvl)) || 1;
         const myLevel = (myMon && (myMon.level || myMon.lvl)) || 1;
 
@@ -2013,9 +2351,16 @@ function handleGameMessage(msg) {
             isCaptureTarget = true;
             shouldFleeUnselected = false;
         }
-        // 3. Area / Route specific whitelist
-        else if (Array.isArray(botConfig.target_species) && botConfig.target_species.length > 0) {
-            if (botConfig.target_species.includes(foeSpeciesId)) {
+        // 3. Area / Route specific target mode (T07: all | selected | none)
+        else if (botConfig.target_mode === 'none') {
+            isCaptureTarget = false;
+            if (botConfig.unselected_action === "flee") {
+                shouldFleeUnselected = true;
+            }
+        }
+        else if (botConfig.target_mode === 'selected' || (Array.isArray(botConfig.target_species) && botConfig.target_species.length > 0 && botConfig.target_mode !== 'all')) {
+            const targetList = Array.isArray(botConfig.target_species) ? botConfig.target_species.map(String) : [];
+            if (targetList.includes(String(foeSpeciesId))) {
                 isCaptureTarget = true;
             } else {
                 isCaptureTarget = false;
@@ -2024,7 +2369,7 @@ function handleGameMessage(msg) {
                 }
             }
         }
-        // 4. General capture rules mode
+        // 4. General capture rules mode (target_mode === 'all' or default)
         else {
             if (botConfig.catch_only_shiny) {
                 isCaptureTarget = isShiny;
@@ -2032,6 +2377,9 @@ function handleGameMessage(msg) {
                 isCaptureTarget = isUncaught;
             } else {
                 isCaptureTarget = (botConfig.catch_hp_pct > 0);
+            }
+            if (!isCaptureTarget && botConfig.unselected_action === "flee") {
+                shouldFleeUnselected = true;
             }
         }
 
@@ -2043,7 +2391,7 @@ function handleGameMessage(msg) {
         }
 
         // Tactical Zero-Ball Strategy: Flee or farm XP if inventory has no balls
-        const totalBalls = getTotalBalls();
+        const totalBalls = getTotalBalls(isShiny);
         if (isCaptureTarget && totalBalls === 0) {
             if (botConfig.unselected_action === "battle") {
                 logEvent(`⚠️ Sem Pokébolas! Alternando para combate por XP contra ${foeSpecies}...`, "info");
@@ -2055,21 +2403,22 @@ function handleGameMessage(msg) {
             }
         }
 
-        // 1. Flee emergency
-        if (myHpPct <= botConfig.flee_hp_pct) {
-            logEvent("🏃 HP crítico! Executando fuga tática...", "warning");
-            executeBattleAction("battle:flee", { battleId: currentBattleId }, '.hud-throw-balls .hud-throw-flee:not([disabled])');
-            return;
-        }
-
-        // 1.5 In-Battle Revive: Revive fainted leader before any other action
-        if (botConfig.use_revive_battle && canRevive && myMon && (myMon.hp === 0 || myMon.isFainted)) {
+        // 1. In-Battle Revive: Revive fainted leader before critical HP fleeing
+        const isFainted = Boolean(myMon && (myMon.hp === 0 || myMon.isFainted));
+        if (botConfig.use_revive_battle && canRevive && isFainted) {
             const chosenRevive = getBestRevive();
             if (chosenRevive) {
                 logEvent(`💊 [REVIVE] Revivendo companheiro caído em combate com ${chosenRevive}...`, "warning");
                 executeBattleAction("battle:item", { battleId: currentBattleId, itemId: chosenRevive });
                 return;
             }
+        }
+
+        // 2. Flee emergency: Living creature below flee threshold (or fainted when revive unavailable)
+        if (myHpPct <= botConfig.flee_hp_pct) {
+            logEvent("🏃 HP crítico! Executando fuga tática...", "warning");
+            executeBattleAction("battle:flee", { battleId: currentBattleId }, '.hud-throw-balls .hud-throw-flee:not([disabled])');
+            return;
         }
 
         // 2. Heal with potion (Smart Escalation / Configured Tier)
@@ -2091,28 +2440,28 @@ function handleGameMessage(msg) {
         }
 
         // 3. ZERO-KILL GUARD: Catch wild creature with chosen ball
-        // Direct Throw Conditions (throw immediately from 100% HP without any attack):
+        // Direct Throw Conditions (throw immediately without prior attack):
         // - Wild foe is Shiny (NEVER hit a shiny!)
         // - Large level gap (myLevel - foeLevel >= 5): high risk of one-shot KO
         // - Wild foe is low level (<= 15) and uncaught
         // - Wild foe HP already <= catch_hp_pct threshold
         const isDirectThrow = isShiny || (myLevel - foeLevel >= 5) || (isUncaught && foeLevel <= 15) || (foeHpPct <= botConfig.catch_hp_pct);
 
-        // A healing window is not permission to throw a ball, even for shinies.
-        if (isCaptureTarget && totalBalls > 0 && !canThrowBall) return;
+        // A direct throw target must wait for server throw permission: never attack a direct throw target during a healing window or turn delay
+        if (isCaptureTarget && totalBalls > 0 && isDirectThrow && !canThrowBall) return;
 
-        if (isCaptureTarget && totalBalls > 0) {
+        if (isCaptureTarget && totalBalls > 0 && isDirectThrow && canThrowBall) {
             const chosenBall = getBestBall(foeHpPct, isShiny, isUncaught);
-            if (chosenBall && (isDirectThrow || canThrowBall)) {
+            if (chosenBall) {
                 const ballSelector = `.hud-throw-balls button.hud-throw-ball[data-item-id="${chosenBall}"]:not([disabled]):not(.hud-throw-flee)`;
                 const ballBtn = document.querySelector(ballSelector);
 
                 if (ballBtn) {
-                    const tag = isDirectThrow ? ' [ARREMESSO DIRETO]' : '';
+                    const tag = (isShiny || (myLevel - foeLevel >= 5) || (isUncaught && foeLevel <= 15)) ? ' [ARREMESSO DIRETO]' : '';
                     logEvent(`🎯 Arremessando ${chosenBall} (HP Inimigo: ${Math.round(foeHpPct * 100)}%${isShiny ? ' ✨SHINY' : ''}${tag})`, "info");
                     executeBattleAction("battle:item", { battleId: currentBattleId, itemId: chosenBall }, ballSelector);
                     return;
-                } else if (canThrowBall || isDirectThrow) {
+                } else {
                     // Fallback WebSocket dispatch: Guaranteed ball throw without falling through to attack!
                     logEvent(`🎯 [ZERO-KILL GUARD] Despachando ${chosenBall} diretamente via WebSocket (HP Inimigo: ${Math.round(foeHpPct * 100)}%)...`, "info");
                     executeBattleAction("battle:item", { battleId: currentBattleId, itemId: chosenBall });
@@ -2127,13 +2476,15 @@ function handleGameMessage(msg) {
 
         if (isCaptureTarget && !chosenMove) {
             // ZERO-KILL GUARD ACTIVE: Any attack would risk killing the target!
-            if (totalBalls > 0) {
-                const fallbackBall = getBestBall(foeHpPct, isShiny, isUncaught) || "poke-ball";
+            const fallbackBall = getBestBall(foeHpPct, isShiny, isUncaught);
+            if (fallbackBall && canThrowBall) {
                 logEvent(`🛡️ [ZERO-KILL GUARD] Risco crítico de nocaute! Evitando ataque e arremessando ${fallbackBall}...`, "warning");
                 executeBattleAction("battle:item", { battleId: currentBattleId, itemId: fallbackBall });
                 return;
+            } else if (fallbackBall && !canThrowBall) {
+                return;
             } else {
-                logEvent(`🛡️ [ZERO-KILL GUARD] Sem Pokébolas e sem golpe seguro contra ${foeSpecies}! Executando fuga tática...`, "warning");
+                logEvent(`🛡️ [ZERO-KILL GUARD] Sem Pokébolas utilizáveis e sem golpe seguro contra ${foeSpecies}! Executando fuga tática...`, "warning");
                 executeBattleAction("battle:flee", { battleId: currentBattleId }, '.hud-throw-balls .hud-throw-flee:not([disabled])');
                 return;
             }
@@ -2179,7 +2530,7 @@ function handleGameMessage(msg) {
             window.dispatchEvent(new KeyboardEvent('keydown', { code: key, key: key, bubbles: true }));
             setTimeout(() => {
                 window.dispatchEvent(new KeyboardEvent('keyup', { code: key, key: key, bubbles: true }));
-            }, 80);
+            }, 40);
         }
 
         // The game's keyboard loop owns prediction, rate limiting and move sequence.
@@ -2189,7 +2540,7 @@ function handleGameMessage(msg) {
     function startRoamLoop() {
         if (roamInterval) clearInterval(roamInterval);
         roamInterval = setInterval(() => {
-            if (!botConfig.enabled || inBattle || autoTravelState.active || !activeWs || activeWs.readyState !== WebSocket.OPEN) {
+            if (!botConfig.enabled || inBattle || autoTravelState.active || routeSwitchState.active || !activeWs || activeWs.readyState !== WebSocket.OPEN) {
                 return;
             }
 
@@ -2265,6 +2616,9 @@ function handleGameMessage(msg) {
                 loadMapCollision(currentMap);
                 return;
             }
+            if (!mapAvailable || !mapGrid) {
+                return;
+            }
 
             let chosenDir = forcedEscapeDir;
 
@@ -2319,39 +2673,91 @@ function handleGameMessage(msg) {
             if (chosenDir) {
                 const delta = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] }[chosenDir];
                 if (delta && isWalkable(px + delta[0], py + delta[1])) {
+                    const now = (typeof performance !== 'undefined' && typeof performance.now === 'function') ? performance.now() : Date.now();
+                    if (now - lastStepExecutedAt < 205) {
+                        return;
+                    }
+                    lastStepExecutedAt = now;
                     stepInDirection(chosenDir);
                     playerPos = { x: px + delta[0], y: py + delta[1] };
                     emitTelemetry();
                 }
             }
-        }, botConfig.roam_step_delay_ms || 300);
+        }, Math.max(220, Number(botConfig.roam_step_delay_ms) || 300));
+    }
+
+    function isGameSocketUrl(rawUrl) {
+        if (!rawUrl) return false;
+        try {
+            const urlStr = typeof rawUrl === 'string' ? rawUrl : (rawUrl.href || String(rawUrl));
+            const URLCtor = typeof URL !== 'undefined' ? URL : (typeof window !== 'undefined' ? window.URL : null);
+            if (URLCtor) {
+                const parsed = new URLCtor(urlStr, 'wss://idledex.com');
+                const proto = parsed.protocol.toLowerCase();
+                if (proto !== 'wss:' && proto !== 'ws:') return false;
+                const host = parsed.hostname.toLowerCase();
+                if (host === 'idledex.com' || host.endsWith('.idledex.com') || host === 'localhost' || host === '127.0.0.1') {
+                    return true;
+                }
+                return false;
+            }
+            const match = urlStr.match(/^(?:([a-z0-9+.-]+):)?\/\/(?:[^@/]+@)?([^/:]+)/i);
+            if (!match) return false;
+            const proto = (match[1] || 'wss').toLowerCase();
+            if (proto !== 'wss' && proto !== 'ws') return false;
+            const host = match[2].toLowerCase();
+            return host === 'idledex.com' || host.endsWith('.idledex.com') || host === 'localhost' || host === '127.0.0.1';
+        } catch {
+            return false;
+        }
     }
 
     // Native WebSocket Hook in Main World
-    const OrigWebSocket = window.WebSocket;
+    const OrigWebSocket = (typeof window !== 'undefined' && window.WebSocket) ? window.WebSocket : null;
     function HookedWebSocket(...args) {
-        console.log("[IdleDex Desktop] Novo WebSocket interceptado com sucesso");
+        const rawUrl = args[0];
+        const isGame = isGameSocketUrl(rawUrl);
         const ws = new OrigWebSocket(...args);
-        commandGeneration++;
-        activeWs = ws;
 
-        ws.addEventListener('open', () => {
-            if (activeWs !== ws) return;
-            if (hasConnected) {
+        if (!isGame) {
+            // Foreign, service, or analytics socket: do NOT attach game hooks or promote to activeWs.
+            return ws;
+        }
+
+        const sanitizedUrl = typeof rawUrl === 'string' ? rawUrl.split('?')[0] : 'game-endpoint';
+        console.log("[IdleDex Desktop] WebSocket do jogo interceptado com sucesso:", sanitizedUrl);
+
+        function promoteThisSocket() {
+            if (ws._idledexRetired || activeWs === ws) return;
+            if (activeWs && activeWs !== ws) {
+                activeWs._idledexRetired = true;
+            }
+            commandGeneration++;
+            const wasConnected = hasConnected;
+            activeWs = ws;
+            hasConnected = true;
+            if (wasConnected) {
                 reconnectCount++;
                 logEvent(`🔄 [RECONEXÃO #${reconnectCount}] Conexão WebSocket restabelecida com o servidor!`, "success");
             } else {
                 logEvent("✅ Conexão WebSocket estabelecida com o servidor!", "success");
             }
-            hasConnected = true;
             emitTelemetry();
             scheduleSessionTask(() => {
                 if (activeWs === ws && ws.readyState === OrigWebSocket.OPEN) configureAndStartIdle();
             }, 1000);
+        }
+
+        ws.addEventListener('open', () => {
+            if (ws._idledexRetired) return;
+            // Only promote on open if there is no healthy active session
+            if (!activeWs || activeWs.readyState === OrigWebSocket.CLOSED || activeWs.readyState === OrigWebSocket.CLOSING) {
+                promoteThisSocket();
+            }
         });
 
         ws.addEventListener('close', (event) => {
-            if (activeWs !== ws) return;
+            if (ws._idledexRetired || activeWs !== ws) return;
             // Reset state related to this WebSocket
             activeWs = null;
             pendingCaptures = [];
@@ -2366,6 +2772,7 @@ function handleGameMessage(msg) {
             clearInterval(battleWatchdog);
             clearInterval(roamInterval);
             battleTurnTimer = battleWatchdog = roamInterval = null;
+            lastStepExecutedAt = 0;
             ++mapLoadVersion;
             loadingMap = false;
             mapGrid = cleanGrassGrid = mapFringeMask = null;
@@ -2375,17 +2782,62 @@ function handleGameMessage(msg) {
             clearTimeout(autoTravelState.timeoutTimer);
             autoTravelState.active = false;
             autoTravelState.phase = 'idle';
+            if (routeSwitchState.timeoutTimer) {
+                clearTimeout(routeSwitchState.timeoutTimer);
+                routeSwitchState.timeoutTimer = null;
+            }
+            routeSwitchState.active = false;
+            routeSwitchState.targetRoute = null;
+            routeSwitchState.attempts = 0;
+            lastProfessorState = null;
+            collectorState = null;
+            collectorDeliveryKey = null;
+            lastDexQuestState = null;
+            pokedexLoaded = false;
+            pokedexCaughtSpecies.clear();
             logEvent(`🔌 WebSocket desconectado (code: ${event.code}).`, "warning");
             emitTelemetry();
         });
 
         ws.addEventListener('message', (event) => {
+            if (ws._idledexRetired) return;
+
+            let welcomeMsg = null;
+            if (typeof event.data === 'string') {
+                try {
+                    const parsed = JSON.parse(event.data);
+                    const t = parsed?.t || parsed?.type;
+                    if (t === 'welcome') {
+                        welcomeMsg = parsed;
+                    }
+                } catch (e) {}
+            }
+
+            // Official gameplay handshake: welcome message on candidate socket promotes it as active session
+            if (welcomeMsg && activeWs !== ws) {
+                promoteThisSocket();
+            }
+
             if (activeWs !== ws) return;
-            if (event.data instanceof ArrayBuffer) {
+
+            // Handle Blob payloads asynchronously with session generation check
+            if (typeof Blob !== 'undefined' && event.data instanceof Blob) {
+                const currentGen = commandGeneration;
+                const capturingWs = ws;
+                event.data.arrayBuffer().then(buffer => {
+                    if (activeWs !== capturingWs || capturingWs._idledexRetired || currentGen !== commandGeneration) {
+                        return; // Discard stale Blob response from old session
+                    }
+                    parseBinaryFrame(buffer);
+                }).catch(() => {});
+                return;
+            }
+
+            if (event.data instanceof ArrayBuffer || ArrayBuffer.isView(event.data)) {
                 parseBinaryFrame(event.data);
             } else if (typeof event.data === 'string') {
                 try {
-                    const msg = JSON.parse(event.data);
+                    const msg = welcomeMsg || JSON.parse(event.data);
                     handleGameMessage(msg);
                 } catch (e) {}
             }
@@ -2395,12 +2847,14 @@ function handleGameMessage(msg) {
     }
 
     // Preserve prototype & static constants
-    HookedWebSocket.prototype = OrigWebSocket.prototype;
-    HookedWebSocket.CONNECTING = OrigWebSocket.CONNECTING;
-    HookedWebSocket.OPEN = OrigWebSocket.OPEN;
-    HookedWebSocket.CLOSING = OrigWebSocket.CLOSING;
-    HookedWebSocket.CLOSED = OrigWebSocket.CLOSED;
-    window.WebSocket = HookedWebSocket;
+    if (OrigWebSocket) {
+        HookedWebSocket.prototype = OrigWebSocket.prototype;
+        HookedWebSocket.CONNECTING = OrigWebSocket.CONNECTING;
+        HookedWebSocket.OPEN = OrigWebSocket.OPEN;
+        HookedWebSocket.CLOSING = OrigWebSocket.CLOSING;
+        HookedWebSocket.CLOSED = OrigWebSocket.CLOSED;
+        window.WebSocket = HookedWebSocket;
+    }
 
     // Listen for commands dispatched from host via preload
     window.addEventListener('idledex-from-preload', (event) => {
@@ -2412,11 +2866,18 @@ function handleGameMessage(msg) {
                 clearTimeout(autoTravelState.timeoutTimer);
                 autoTravelState.active = false;
                 autoTravelState.phase = 'idle';
+                if (routeSwitchState.timeoutTimer) {
+                    clearTimeout(routeSwitchState.timeoutTimer);
+                    routeSwitchState.timeoutTimer = null;
+                }
+                routeSwitchState.active = false;
+                routeSwitchState.targetRoute = null;
                 // Clean pause: instantly cancel all loops and pending timers
                 if (roamInterval) {
                     clearInterval(roamInterval);
                     roamInterval = null;
                 }
+                lastStepExecutedAt = 0;
                 if (battleTurnTimer) {
                     clearTimeout(battleTurnTimer);
                     battleTurnTimer = null;
@@ -2448,6 +2909,12 @@ function handleGameMessage(msg) {
                     clearTimeout(autoTravelState.timeoutTimer);
                     autoTravelState.active = false;
                     autoTravelState.phase = 'idle';
+                    if (routeSwitchState.timeoutTimer) {
+                        clearTimeout(routeSwitchState.timeoutTimer);
+                        routeSwitchState.timeoutTimer = null;
+                    }
+                    routeSwitchState.active = false;
+                    routeSwitchState.targetRoute = null;
                 }
             }
             const prevMode = botConfig.strategy_mode;
@@ -2482,8 +2949,19 @@ function handleGameMessage(msg) {
 }
 
 // 4. Trigger Main World Injection
-try {
-    webFrame.executeJavaScript('(' + initMainWorldEngine.toString() + ')()');
-} catch (e) {
-    console.error("[IdleDex Desktop] Falha ao executar webFrame.executeJavaScript:", e);
+if (typeof webFrame !== 'undefined' && webFrame.executeJavaScript) {
+    try {
+        webFrame.executeJavaScript('(' + initMainWorldEngine.toString() + ')()');
+    } catch (e) {
+        console.error("[IdleDex Desktop] Falha ao executar webFrame.executeJavaScript:", e);
+    }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        ALLOWED_PRELOAD_CHANNELS,
+        ALLOWED_HOST_COMMANDS,
+        handleIdledexToPreload,
+        handleHostCommand,
+    };
 }

@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://idledex.com wss://idledex.com;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IdleDex Desktop</title>
     <link rel="stylesheet" href="styles.css">
@@ -15,19 +16,19 @@
                 <span class="brand-dot"></span>
                 <span>IDLEDEX DESKTOP</span>
             </div>
-            <div id="bot-status-pill" class="status-pill">
+            <div id="bot-status-pill" class="status-pill paused">
                 <span id="pill-dot">●</span>
-                <span id="pill-text">BOT ATIVO</span>
+                <span id="pill-text">BOT PAUSADO</span>
             </div>
             <span id="shard-indicator" style="font-size:0.75rem; font-family:var(--font-mono); color:var(--text-dim);">Shard: --</span>
         </div>
 
         <div class="titlebar-actions">
             <button id="btn-tutorial" class="tb-btn">Tutorial</button>
-            <button id="btn-switch-account" data-help="account" class="tb-btn" onclick="switchAccount()">Sair / Trocar conta</button>
-            <button id="btn-toggle-bot" data-help="start" class="tb-btn primary" onclick="toggleBotState()">⏸️ Pausar Bot</button>
-            <button data-help="start" class="tb-btn" onclick="toggleSidebar()">📐 Alternar Barra</button>
-            <button data-help="start" class="tb-btn" onclick="minimizeToTray()">📥 Bandeja (Tray)</button>
+            <button id="btn-switch-account" data-help="account" class="tb-btn">Sair / Trocar conta</button>
+            <button id="btn-toggle-bot" data-help="start" class="tb-btn">▶️ Iniciar Bot</button>
+            <button id="btn-toggle-sidebar" data-help="start" class="tb-btn">📐 Alternar Barra</button>
+            <button id="btn-minimize-tray" data-help="start" class="tb-btn">📥 Bandeja (Tray)</button>
         </div>
     </header>
 
@@ -47,11 +48,11 @@
         <!-- RIGHT COLUMN: RETRACTABLE CYBER SIDEBAR -->
         <aside class="sidebar" id="bot-sidebar">
             <nav class="sidebar-tabs">
-                <button class="s-tab active" onclick="switchPanel('radar')">🗺️ Radar</button>
-                <button class="s-tab" onclick="switchPanel('combat')">⚔️ Batalha</button>
-                <button class="s-tab" onclick="switchPanel('stats')">📊 Stats</button>
-                <button class="s-tab" onclick="switchPanel('inventory')">🎒 Mochila</button>
-                <button class="s-tab" onclick="switchPanel('config')">⚙️ Config</button>
+                <button class="s-tab active" data-panel="radar">🗺️ Radar</button>
+                <button class="s-tab" data-panel="combat">⚔️ Batalha</button>
+                <button class="s-tab" data-panel="stats">📊 Stats</button>
+                <button class="s-tab" data-panel="inventory">🎒 Mochila</button>
+                <button class="s-tab" data-panel="config">⚙️ Config</button>
             </nav>
 
             <div class="sidebar-content">
@@ -87,7 +88,7 @@
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0 6px 0;">
                             <span data-help="cfg-unselected-action" style="font-size:0.75rem; color:var(--text-muted);">Não Selecionados:</span>
-                            <select id="cfg-unselected-action-radar" class="form-control" style="width:130px; padding:2px 6px; font-size:0.75rem;" onchange="onRadarUnselectedActionChange(this.value)">
+                            <select id="cfg-unselected-action-radar" class="form-control" style="width:130px; padding:2px 6px; font-size:0.75rem;">
                                 <option value="battle">⚔️ Lutar por XP</option>
                                 <option value="flee">🏃 Fugir Imediato</option>
                             </select>
@@ -96,8 +97,8 @@
                             <div style="color:var(--text-dim); font-size:0.75rem;">Aguardando detecção de mapa...</div>
                         </div>
                         <div style="display:flex; gap:6px; margin-top:8px;">
-                            <button type="button" class="tb-btn" style="flex:1; font-size:0.72rem; padding:4px;" onclick="selectAllAreaSpecies(true)">Marcar Todos</button>
-                            <button type="button" class="tb-btn" style="flex:1; font-size:0.72rem; padding:4px;" onclick="selectAllAreaSpecies(false)">Desmarcar</button>
+                            <button id="btn-select-all-species" type="button" class="tb-btn" style="flex:1; font-size:0.72rem; padding:4px;">Marcar Todos</button>
+                            <button id="btn-deselect-all-species" type="button" class="tb-btn" style="flex:1; font-size:0.72rem; padding:4px;">Desmarcar</button>
                         </div>
                     </div>
                 </div>
@@ -306,7 +307,7 @@
                             </div>
                             <div class="form-item">
                                 <label>Delay entre Passos (ms)</label>
-                                <input type="number" id="cfg-roam-delay" class="form-control" style="width:65px;" min="150" max="1000" step="50">
+                                <input type="number" id="cfg-roam-delay" class="form-control" style="width:65px;" min="220" max="1000" step="10">
                             </div>
                             <div class="form-item">
                                 <label>Auto-Troca de Rota (ao capturar alvos)</label>
@@ -318,7 +319,7 @@
                             </div>
                             <div class="form-item">
                                 <label>Preset de configuração</label>
-                                <select id="cfg-strategy" class="form-control" style="width:135px;" onchange="onStrategyChange(this.value)">
+                                <select id="cfg-strategy" class="form-control" style="width:135px;">
                                     <option value="balanced">Equilibrado</option>
                                     <option value="collection">Foco Coleção</option>
                                     <option value="monetize">Monetização</option>
@@ -327,7 +328,7 @@
                             <div class="form-item">
                                 <label>Descarte Auto IV &lt; (%)</label>
                                 <div style="display:flex; align-items:center; gap:8px;">
-                                    <input type="range" id="cfg-discard-iv-pct" min="0" max="90" step="5" value="50" oninput="document.getElementById('lbl-discard-iv-pct').innerText = this.value + '%'" style="width:90px;">
+                                    <input type="range" id="cfg-discard-iv-pct" min="0" max="90" step="5" value="50" style="width:90px;">
                                     <span id="lbl-discard-iv-pct" style="font-family:var(--font-mono); font-size:0.75rem; width:35px; color:var(--cyan);">50%</span>
                                 </div>
                             </div>
@@ -374,7 +375,7 @@
                                 <input type="checkbox" id="cfg-close-to-tray">
                             </div>
 
-                            <button data-help="save" onclick="saveBotSettings()" class="tb-btn primary" style="margin-top:12px; width:100%; padding:9px;">
+                            <button id="btn-save-settings" data-help="save" class="tb-btn primary" style="margin-top:12px; width:100%; padding:9px;">
                                 💾 Salvar Ajustes
                             </button>
                         </div>
@@ -385,7 +386,7 @@
                 <div class="card" style="margin-top:auto;">
                     <div class="card-header">
                         <span data-help="logs" class="card-title">Console de Operações</span>
-                        <button onclick="clearLogs()" style="background:transparent; border:none; color:var(--text-dim); font-size:0.75rem; cursor:pointer;">Limpar</button>
+                        <button id="btn-clear-logs" style="background:transparent; border:none; color:var(--text-dim); font-size:0.75rem; cursor:pointer;">Limpar</button>
                     </div>
                     <div class="log-box" id="log-feed">
                         <div class="log-entry info"><span style="color:var(--text-dim);">[00:00:00]</span> Inicializando suíte desktop...</div>

@@ -52,13 +52,20 @@ idledex-bot/
 │   ├── icon.ico                # Multi-resolution Windows icon (16px - 256px)
 │   └── icon.png                # Source branding icon (512x512)
 ├── tests/                      # Automated Regression & Verification Suites
-│   ├── regression-suite.js     # Protocol & combat engine regression tests
-│   └── smoke-electron.js       # Playwright-driven Electron launch verification
+│   ├── engine.test.cjs         # Core bot engine, combat & state tests
+│   ├── protocol.test.cjs       # Binary frames, UTF-8 & packet parser tests
+│   ├── security.test.cjs       # IPC sender validation & webview security
+│   ├── dashboard.test.cjs      # Config persistence & telemetry bridge tests
+│   ├── dashboard-dom.test.cjs  # DOM sanitization, CSP & tutorial tests
+│   ├── route-trip.test.cjs     # Auto-route switching & travel state machine
+│   ├── lab-trip.test.cjs       # Professor lab deliveries & return tests
+│   ├── electron-smoke.cjs      # Isolated packaged candidate smoke test
+│   └── test_legacy_security.py # Hardened legacy Python HTTP server tests
 ├── research/                   # Reverse Engineering & Protocol Specifications
-│   ├── 2026-09-08-audit.md     # WebSocket protocol schemas and contracts
-│   └── 2026-09-09-usability.md # UX heuristics and delivery cycle audits
-├── dist-release/               # Compiled Portable Binaries (Git-Ignored)
-│   └── IdleDex_Desktop_Portable_2.5.0.exe
+│   ├── verify-release.cjs      # Candidate package integrity & allowlist verifier
+│   └── delivery-audit.md       # Audit trail, protocol schemas and contracts
+├── dist-release/               # Compiled Binaries (Git-Ignored)
+│   └── win-unpacked/           # Unpacked standalone distribution
 ├── package.json                # Project manifest & electron-builder configuration
 └── README.md                   # Technical documentation
 ```
@@ -131,14 +138,23 @@ O executável gerado estará disponível em `dist-release/IdleDex_Desktop_Portab
 O projeto conta com suítes automatizadas de testes cobrindo integridade de empacotamento, regressão de protocolo e ciclo de vida Electron:
 
 ```bash
-# Run all automated tests
+# Run full Node test suite (109 unit/integration tests)
 npm test
 
-# Run regression test suite directly
-node tests/regression-suite.js
+# Run DOM sanitization, CSP & tutorial offline tests
+node --test tests/dashboard-dom.test.cjs
 
-# Run Playwright Electron smoke test
-node tests/smoke-electron.js
+# Run legacy Python server security unit tests (9 tests)
+python -m unittest discover tests
+
+# Build distribution package into dist-release
+npm run pack
+
+# Run isolated Electron candidate smoke test
+npx electron tests/electron-smoke.cjs --app-dir dist-release/win-unpacked/resources/app
+
+# Run candidate release integrity and allowlist verifier
+node research/verify-release.cjs --app-dir dist-release/win-unpacked/resources/app
 ```
 
 ---

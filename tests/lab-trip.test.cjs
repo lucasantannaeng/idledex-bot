@@ -40,6 +40,7 @@ test('lab timeout requests return instead of abandoning travel in the lab', () =
     const { engine, travels } = trip();
     engine.advance(26000);
     assert.equal(travels().at(-1).d.mapId, 'route_006');
+    engine.publish();
     assert.equal(engine.state().autoTravel.phase, 'returning');
 });
 
@@ -50,6 +51,7 @@ test('resuming inside the lab restores delivery flow and never presses movement 
     engine.command('toggle-bot', { enabled: false });
     engine.command('toggle-bot', { enabled: true });
     engine.advance(5000);
+    engine.publish();
     assert.equal(engine.state().autoTravel.phase, 'delivering');
     assert.equal(steps, 0);
     socket.message({ t: 'professor:state', d: { charges: 0, lotSize: 5, lots: [] } });
@@ -78,6 +80,7 @@ test('shard reconnect into lab restores delivery and returns to the welcome orig
     let steps = 0;
     engine.onKeyDown(() => steps++);
     engine.advance(4000);
+    engine.publish();
     assert.equal(engine.state().autoTravel.phase, 'delivering');
     labSocket.message({ t: 'professor:state', d: { charges: 0, lotSize: 5, lots: [] } });
     assert.equal(labSocket.sent.find(p => p.t === 'map:travel').d.mapId, 'route_014');

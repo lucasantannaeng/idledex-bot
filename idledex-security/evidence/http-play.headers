@@ -1,0 +1,12 @@
+HTTP/1.1 301 Moved Permanently
+Date: Wed, 09 Sep 2026 13:25:12 GMT
+Content-Length: 17
+Connection: keep-alive
+Location: https://idledex.com/play
+cf-cache-status: DYNAMIC
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=uD4ZqupTTBmTMeld%2FYtjwnkmYr0ac3V3Ib%2BqTtnkZJcu8CCA%2FlOuL9OY1DD%2FKuQ%2FBi1pRZtA7SivVfhcopFlU1FQimvrUiFdjo72BA1meDvRMFPznBnbdZgVOW2rDFJ9OOB0TZDjQLfOdQ%3D%3D"}]}
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Server: cloudflare
+CF-RAY: a38684840bc26d49-GIG
+alt-svc: h3=":443"; ma=86400
+
