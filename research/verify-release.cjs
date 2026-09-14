@@ -21,21 +21,11 @@ function computeFileHash(buffer) {
 }
 
 function computeDirHash(dir) {
-    const hash = crypto.createHash('sha256');
-    function walk(sub) {
-        if (!fs.existsSync(sub)) return;
-        const entries = fs.readdirSync(sub, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
-        for (const entry of entries) {
-            const p = path.join(sub, entry.name);
-            if (entry.isDirectory()) walk(p);
-            else if (entry.isFile()) {
-                hash.update(entry.name);
-                hash.update(fs.readFileSync(p));
-            }
-        }
-    }
-    walk(dir);
-    return hash.digest('hex');
+    assert.ok(fs.existsSync(dir), `Candidate directory does not exist: ${dir}`);
+    const manifest = collectFiles(dir).sort().map(relative => [
+        relative, computeFileHash(fs.readFileSync(path.join(dir, relative))),
+    ]);
+    return computeFileHash(JSON.stringify(manifest));
 }
 
 function collectFiles(baseDir, relativePrefix = '') {
@@ -99,16 +89,13 @@ function verifyRelease(options = {}) {
 
     const candidateHash = computeDirHash(shipped);
 
-    // Smoke result verification if available
-    let smokeReport = null;
+    // A release cannot pass without evidence tied to this exact candidate.
     const smokePath = options.smokePath || path.join(__dirname, 'smoke-result.json');
-    if (fs.existsSync(smokePath)) {
-        smokeReport = JSON.parse(fs.readFileSync(smokePath, 'utf8'));
-        assert.equal(smokeReport.passed, true, 'Smoke test did not pass');
-        if (smokeReport.candidateHash) {
-            assert.equal(smokeReport.candidateHash, candidateHash, 'Smoke test was run against a different build hash');
-        }
-    }
+    assert.ok(fs.existsSync(smokePath), 'Missing smoke report for candidate');
+    const smokeReport = JSON.parse(fs.readFileSync(smokePath, 'utf8'));
+    assert.equal(smokeReport.passed, true, 'Smoke test did not pass');
+    assert.match(smokeReport.candidateHash || '', /^[a-f0-9]{64}$/, 'Smoke report must contain candidateHash');
+    assert.equal(smokeReport.candidateHash, candidateHash, 'Smoke test was run against a different build hash');
 
     const report = {
         checkedAt: new Date().toISOString(),

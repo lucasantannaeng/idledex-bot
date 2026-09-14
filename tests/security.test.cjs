@@ -75,6 +75,7 @@ function loadMainModule() {
             if (name === './config-schema') return require('../electron/config-schema');
             if (name === 'fs') return storage;
             if (name === 'path') return path;
+            if (name === 'node:url') return require('node:url');
             throw new Error(name);
         },
         console,
@@ -188,8 +189,33 @@ test('T02: will-attach-webview strictly validates partition, sender webContents 
     mainAttachCb({ preventDefault: () => { prevented = true; } }, webPreferences, { partition: 'persist:idledex', src: 'https://idledex.com/play' });
     assert.equal(prevented, false, 'Authorized attachment must be allowed');
     assert.ok(webPreferences.preload.endsWith('preload-game.js'), 'Preload must be forced to preload-game.js');
-    assert.equal(webPreferences.contextIsolation, false);
-    assert.equal(webPreferences.sandbox, false);
+    assert.equal(webPreferences.contextIsolation, true);
+    assert.equal(webPreferences.sandbox, true);
+    assert.equal(webPreferences.nodeIntegration, false);
+});
+
+for (const url of [
+    'https://idledex.com:444/play',
+    'https://accounts.google.com:444/o/oauth2/v2/auth',
+    'https://user:password@idledex.com/play',
+    'https://user:password@accounts.google.com/o/oauth2/v2/auth',
+]) {
+    test(`T02: guest origin restrictions reject nonstandard ports and userinfo: ${url}`, () => {
+        const { main } = loadMainModule();
+        assert.equal(main.isAllowedGuestUrl(url), false);
+    });
+}
+
+test('T02: dashboard navigation rejects arbitrary local files', () => {
+    const { webContentsEvents } = loadMainModule();
+    const navigationHandlers = webContentsEvents['will-navigate'];
+    assert.ok(navigationHandlers?.length > 0, 'Dashboard navigation guard must be registered');
+    let prevented = false;
+    for (const handler of navigationHandlers) {
+        handler({ preventDefault() { prevented = true; } }, 'file:///C:/untrusted.html');
+    }
+    assert.equal(prevented, true,
+        'An arbitrary local page must not receive the privileged dashboard preload');
 });
 
 test('T02: session permissions are denied by default', () => {

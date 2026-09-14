@@ -1,19 +1,34 @@
 {
   "passed": true,
-  "checkedAt": "2026-09-13T04:35:21.900Z",
-  "source": "D:\\Projetos\\1.Autorais\\idledex-bot\\dist-release\\win-unpacked\\resources\\app",
-  "candidateHash": "f857b216cc4ec9abc24b4b1fcc4098442f4794a64c1cd7a73e071e7cc129182f",
-  "help": {
-    "tutorialOpen": true,
-    "sections": 35,
-    "closed": true,
-    "missing": [],
-    "quick": "HP inimigo para captura",
-    "inView": true
+  "scope": "candidate",
+  "main": "actual",
+  "checkedAt": "2026-09-14T18:13:14.793Z",
+  "candidateHash": "f79f94f0dcabb5dd7259abdd13abd58265d72f270505917c3e3684d7298575d7",
+  "runtime": "33.4.11",
+  "startup": {
+    "hooked": true,
+    "requireType": "undefined",
+    "processType": "undefined",
+    "ipcType": "undefined",
+    "apiType": "undefined"
   },
-  "accountReset": true,
-  "enabled": false,
-  "catchHp": 0,
-  "label": "BOT PAUSADO",
-  "input": "0"
+  "state": {
+    "enabled": false,
+    "catchHp": 0,
+    "label": "BOT PAUSADO",
+    "input": "0"
+  },
+  "help": {
+    "open": true,
+    "sections": 35,
+    "missing": 0,
+    "title": "HP inimigo para captura"
+  },
+  "isolation": true,
+  "accountReset": "synthetic",
+  "secondInstance": true,
+  "closeToTray": true,
+  "xssDom": true,
+  "suspend": "simulated-signal",
+  "hardwareAcceleration": false
 }

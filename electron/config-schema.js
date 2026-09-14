@@ -6,6 +6,7 @@
 
 'use strict';
 
+function createConfigSchema() {
 const SCHEMA_VERSION = 1;
 
 const DEFAULT_CONFIG = Object.freeze({
@@ -27,10 +28,10 @@ const DEFAULT_CONFIG = Object.freeze({
     target_mode: 'all', // 'all' | 'selected' | 'none'
     unselected_action: 'battle', // 'battle' | 'flee'
     min_iv_alert: 130, // 0..186
-    discard_iv_pct: 50, // 0..100
+    discard_iv_pct: 0, // 0 disables automatic discard on a fresh profile
     protect_last_copy: true,
     pause_on_no_balls: true,
-    roam_step_delay_ms: 300, // 205..5000
+    roam_step_delay_ms: 300, // 220..5000
     auto_idle: true,
     auto_roam: true,
     auto_claim_dailies: true,
@@ -51,10 +52,10 @@ const VALID_MOVE_MODES = new Set(['smart', 'max_damage', 'first']);
 const VALID_UNSELECTED_ACTIONS = new Set(['battle', 'flee']);
 const VALID_TARGET_MODES = new Set(['all', 'selected', 'none']);
 
-function normalizeFraction(val, fallback) {
+function normalizeFraction(val, fallback, legacy = false) {
     if (typeof val !== 'number' || !Number.isFinite(val)) return fallback;
     if (val >= 0 && val <= 1) return val;
-    if (val > 1 && val <= 100) return Math.round((val / 100) * 1000) / 1000;
+    if (legacy && val > 1 && val <= 100) return Math.round((val / 100) * 1000) / 1000;
     if (val < 0) return 0;
     return 1;
 }
@@ -76,6 +77,7 @@ function normalizeConfig(raw, fallback = DEFAULT_CONFIG) {
 
     const base = { ...DEFAULT_CONFIG, ...(fallback && typeof fallback === 'object' && !Array.isArray(fallback) ? fallback : {}) };
     const out = {};
+    const legacy = raw.schemaVersion === undefined || raw.schemaVersion === 0;
 
     out.schemaVersion = SCHEMA_VERSION;
 
@@ -84,8 +86,8 @@ function normalizeConfig(raw, fallback = DEFAULT_CONFIG) {
     out.strategy_mode = typeof raw.strategy_mode === 'string' && VALID_STRATEGY_MODES.has(raw.strategy_mode)
         ? raw.strategy_mode : base.strategy_mode;
 
-    out.flee_hp_pct = normalizeFraction(raw.flee_hp_pct, base.flee_hp_pct);
-    out.potion_hp_pct = normalizeFraction(raw.potion_hp_pct, base.potion_hp_pct);
+    out.flee_hp_pct = normalizeFraction(raw.flee_hp_pct, base.flee_hp_pct, legacy);
+    out.potion_hp_pct = normalizeFraction(raw.potion_hp_pct, base.potion_hp_pct, legacy);
     out.potion_mode = typeof raw.potion_mode === 'string' && VALID_POTION_MODES.has(raw.potion_mode)
         ? raw.potion_mode : base.potion_mode;
 
@@ -93,7 +95,7 @@ function normalizeConfig(raw, fallback = DEFAULT_CONFIG) {
     out.use_revive_overworld = normalizeBool(raw.use_revive_overworld, base.use_revive_overworld);
     out.auto_heal_center = normalizeBool(raw.auto_heal_center, base.auto_heal_center);
 
-    out.catch_hp_pct = normalizeFraction(raw.catch_hp_pct, base.catch_hp_pct);
+    out.catch_hp_pct = normalizeFraction(raw.catch_hp_pct, base.catch_hp_pct, legacy);
     out.catch_only_shiny = normalizeBool(raw.catch_only_shiny, base.catch_only_shiny);
     out.catch_only_uncaught = normalizeBool(raw.catch_only_uncaught, base.catch_only_uncaught);
 
@@ -135,7 +137,7 @@ function normalizeConfig(raw, fallback = DEFAULT_CONFIG) {
     out.protect_last_copy = normalizeBool(raw.protect_last_copy, base.protect_last_copy);
     out.pause_on_no_balls = normalizeBool(raw.pause_on_no_balls, base.pause_on_no_balls);
 
-    out.roam_step_delay_ms = normalizeInt(raw.roam_step_delay_ms, 205, 5000, base.roam_step_delay_ms);
+    out.roam_step_delay_ms = normalizeInt(raw.roam_step_delay_ms, 220, 5000, base.roam_step_delay_ms);
 
     out.auto_idle = normalizeBool(raw.auto_idle, base.auto_idle);
     out.auto_roam = normalizeBool(raw.auto_roam, base.auto_roam);
@@ -147,7 +149,9 @@ function normalizeConfig(raw, fallback = DEFAULT_CONFIG) {
     out.auto_travel_surplus_threshold = normalizeInt(raw.auto_travel_surplus_threshold, 1, 100, base.auto_travel_surplus_threshold);
     out.auto_route_switch = normalizeBool(raw.auto_route_switch, base.auto_route_switch);
 
-    if (raw.pinned_species != null && typeof raw.pinned_species === 'string' && raw.pinned_species.trim().length > 0) {
+    if (raw.pinned_species === undefined) {
+        out.pinned_species = base.pinned_species;
+    } else if (raw.pinned_species != null && typeof raw.pinned_species === 'string' && raw.pinned_species.trim().length > 0) {
         out.pinned_species = raw.pinned_species.trim();
     } else {
         out.pinned_species = null;
@@ -158,7 +162,7 @@ function normalizeConfig(raw, fallback = DEFAULT_CONFIG) {
     return out;
 }
 
-module.exports = {
+return {
     SCHEMA_VERSION,
     DEFAULT_CONFIG,
     normalizeConfig,
@@ -166,3 +170,7 @@ module.exports = {
     normalizeInt,
     normalizeBool,
 };
+
+}
+
+module.exports = { ...createConfigSchema(), createConfigSchema };

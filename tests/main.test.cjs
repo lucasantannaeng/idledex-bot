@@ -21,7 +21,7 @@ function mainProcess(saved) {
     const moduleObj = { exports: moduleExports };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../electron/main.js'), 'utf8'), {
         module: moduleObj, exports: moduleExports,
-        require(name) { if (name === './account-session') return require('../electron/account-session'); if (name === './config-schema') return require('../electron/config-schema'); if (name === 'electron') return { app, ipcMain: { handle: (name, fn) => handlers[name] = fn, on: (name, fn) => handlers[name] = fn } }; if (name === 'fs') return storage; if (name === 'path') return path; throw new Error(name); },
+        require(name) { if (name === './account-session') return require('../electron/account-session'); if (name === './config-schema') return require('../electron/config-schema'); if (name === 'electron') return { app, ipcMain: { handle: (name, fn) => handlers[name] = fn, on: (name, fn) => handlers[name] = fn } }; if (name === 'fs') return storage; if (name === 'path') return path; if (name === 'node:url') return require('node:url'); throw new Error(name); },
         console, process: { env: {}, argv: [], platform: 'win32' }, __dirname: path.join(__dirname, '../electron'),
     });
     if (moduleObj.exports.setMainWindowForTesting) {
@@ -77,6 +77,15 @@ test('T05: future schema version is not silently overwritten', () => {
     assert.equal(main.persisted(), futureJson);
 });
 
+test('T05: future schema configuration loads paused and preserves the original file', () => {
+    const futureJson = JSON.stringify({ schemaVersion: 99, enabled: true, customFutureKey: 'secure' });
+    const main = mainProcess(futureJson);
+
+    assert.equal(main.config().enabled, false,
+        'Unsupported future settings must not activate the bot');
+    assert.equal(main.persisted(), futureJson);
+});
+
 test('T05: normalization strips ghost keys and clamps domain boundaries', () => {
     const main = mainProcess();
     const result = main.save({
@@ -86,7 +95,7 @@ test('T05: normalization strips ghost keys and clamps domain boundaries', () => 
         flee_hp_pct: 35, // 35% converted to 0.35
         min_iv_alert: 999, // clamped to 186
         discard_iv_pct: -10, // clamped to 0
-        roam_step_delay_ms: 10, // clamped to 205
+        roam_step_delay_ms: 10, // clamped to the engine/UI minimum
         strategy_mode: 'invalid_mode', // fallback to 'balanced'
         target_species: ['pikachu', '  pikachu ', 'eevee', ''],
         malicious_key: 'should_be_stripped'
@@ -100,7 +109,7 @@ test('T05: normalization strips ghost keys and clamps domain boundaries', () => 
     assert.equal(saved.flee_hp_pct, 0.35);
     assert.equal(saved.min_iv_alert, 186);
     assert.equal(saved.discard_iv_pct, 0);
-    assert.equal(saved.roam_step_delay_ms, 205);
+    assert.equal(saved.roam_step_delay_ms, 220);
     assert.equal(saved.strategy_mode, 'balanced');
     assert.deepEqual(saved.target_species, ['pikachu', 'eevee']);
     assert.equal(saved.target_mode, 'selected');
@@ -123,4 +132,3 @@ test('T18: sanitizeLogMessage redacts sensitive tokens, keys, cookies and auth h
     const msgWithCookie = 'Failed with cookie=auth_cookie_val_123';
     assert.equal(sanitize(msgWithCookie), 'Failed with cookie=[REDACTED]');
 });
-

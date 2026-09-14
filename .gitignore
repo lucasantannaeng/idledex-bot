@@ -12,6 +12,7 @@ dist-release/
 .smoke-profile/
 research/*.js
 !research/*.cjs
+research/*.png
 research/play.html
 research/play-current.html
 research/previous-runtime/
@@ -22,6 +23,7 @@ _agy_prompt.txt
 # Unignore electron project sources (overriding global .gitignore)
 !electron/
 !electron/**
+/electron/generated/
 
 # =============================================================================
 # DevSecOps: Desktop Compilations, Binaries & Secret Protection (Zero-Trust)
@@ -48,4 +50,3 @@ config.json
 *.zip
 *.7z
 *.tar.gz
-

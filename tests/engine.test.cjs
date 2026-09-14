@@ -133,7 +133,7 @@ test('professor delivery requires charges and sends one complete command for an 
 test('collector obtains a preview and protects valuable creatures before consuming', () => {
     const engine = createEngine();
     const socket = engine.socket(); socket.open();
-    engine.configure({ enabled: true });
+    engine.configure({ protect_last_copy: false, enabled: true });
     socket.message({ t: 'map:change', d: { map: 'route_001' } });
     socket.message({ t: 'collector:state', d: { mapId: 'route_001', window: 1, deliverable: true, delivered: false } });
     assert.equal(socket.sent.filter(command => command.t === 'collector:deliver').length, 0);
@@ -141,7 +141,7 @@ test('collector obtains a preview and protects valuable creatures before consumi
     socket.message({ t: 'team', d: { creatures: [{ id: 'shiny', isShiny: true, teamSlot: null, boxSlot: 0 }] } });
     socket.message({ t: 'collector:preview', d: { mapId: 'route_001', window: 1, creatureIds: ['shiny'] } });
     assert.equal(socket.sent.filter(command => command.t === 'collector:deliver').length, 0);
-    socket.message({ t: 'team', d: { creatures: [{ id: 'safe', teamSlot: null, boxSlot: 1, ivs: { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 } }] } });
+    socket.message({ t: 'team', d: { creatures: [{ id: 'safe', speciesId: 25, teamSlot: null, boxSlot: 1, ivs: { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 } }] } });
     const preview = { mapId: 'route_001', window: 1, creatureIds: ['safe'] };
     socket.message({ t: 'collector:preview', d: preview });
     socket.message({ t: 'collector:preview', d: preview });
@@ -171,7 +171,7 @@ test('auto travel requires eligible Box surplus and pause cancels lab callbacks'
 test('capture summary waits for creature snapshot before grading and releasing low IVs', () => {
     const engine = createEngine();
     const socket = engine.socket(); socket.open();
-    engine.configure({ enabled: true, protect_last_copy: false });
+    engine.configure({ enabled: true, protect_last_copy: false, discard_iv_pct: 50 });
     socket.message({ t: 'welcome', d: { playerId: 'player' } });
     socket.message({ t: 'battle:start', d: { ownerId: 'player', battleId: 'capture', foe: { speciesId: 1, name: 'Bulbasaur' } } });
     socket.message({ t: 'battle:end', d: { battleId: 'capture', result: 'capture', caught: { speciesId: 1, name: 'Bulbasaur' } } });
@@ -730,7 +730,7 @@ test('T14: DexQuest deduplicates requests and does not send duplicate delivery f
     const engine = createEngine();
     const socket = engine.socket(); socket.open();
     socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
-    engine.configure({ enabled: true, auto_npc_quests: true });
+    engine.configure({ protect_last_copy: false, enabled: true, auto_npc_quests: true });
 
     const ivs = { hp: 10, atk: 10, def: 10, spa: 10, spd: 10, spe: 10 };
     const pika = { id: 'p1', speciesId: 25, name: 'Pikachu', boxSlot: 0, ivs };
@@ -785,11 +785,11 @@ test('T14: Collector preview rejects delivery if any creature is in pendingRelea
     assert.strictEqual(collectorDelivers.length, 0, 'Collector must not deliver creature that is pending release');
 });
 
-test('T14: disconnecting socket resets NPC deduplication states for fresh session', () => {
+test('T14: reconnect retains unresolved destructive requests', () => {
     const engine = createEngine();
     const socket = engine.socket(); socket.open();
     socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
-    engine.configure({ enabled: true, auto_npc_quests: true });
+    engine.configure({ protect_last_copy: false, enabled: true, auto_npc_quests: true });
 
     const ivs = { hp: 10, atk: 10, def: 10, spa: 10, spd: 10, spe: 10 };
     const pika = { id: 'p1', speciesId: 25, name: 'Pikachu', boxSlot: 0, ivs };
@@ -807,13 +807,13 @@ test('T14: disconnecting socket resets NPC deduplication states for fresh sessio
     socket2.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
     socket2.message({ t: 'collection', d: { mons: [pika] } });
 
-    // Now in the fresh session, questMsg can be processed again
+    // An identical snapshot does not prove the previous request was rejected.
     socket2.message(questMsg);
     const delivers2 = socket2.sent.filter(c => c.t === 'dexquest:deliver');
-    assert.strictEqual(delivers2.length, 1, 'Fresh session should allow processing quest');
+    assert.strictEqual(delivers2.length, 0, 'Reconnect must not repeat an unresolved delivery');
 });
 
-test('T12: high-level wild Pokémon (gap < 5) with HP > catch_hp_pct is weakened with attack instead of throwing ball', () => {
+test('T12: high-level capture uses a ball while nonlethal damage remains unproven', () => {
     const engine = createEngine();
     const socket = engine.socket(); socket.open();
     engine.configure({ enabled: true, catch_hp_pct: 0.50 });
@@ -837,9 +837,8 @@ test('T12: high-level wild Pokémon (gap < 5) with HP > catch_hp_pct is weakened
     const ballThrows = socket.sent.filter(c => c.t === 'battle:item');
     const attackMoves = socket.sent.filter(c => c.t === 'battle:move');
 
-    assert.strictEqual(ballThrows.length, 0, 'Must NOT throw ball when foe HP (100%) is above catch_hp_pct (50%)');
-    assert.strictEqual(attackMoves.length, 1, 'Must attack to weaken high-level foe before throwing ball');
-    assert.strictEqual(attackMoves[0].d.moveId, 'ember');
+    assert.strictEqual(ballThrows.length, 1, 'Without a proven nonlethal bound preserve the capture attempt');
+    assert.strictEqual(attackMoves.length, 0, 'Power and matching levels cannot prove survival');
 });
 
 test('T12: target weakened to <= catch_hp_pct receives ball throw', () => {

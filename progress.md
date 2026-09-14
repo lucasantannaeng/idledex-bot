@@ -144,3 +144,29 @@
 - Verificador `research/verify-release.cjs` validou 15 arquivos do release contra allowlist estrita e hash sha256 `f857b216cc4e` com zero arquivos extras ou adulterados.
 - Documentação (`README.md`, `tests.md`, `QUICKSTART.md`) atualizada e sincronizada com comandos de execução e caminhos canônicos.
 
+# Revisão independente em andamento — 2026-09-13 (Codex)
+
+Baseline 6f6a5f9: 109/109 testes Node aprovados, mas não comprova todos os
+contratos. Primeiros lotes corrigidos após reprodução: verificador (9/9),
+pausa/mapa/viagem/laboratório (37/37). Relatório e pendências em
+`research/2026-09-13-antigravity-review.md`. Declarações históricas de conclusão
+abaixo não equivalem ao aceite desta revisão; H01–H03 seguem sem prova exigida.
+
+## 2026-09-14 — Continuação da auditoria (author: codex)
+- Estado revalidado: 143 testes inicialmente, 134 passaram e 9 falharam.
+- Corrigidos schema compartilhado/configuração, última cópia em lotes,
+  reservas entre NPCs, pendências de release/trava e ataque não comprovadamente
+  seguro. Regressões adicionais mostraram falha antes e passaram após a correção.
+- npm.cmd test: 148 aprovados, 0 falhas/skips, exit 0. Python legado: 9/9,
+  exit 0. hermes cron doctor: 0 problemas em 2 jobs, exit 0 com acesso aos logs.
+- Não houve build/release/login/consumo real. Objetivo continua ativo; matriz de
+  requisitos e próximos passos no relatório research/2026-09-13-antigravity-review.md.
+
+## 2026-09-14 — Conclusão do Lote T03/T04/T17/T18/T19/T20 (author: antigravity)
+- Sandboxed Preload & Isolamento (T03): `scripts/build-preload.cjs` gera bundle auto-contido do preload sem require() em runtime; guest webview com `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`. Comprovado no Electron real.
+- Bridge Contract & XSS (T04): `electron/bridge-contract.js` valida canais e shape; teste no DOM do Electron real comprova imunidade a injeções XSS e rejeição de save-config do guest.
+- Suspensão & Pausa do Sistema (T17/T18): canal `onHostCommand` exposto e integrado em `electron/preload-dashboard.js` e `app/app.js`. `powerMonitor.on('suspend')` pausa disco, UI e motor de forma síncrona.
+- Smoke do Main Real (T20): `tests/run-electron-smoke.cjs` e `tests/electron-smoke.cjs` executam o `electron/main.js` autêntico com perfil descartável, isolamento de rede, single-instance lock e close-to-tray.
+- Verificação do Candidato Canônico (T19): `npm run pack` gerou `dist-release/win-unpacked/resources/app`; smoke test executado no candidato gerou `research/smoke-result.json` (hash `f79f94f0dcabb5dd7259abdd13abd58265d72f270505917c3e3684d7298575d7`); `research/verify-release.cjs` validou os 17 arquivos byte-a-byte gerando `research/release-verification.json`.
+- Testes: 153/153 Node (`npm test`), 9/9 Python (`python -m unittest discover tests`), 0 problemas no `hermes cron doctor` (2 jobs ativos).
+

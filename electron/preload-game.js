@@ -5,16 +5,17 @@
  */
 
 const { webFrame, ipcRenderer } = require('electron');
+const { createConfigSchema } = require('./config-schema');
+const { createBridgeContract } = require('./bridge-contract');
+const bridgeContract = createBridgeContract();
 
 // 1. Preload -> Host Bridge (T04: strictly allowlisted channels and validated payloads)
-const ALLOWED_PRELOAD_CHANNELS = new Set(['game-telemetry', 'game-log']);
+const ALLOWED_PRELOAD_CHANNELS = bridgeContract.channels;
 
 function handleIdledexToPreload(event, customIpc = (typeof ipcRenderer !== 'undefined' ? ipcRenderer : null)) {
     try {
-        const { channel, data } = event.detail || {};
-        if (typeof channel === 'string' && ALLOWED_PRELOAD_CHANNELS.has(channel) && data && typeof data === 'object') {
-            customIpc?.sendToHost(channel, data);
-        }
+        const message = bridgeContract.fromGame(event.detail);
+        if (message) customIpc?.sendToHost(message.channel, message.data);
     } catch (e) {}
 }
 
@@ -23,13 +24,14 @@ if (typeof window !== 'undefined' && window.addEventListener) {
 }
 
 // 2. Host -> Preload Bridge (T04: strictly allowlisted host commands)
-const ALLOWED_HOST_COMMANDS = new Set(['update-config', 'toggle-bot', 'manual-action']);
+const ALLOWED_HOST_COMMANDS = bridgeContract.commands;
 
 function handleHostCommand(event, data, customWindow = (typeof window !== 'undefined' ? window : null)) {
     try {
-        if (data && typeof data === 'object' && ALLOWED_HOST_COMMANDS.has(data.cmd)) {
+        const message = bridgeContract.fromHost(data);
+        if (message) {
             if (customWindow && customWindow.dispatchEvent) {
-                customWindow.dispatchEvent(new CustomEvent('idledex-from-preload', { detail: data }));
+                customWindow.dispatchEvent(new CustomEvent('idledex-from-preload', { detail: message }));
             }
         }
     } catch (e) {}
@@ -40,44 +42,12 @@ if (typeof ipcRenderer !== 'undefined' && ipcRenderer.on) {
 }
 
 // 3. Inject Main World Engine
-function initMainWorldEngine() {
+function initMainWorldEngine(configSchema) {
     'use strict';
 
     console.log("[IdleDex Desktop] Inicializando motor autônomo no mundo principal...");
 
-    let botConfig = {
-        enabled: false,
-        flee_hp_pct: 0.30,
-        potion_hp_pct: 0.35,
-        potion_mode: 'smart', // 'smart', 'potion', 'super-potion', 'hyper-potion', 'max-potion'
-        use_revive_battle: true,
-        use_revive_overworld: true,
-        auto_heal_center: true,
-        catch_hp_pct: 0.50,
-        catch_only_shiny: false,
-        catch_only_uncaught: false,
-        ball_priority: 'balanced', // 'balanced', 'economy', 'force_highest'
-        move_selection_mode: 'smart', // 'smart', 'max_damage', 'first'
-        target_species: [], // array of speciesIds to catch in current area
-        target_mode: 'all', // 'all', 'selected', 'none'
-        unselected_action: 'battle', // 'battle' (lutar por XP) ou 'flee' (fugir)
-        min_iv_alert: 130,
-        discard_iv_pct: 50, // Corte percentual de IV para descarte automático via creature:release
-        protect_last_copy: true, // Proteção de última cópia da espécie no cofre
-        pause_on_no_balls: true, // Pausar patrulha se esgotar Pokébolas e foco for captura
-        roam_step_delay_ms: 300,
-        auto_idle: true,
-        auto_roam: true,
-        auto_claim_dailies: true, // Auto resgate de missões diárias, bônus e marcos
-        auto_lock_valuable: true, // Auto bloqueio de Shinies, Event Tiers e Grau S
-        auto_use_boosts: false, // Auto ativação de boosts (shiny/xp) durante patrulha
-        auto_npc_quests: true, // Auto entrega de pedidos para Professor, DexQuest e Colecionador
-        auto_travel_deliveries: true, // Viagem automática para entrega a NPCs
-        auto_travel_surplus_threshold: 5, // Limiar de cópias excedentes para disparar viagem
-        auto_route_switch: false, // Troca automática de rota ao capturar todas as espécies alvo
-        pinned_species: null, // Espécie fixada para farming de IV alto (exceção ao auto-switch)
-        strategy_mode: 'balanced', // Macro preset: 'balanced', 'collection', 'monetize'
-    };
+    let botConfig = configSchema.normalizeConfig({});
 
     let currentMapSpecies = [];
     let configReady = false;
@@ -94,6 +64,10 @@ function initMainWorldEngine() {
     let nextRecoveryItemAt = 0;
     const releasedCreatureIds = new Set();
     const pendingReleases = new Map(); // id -> { speciesName, ivSum, ivPct, cutoffPct, requestedAt }
+    // One outstanding request per NPC, retained across reconnect until inventory
+    // confirms consumption. Species-based APIs do not identify the chosen copy.
+    const pendingDonations = new Map();
+    const pendingLocks = new Set();
     let pokedexLoaded = false;
     const pokedexCaughtSpecies = new Set();
     let currentMapAbortController = null;
@@ -307,7 +281,7 @@ function initMainWorldEngine() {
 
         for (const spId in speciesCounts) {
             const count = speciesCounts[spId];
-            if (count > threshold && canDonateSpecies(spId, Math.max(6, threshold + 1))) {
+            if (count > threshold && canDonateSpecies(spId, 5)) {
                 eligibleSpecies = spId;
                 surplusCount = count - 1; // Preserve 1 copy for trainer
                 break;
@@ -347,25 +321,6 @@ function initMainWorldEngine() {
 
         sendEvent("map:travel", { mapId: "npclab" });
         return true;
-    }
-
-    function applyStrategyPreset(mode) {
-        if (!mode) return;
-        botConfig.strategy_mode = mode;
-        if (mode === 'collection') {
-            botConfig.catch_only_uncaught = true;
-            botConfig.unselected_action = 'flee';
-            botConfig.ball_priority = 'economy';
-            logEvent("🎯 [ESTRATÉGIA] Modo Coleção: Capturando apenas inéditos e fugindo dos demais!", "info");
-        } else if (mode === 'monetize') {
-            botConfig.catch_only_uncaught = false;
-            botConfig.unselected_action = 'battle';
-            botConfig.ball_priority = 'economy';
-            botConfig.catch_hp_pct = 0.30;
-            logEvent("💰 [ESTRATÉGIA] Modo Monetização: Maximizando vitórias por XP e economia de Pokébolas!", "info");
-        } else if (mode === 'balanced') {
-            logEvent("⚖️ [ESTRATÉGIA] Modo Equilibrado: Configurações personalizadas ativas.", "info");
-        }
     }
 
     function checkAutoRouteSwitch() {
@@ -523,7 +478,6 @@ function initMainWorldEngine() {
                 // Try hyphenated fallback if mapId contains underscore
                 resp = await fetch(`/maps/${mapId.replace(/_/g, '-')}.collision.json`, fetchOpts);
             }
-            if (timeoutId) clearTimeout(timeoutId);
             if (loadVersion !== mapLoadVersion || mapId !== currentMap) return;
             if (!resp.ok) {
                 mapAvailable = false;
@@ -538,7 +492,8 @@ function initMainWorldEngine() {
             if (!data || typeof data !== 'object' ||
                 !Number.isInteger(data.cols) || !Number.isInteger(data.rows) ||
                 data.cols <= 0 || data.rows <= 0 || data.cols > 1000 || data.rows > 1000 ||
-                !Array.isArray(data.grid) || data.grid.length !== data.cols * data.rows) {
+                !Array.isArray(data.grid) || data.grid.length !== data.cols * data.rows ||
+                !data.grid.every(cell => Number.isInteger(cell) && cell >= 0 && cell <= 255)) {
                 mapAvailable = false;
                 mapStatus = 'unavailable';
                 logEvent(`⚠️ [MAPA] Malha de colisão corrompida ou inválida em ${mapId}. Movimento suspenso.`, "error");
@@ -629,6 +584,7 @@ function initMainWorldEngine() {
                 logEvent(`⚠️ [MAPA] Erro ao carregar mapa ${mapId}: ${e?.message || e}. Movimento suspenso.`, "warning");
             }
         } finally {
+            if (timeoutId) clearTimeout(timeoutId);
             if (loadVersion === mapLoadVersion) {
                 loadingMap = false;
                 if (currentMapAbortController === controller) currentMapAbortController = null;
@@ -865,6 +821,10 @@ function initMainWorldEngine() {
 
     function sendEvent(t, d) {
         if (activeWs && activeWs.readyState === WebSocket.OPEN) {
+            if (t === 'creature:lock' && d?.locked === true) {
+                if (pendingLocks.has(d.creatureId) || pendingLocks.size >= 500) return;
+                pendingLocks.add(d.creatureId);
+            }
             const payload = { t };
             if (d !== undefined && d !== null) payload.d = d;
             activeWs.send(JSON.stringify(payload));
@@ -1190,40 +1150,11 @@ function initMainWorldEngine() {
             return { ...m, eff, score };
         });
 
-        // Zero-Kill Guard: Strictly prevent KO against capture targets
-        if (isCaptureTarget) {
-            const isShiny = !!(enemyMon && (enemyMon.isShiny || enemyMon.shiny));
-            if (isShiny) {
-                // NEVER attack a shiny under any circumstance!
-                return null;
-            }
-
-            const myLevel = (myMon && (myMon.level || myMon.lvl)) || 1;
-            const foeLevel = (enemyMon && (enemyMon.level || enemyMon.lvl)) || 1;
-            if ((myLevel - foeLevel) >= 5) {
-                // Severe level advantage: any attack risks a one-shot KO
-                return null;
-            }
-
-            // If foe HP is already low (<= 60%), attacking risks critical hit kill
-            if (foeHpPct <= Math.max(0.60, botConfig.catch_hp_pct)) {
-                return null;
-            }
-
-            // Find weakest damaging move
-            const damagingMoves = scoredMoves.filter(m => (m.power || 0) > 0);
-            if (damagingMoves.length > 0) {
-                damagingMoves.sort((a, b) => a.score - b.score);
-                const weakest = damagingMoves[0];
-                if (weakest.score > 80 && foeLevel <= 15) {
-                    return null; // Too powerful for low-level wild target
-                }
-                return weakest;
-            }
-
-            // Status non-damaging move fallback
-            return scoredMoves[0];
-        }
+        // No verified damage bound or nonlethal move contract is available.
+        // Power, type and level alone cannot prove the target will survive.
+        // Keep the requested nonlethal-weakening feature open until evidenced;
+        // the caller uses a permitted ball (or waits) instead of risking a KO.
+        if (isCaptureTarget) return null;
 
         if (botConfig.move_selection_mode === "first") {
             return scoredMoves[0];
@@ -1366,6 +1297,7 @@ function initMainWorldEngine() {
         }
 
         if (!inBattle) myMon = team.find(mon => mon.isLeader) || team[0] || null;
+        reconcileDonations();
         resolveCapturedCreatures();
     }
 
@@ -1400,9 +1332,10 @@ function handleGameMessage(msg) {
             if (code === 'heal_insufficient_funds') rejectedHealState = lastHealRequest;
             if (code === 'creature_locked' || code === 'release_failed' || String(code).includes('release')) {
                 for (const [id, pending] of pendingReleases.entries()) {
-                    logEvent(`⚠️ Liberação recusada pelo servidor para ${pending.speciesName}: ${code}`, 'warning');
+                    // This error shape carries no verified operation identifier.
+                    // It cannot reconcile every in-flight release or authorize retry.
+                    logEvent(`⚠️ Erro ${code}; liberação de ${pending.speciesName} permanece sem confirmação.`, 'warning');
                 }
-                pendingReleases.clear();
             }
             if (code === 'travel_forbidden' || code === 'route_locked' || code === 'map_invalid' || String(code).includes('travel') || String(code).includes('route')) {
                 if (routeSwitchState.active) {
@@ -1431,12 +1364,6 @@ function handleGameMessage(msg) {
 
         // Welcome Packet — Official IdleDex Initial State
         if (t === "welcome") {
-            const now = Date.now();
-            for (const [id, pending] of pendingReleases.entries()) {
-                if (now - pending.requestedAt > 30000) {
-                    pendingReleases.delete(id);
-                }
-            }
             if (d.playerId) {
                 playerId = String(d.playerId);
                 try { sessionStorage.setItem('idledex_playerId', playerId); } catch (e) {}
@@ -1767,6 +1694,7 @@ function handleGameMessage(msg) {
         // Collection Updates
         else if (t === "collection" || t === "collection:patch") {
             const mons = Array.isArray(d) ? d : (d.mons || d.monsters || []);
+            const previousIds = new Set(Object.keys(collection));
             for (const mon of mons) {
                 if (mon && mon.id) {
                     if (mon.deleted || mon.removed) {
@@ -1778,10 +1706,13 @@ function handleGameMessage(msg) {
                             logEvent(`🗑️ Liberação confirmada de ${pending.speciesName} (IV: ${pending.ivSum}/186 - ${pending.ivPct}%)`, 'info');
                         }
                     } else {
-                        collection[mon.id] = mon;
-                        checkMonIVStrategy(mon);
+                        collection[mon.id] = { ...(collection[mon.id] || {}), ...mon };
                     }
                 }
+            }
+            reconcileDonations();
+            for (const mon of [...mons].sort((a, b) => Number(previousIds.has(a?.id)) - Number(previousIds.has(b?.id)))) {
+                if (mon && !mon.deleted && !mon.removed) checkMonIVStrategy(collection[mon.id]);
             }
             emitTelemetry();
         }
@@ -1893,11 +1824,12 @@ function handleGameMessage(msg) {
                 }
                 if (stateKey === lastProfessorState) return;
                 for (const lot of d.lots) {
-                    if (lot && lot.available > lotSize && canDonateSpecies(lot.speciesId, lotSize + 1)) {
+                    if (lot && lot.available > lotSize && canDonateSpecies(lot.speciesId, lotSize) && !pendingDonations.has('professor')) {
                         lastProfessorState = stateKey;
                         if (isTrip) autoTravelState.pendingDelivery = {
                             speciesId: lot.speciesId, charges: d.charges, available: lot.available,
                         };
+                        reserveDonation('professor', donationCandidates(lot.speciesId), lotSize);
                         sendEvent("professor:deliver", { speciesId: lot.speciesId });
                         logEvent(`🔬 [PROFESSOR] Solicitando entrega de lote de ${lot.name || lot.speciesId} (+${lot.bronzePerLot || 1} Moedas de Bronze)...`, "info");
                         return;
@@ -1909,10 +1841,11 @@ function handleGameMessage(msg) {
 
         // DexQuest Delivery
         else if (t === "dexquest:state") {
-            if (botConfig.enabled && botConfig.auto_npc_quests && d && d.target && d.target.have > 0 && canDonateSpecies(d.target.speciesId, 1)) {
+            if (botConfig.enabled && botConfig.auto_npc_quests && d && d.target && d.target.have > 0 && canDonateSpecies(d.target.speciesId, 1) && !pendingDonations.has('dexquest')) {
                 const questKey = JSON.stringify([d.target.speciesId, d.target.have, d.questId || d.id || currentMap]);
                 if (questKey === lastDexQuestState) return;
                 lastDexQuestState = questKey;
+                reserveDonation('dexquest', donationCandidates(d.target.speciesId), 1);
                 sendEvent("dexquest:deliver", { speciesId: d.target.speciesId });
                 logEvent(`🎯 [DEXQUEST] Solicitando entrega de ${d.target.name || d.target.speciesId} para missão de rota...`, "info");
             } else if (d?.target && d.target.have === 0 && lastDexQuestState !== null) {
@@ -1936,8 +1869,10 @@ function handleGameMessage(msg) {
             if (!botConfig.enabled || !botConfig.auto_npc_quests || !collectorState?.deliverable || collectorState.delivered) return;
             if (d?.mapId !== currentMap || d.window !== collectorState.window || !Array.isArray(d.creatureIds) || !d.creatureIds.length) return;
             const key = JSON.stringify([d.mapId, d.window, d.creatureIds]);
-            if (key === collectorDeliveryKey || !d.creatureIds.every(id => isDonatableCreature(collection[id]))) return;
+            const candidates = d.creatureIds.map(id => collection[id]);
+            if (key === collectorDeliveryKey || pendingDonations.has('collector') || !canConsumeBatch(candidates)) return;
             collectorDeliveryKey = key;
+            reserveDonation('collector', candidates, candidates.length);
             sendEvent('collector:deliver');
             logEvent('🏺 [COLECIONADOR] Solicitando entrega após conferir a prévia...', 'info');
         }
@@ -2094,6 +2029,7 @@ function handleGameMessage(msg) {
 
     function isProtectedCreature(mon) {
         return !mon || mon.isShiny || mon.shiny || mon.isLocked || mon.locked || mon.isLeader || mon.mega ||
+            pendingLocks.has(mon.id) ||
             (mon.eventTier > 0) || (mon.form?.eventTier > 0) ||
             (mon.teamSlot !== undefined && mon.teamSlot !== null) ||
             team.some(member => member.id === mon.id);
@@ -2105,6 +2041,7 @@ function handleGameMessage(msg) {
             !isProtectedCreature(mon) &&
             !releasedCreatureIds.has(mon.id) &&
             !pendingReleases.has(mon.id) &&
+            !isReservedForDonation(mon) &&
             Number.isInteger(mon?.boxSlot) &&
             mon.boxSlot >= 0 &&
             hasCompleteIVs(mon) &&
@@ -2113,11 +2050,51 @@ function handleGameMessage(msg) {
     }
 
     function canDonateSpecies(speciesId, count) {
-        const candidates = Object.values(collection).filter(mon => 
+        const candidates = donationCandidates(speciesId);
+        return candidates.length >= count && canConsumeBatch(candidates.slice(0, count));
+    }
+
+    function donationCandidates(speciesId) {
+        return Object.values(collection).filter(mon =>
             String(mon.speciesId !== undefined ? mon.speciesId : (mon.species || '')) === String(speciesId) &&
             isDonatableCreature(mon)
         );
-        return candidates.length >= count;
+    }
+
+    function isReservedForDonation(mon) {
+        return [...pendingDonations.values()].some(pending =>
+            pending.ids.has(mon.id) || pending.species.has(String(mon.speciesId ?? mon.species ?? '')));
+    }
+
+    function canConsumeBatch(mons) {
+        if (!mons.length || !mons.every(isDonatableCreature) || new Set(mons.map(mon => mon.id)).size !== mons.length) return false;
+        if (botConfig.protect_last_copy === false) return true;
+        const consumed = new Set(mons.map(mon => mon.id));
+        return mons.every(mon => {
+            const species = String(mon.speciesId ?? mon.species ?? '');
+            return species && Object.values(collection).some(other =>
+                String(other.speciesId ?? other.species ?? '') === species &&
+                !consumed.has(other.id) && !pendingReleases.has(other.id) &&
+                !releasedCreatureIds.has(other.id) && !isReservedForDonation(other));
+        });
+    }
+
+    function reserveDonation(npc, mons, count) {
+        pendingDonations.set(npc, {
+            ids: new Set(mons.map(mon => mon.id)),
+            species: new Set(mons.map(mon => String(mon.speciesId ?? mon.species ?? ''))),
+            count,
+        });
+    }
+
+    function reconcileDonations() {
+        for (const id of pendingLocks) {
+            if (!collection[id] || collection[id].isLocked || collection[id].locked) pendingLocks.delete(id);
+        }
+        for (const [npc, pending] of pendingDonations) {
+            const removed = [...pending.ids].filter(id => !collection[id]).length;
+            if (removed >= pending.count) pendingDonations.delete(npc);
+        }
     }
 
     function hasSurplusCopies(mon) {
@@ -2130,13 +2107,14 @@ function handleGameMessage(msg) {
             if (sId !== targetSpeciesId) return false;
             if (releasedCreatureIds.has(c.id)) return false;
             if (pendingReleases.has(c.id)) return false;
+            if (isReservedForDonation(c)) return false;
             return true;
         });
         return otherCopies.length >= 1;
     }
 
     function checkMonIVStrategy(mon) {
-        if (!botConfig.enabled || !mon || !mon.id || releasedCreatureIds.has(mon.id) || pendingReleases.has(mon.id)) return;
+        if (!botConfig.enabled || !mon || !mon.id || releasedCreatureIds.has(mon.id) || pendingReleases.has(mon.id) || isReservedForDonation(mon) || pendingReleases.size >= 500) return;
 
         // Strict Safety Gate: Never release shiny, special event tiers, locked creatures, or party members
         if (isProtectedCreature(mon) || !hasCompleteIVs(mon) || !Number.isInteger(mon.boxSlot) || mon.boxSlot < 0) {
@@ -2153,7 +2131,7 @@ function handleGameMessage(msg) {
                       (stats.spAtk || stats.spa || 0) + (stats.spDef || stats.spd || 0) + (stats.speed || stats.spe || 0);
         const ivPct = Math.round((ivSum / 186) * 100);
 
-        const cutoffPct = botConfig.discard_iv_pct !== undefined ? botConfig.discard_iv_pct : 50;
+        const cutoffPct = botConfig.discard_iv_pct ?? 0;
 
         // Auto release low IV creatures via official creature:release protocol
         if (cutoffPct > 0 && ivPct < cutoffPct) {
@@ -2774,6 +2752,10 @@ function handleGameMessage(msg) {
             battleTurnTimer = battleWatchdog = roamInterval = null;
             lastStepExecutedAt = 0;
             ++mapLoadVersion;
+            if (currentMapAbortController) currentMapAbortController.abort();
+            currentMapAbortController = null;
+            mapAvailable = false;
+            mapStatus = 'idle';
             loadingMap = false;
             mapGrid = cleanGrassGrid = mapFringeMask = null;
             grassTiles = [];
@@ -2903,9 +2885,10 @@ function handleGameMessage(msg) {
             emitTelemetry();
         } else if (cmd === 'update-config') {
             if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
-            if (payload.enabled !== undefined && payload.enabled !== botConfig.enabled) {
+            const normalized = configSchema.normalizeConfig(payload, botConfig);
+            if (normalized.enabled !== botConfig.enabled) {
                 commandGeneration++;
-                if (!payload.enabled) {
+                if (!normalized.enabled) {
                     clearTimeout(autoTravelState.timeoutTimer);
                     autoTravelState.active = false;
                     autoTravelState.phase = 'idle';
@@ -2917,11 +2900,7 @@ function handleGameMessage(msg) {
                     routeSwitchState.targetRoute = null;
                 }
             }
-            const prevMode = botConfig.strategy_mode;
-            if (payload && payload.strategy_mode && payload.strategy_mode !== prevMode) {
-                applyStrategyPreset(payload.strategy_mode);
-            }
-            Object.assign(botConfig, payload);
+            botConfig = normalized;
             configReady = true;
             logEvent("⚙️ Configurações do bot atualizadas", "info");
             configureAndStartIdle();
@@ -2951,7 +2930,8 @@ function handleGameMessage(msg) {
 // 4. Trigger Main World Injection
 if (typeof webFrame !== 'undefined' && webFrame.executeJavaScript) {
     try {
-        webFrame.executeJavaScript('(' + initMainWorldEngine.toString() + ')()');
+        const injection = webFrame.executeJavaScript('(' + initMainWorldEngine.toString() + ')((' + createConfigSchema.toString() + ')())');
+        injection?.catch(error => console.error('[IdleDex Desktop] Engine injection failed:', error.message));
     } catch (e) {
         console.error("[IdleDex Desktop] Falha ao executar webFrame.executeJavaScript:", e);
     }

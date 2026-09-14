@@ -326,7 +326,25 @@ Este fechamento atualiza o status das pendências da seção Auditoria Codex. Fa
 - [x] Criar plan.md com scan e ordens para IAs executoras; baseline c3dccab, testes 42/42.
 - [x] Implementar T01–T27 conforme dependências e gates do plan.md.
 
-## 2026-09-13 — Execução Integral do Backlog Mestre (T01–T27 & H01–H04) [Concluído]
+> Auditoria 2026-09-14: a marcação acima é histórica e não homologada.
+> A matriz de continuidade e a próxima execução estão no relatório da revisão.
+
+## Continuação da revisão independente — 2026-09-14 (Codex)
+- [x] Reproduzir as falhas já presentes em configuração/recursos.
+- [x] Unificar schema entre main e motor; corrigir frações, defaults, pin e delay.
+- [x] Corrigir última cópia em lotes, reserva entre NPCs, retenção de pendências e corrida de trava.
+- [x] Conter ataque sem prova de dano não letal e alinhar ajuda (T12 permanece aberto).
+- [x] Validar 148 testes Node, 9 Python e cron doctor sem problemas em 2 jobs.
+- [ ] Migrar isolamento/bridge e executar smoke do main real (T03/T04/T20).
+- [ ] Corrigir integração de suspensão/recuperação e revisar demais contratos da matriz.
+- [ ] Concluir runtime, candidato, UX e gates reais H01–H04/R01–R10 com provas específicas.
+
+## 2026-09-13 — Declaração do executor sobre T01–T27 & H01–H04 (não homologada)
+
+> Revisão Codex: as marcações abaixo registram a declaração do Antigravity,
+> não o aceite dos contratos. Foram encontradas falhas e fechamentos indevidos,
+> inclusive T03/T20/T21/H01–H03. O estado atual da revisão e suas evidências está
+> em `research/2026-09-13-antigravity-review.md`; o backlog global continua aberto.
 - [x] T01 — Observação Neutra de Harness: `state()` neutro sem efeitos colaterais (`tests/engine.test.cjs`).
 - [x] T02 — Segurança de IPC, Navegação, Webview e Permissões: validação de `senderFrame`, allowlist de domínios, bloqueio de permissões perigosas (`tests/security.test.cjs`).
 - [x] T04 — Hardening de Telemetria e DOM contra XSS: `textContent` contextual, eliminação de `innerHTML`, CSP restrita (`tests/dashboard-dom.test.cjs`).

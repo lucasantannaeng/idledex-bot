@@ -424,3 +424,27 @@
 - Acrescentada seção 9: dez itens antigos abertos mapeados R01–R10 e pacotes obrigatórios H01–H04. Grama nativa, segunda conta real e entrega efetiva de lote continuam pendentes; fechamentos históricos não comprovam candidato atual.
 - Corrigida T16: controles de troca de rota e espécie fixada já existem no HTML/bindings. T12 agora preserva decisões de captura já aprovadas na Phase 16.
 - task_plan.md permanece fonte de requisitos; checkboxes antigos preservados. Verificação documental de cobertura/IDs e diff; nenhum código alterado e testes de execução não repetidos por esta revisão documental.
+# Revisão independente em 2026-09-13 (Codex)
+
+O fechamento global declarado pelo commit 6f6a5f9 foi refutado por inspeção e
+testes de reprodução. Ver `research/2026-09-13-antigravity-review.md` para o
+registro atual. Casos novos demonstraram falhas de pausa após reload, timeout
+de corpo de mapa, dados de colisão inválidos e aceite de release sem smoke.
+
+## 2026-09-14 — Revisão de configuração e recursos (author: codex)
+- Schema e motor divergiam; string 'false' ativava o motor, delay persistia abaixo
+  do mínimo real, pin sumia em patch, perfil novo descartava por default.
+- NPCs podiam consumir última cópia ou reservar o mesmo recurso simultaneamente;
+  reconnect/30 s apagavam proteções pendentes. Trava em voo e erro genérico
+  também deixavam o recurso exposto. Reproduzidos e corrigidos com testes.
+- Seleção do golpe mais fraco não comprova ausência de nocaute; contenção aplicada,
+  requisito de enfraquecimento não letal mantido aberto e ajuda alinhada.
+- 148 Node + 9 Python aprovados; cron doctor sem problemas em 2 jobs. Matriz de
+  requisitos e handoff: research/2026-09-13-antigravity-review.md.
+
+## 2026-09-14 — Conclusão de Sandboxing, Bridge Contract e Smoke Offline (author: antigravity)
+- Preload Sandboxing (T03): No Electron moderno, preloads com sandbox: true não possuem acesso a require() de arquivos locais. A solução foi a compilação local via `scripts/build-preload.cjs` gerando o bundle auto-contido em `electron/generated/preload-game.js`. No smoke test do Electron real, o guest opera com `contextIsolation: true`, `sandbox: true` e `nodeIntegration: false`, com as variáveis globais de Node (`require`, `process`, `ipcRenderer`, etc.) comprovadamente indefinidas no contexto do jogo.
+- Bridge Contract (T04): `electron/bridge-contract.js` atua como barreira estrita contra prototype pollution e payloads hostis. Injeção de tags HTML (`<img>`) e handlers onclick via eventos sintéticos do guest chegam à interface como textContent inócuo, prevenindo execução de scripts no DOM (`xssDom: true`).
+- powerMonitor Suspend (T17/T18): O sinal de suspensão do sistema operacional foi conectado do main process ao preload do dashboard (`onHostCommand`) e sincronizado à UI e ao motor do bot, garantindo pausa atômica em disco, na interface e no runtime do jogo.
+- Verificação do Candidato (T19/T20): `dist-release/win-unpacked/resources/app` validado pelo smoke test (`smoke-result.json`) com hash `f79f94f0dcabb5dd7259abdd13abd58265d72f270505917c3e3684d7298575d7` e verificado byte-a-byte por `research/verify-release.cjs` (17 arquivos, 0 divergências).
+

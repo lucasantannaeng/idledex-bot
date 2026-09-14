@@ -10,8 +10,16 @@ function dashboard(config) {
     const saved = [];
     const inputs = new Map();
     const checkboxes = [];
+    let hostCommandHandler = null;
     const game = { addEventListener(type, fn) { events[type] = fn; }, send(channel, command) { sent.push(structuredClone(command)); } };
-    const window = { addEventListener(type, fn) { events[type] = fn; }, electronAPI: { getConfig: async () => config, saveConfig: async value => { saved.push(structuredClone(value)); return true; } } };
+    const window = {
+        addEventListener(type, fn) { events[type] = fn; },
+        electronAPI: {
+            getConfig: async () => config,
+            saveConfig: async value => { saved.push(structuredClone(value)); return true; },
+            onHostCommand: fn => { hostCommandHandler = fn; }
+        }
+    };
     const context = vm.createContext({ window, console, document: {
         getElementById(id) {
             if (id === 'game-view') return game;
@@ -24,7 +32,7 @@ function dashboard(config) {
         },
     } });
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../app/app.js'), 'utf8'), context);
-    return { events, sent, saved, context, inputs, window, checkboxes };
+    return { events, sent, saved, context, inputs, window, checkboxes, getHostCommandHandler: () => hostCommandHandler };
 }
 
 test('saved configuration reaches guest on first load and every reload', async () => {
@@ -109,6 +117,68 @@ test('T06: emergency pause halts engine immediately even if saveConfig fails', a
     assert.equal(app.window.isBotEnabled(), false);
 });
 
+for (const failure of ['false result', 'rejection']) {
+    test(`T06: emergency pause survives guest reload after saveConfig ${failure}`, async () => {
+        const app = dashboard({ enabled: true, catch_hp_pct: 0.25 });
+        await app.events.DOMContentLoaded();
+        app.events['dom-ready']();
+        app.window.electronAPI.saveConfig = async () => {
+            if (failure === 'rejection') throw new Error('Disk unavailable');
+            return false;
+        };
+
+        await app.window.toggleBotState();
+        app.events['did-start-loading']();
+        app.events['dom-ready']();
+
+        assert.equal(app.sent.at(-1).cmd, 'update-config');
+        assert.equal(app.sent.at(-1).payload.enabled, false,
+            'Reload must keep the emergency pause even when it could not be saved');
+        assert.equal(app.sent.at(-1).payload.catch_hp_pct, 0.25);
+        assert.equal(app.window.isBotEnabled(), false);
+    });
+}
+
+test('T06: emergency pause survives guest reload while saveConfig is pending', async () => {
+    const app = dashboard({ enabled: true });
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+    let finishSave;
+    app.window.electronAPI.saveConfig = () => new Promise(resolve => { finishSave = resolve; });
+
+    const pausing = app.window.toggleBotState();
+    try {
+        app.events['did-start-loading']();
+        app.events['dom-ready']();
+        assert.equal(app.sent.at(-1).cmd, 'update-config');
+        assert.equal(app.sent.at(-1).payload.enabled, false,
+            'A slow disk write must not allow a guest reload to reactivate the bot');
+    } finally {
+        finishSave(true);
+        await pausing;
+    }
+});
+
+test('T06: saving area targets after a failed emergency pause does not reactivate the bot', async () => {
+    const app = dashboard({ enabled: true, target_mode: 'all', target_species: [] });
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+    app.window.electronAPI.saveConfig = async () => false;
+    await app.window.toggleBotState();
+
+    app.window.electronAPI.saveConfig = async value => {
+        app.saved.push(structuredClone(value));
+        return true;
+    };
+    await app.window.saveAreaSettings();
+
+    assert.equal(app.saved.at(-1).enabled, false,
+        'A later target save must persist the current paused state');
+    assert.equal(app.sent.at(-1).cmd, 'update-config');
+    assert.equal(app.sent.at(-1).payload.enabled, false);
+    assert.equal(app.window.isBotEnabled(), false);
+});
+
 test('T06: out-of-order saves do not overwrite newer state (monotonic revision)', async () => {
     const app = dashboard({ enabled: false, roam_step_delay_ms: 300 });
     await app.events.DOMContentLoaded();
@@ -189,3 +259,21 @@ test('T17: auto-pause received via telemetry persists to disk and keeps bot paus
     assert.equal(app.window.isBotEnabled(), false);
 });
 
+test('T18: onHostCommand toggle-bot enabled:false pauses active bot and notifies guest', async () => {
+    const app = dashboard({ enabled: true });
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+
+    assert.equal(app.window.isBotEnabled(), true);
+    const before = app.sent.length;
+
+    // Simulate main process host command (e.g. system suspend)
+    const hostCommand = app.getHostCommandHandler();
+    assert.ok(typeof hostCommand === 'function', 'onHostCommand must be registered');
+    await hostCommand({ cmd: 'toggle-bot', payload: { enabled: false } });
+
+    assert.equal(app.window.isBotEnabled(), false);
+    assert.equal(app.saved.at(-1).enabled, false);
+    const pauseCmd = app.sent.slice(before).find(c => c.cmd === 'toggle-bot' && c.payload.enabled === false);
+    assert.ok(pauseCmd, 'Guest must receive pause command');
+});

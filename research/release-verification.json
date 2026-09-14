@@ -1,43 +1,60 @@
 {
-  "checkedAt": "2026-09-13T04:37:40.501Z",
+  "checkedAt": "2026-09-14T18:33:17.802Z",
   "version": "2.5.0",
   "sourceMatchesDistribution": true,
   "candidatePath": "dist-release/win-unpacked/resources/app",
-  "candidateHash": "f857b216cc4ec9abc24b4b1fcc4098442f4794a64c1cd7a73e071e7cc129182f",
-  "shippedFileCount": 15,
+  "candidateHash": "f79f94f0dcabb5dd7259abdd13abd58265d72f270505917c3e3684d7298575d7",
+  "shippedFileCount": 17,
   "hashes": {
     "electron/account-session.js": "a181a0dcb40954f7c505bbb286efeb8854dc76c15527d6dbc01dfc79bd65cf3e",
-    "electron/config-schema.js": "570dd06ea65650a293bc903ec71fa4c0c4a04e8f5932bf3ced28304dca79caa8",
+    "electron/bridge-contract.js": "b97caf874c1da07d60b6e4343c34224c47092f89ce34901ab56b4d85431852c5",
+    "electron/config-schema.js": "c54b2ece893452ca08b66b29e6812d10613770bbb0382e872075132316db05ea",
+    "electron/generated/preload-game.js": "e1a60df579e76e81418c6c5f6b4066e0c0bcc71ca1783c2e4bec65335b44eb06",
     "electron/icon.ico": "927ee25d59681a2ac4afec9e586b7bbf9b8ceb87528be1d14cc4e5aa5b6dcf0f",
     "electron/icon.png": "66c6b57ddff4a6f8a27736770f4c9087ffa4c3aee6ad6f14847c480e71bf9296",
-    "electron/main.js": "0dc0188024508d22745e7bf2ae5a544eb3019a443f658d9dcb80f3eb9c401acf",
-    "electron/preload-dashboard.js": "a926595b874bee324a3a6fba21ec70537e5633b0dbb08be09930794d00f16ef4",
-    "electron/preload-game.js": "b3b2f2926bd3f5720ab77f17454be7e218efb9cdcf81635ccce98704aa033635",
+    "electron/main.js": "1d5893763f7789c754d4a8c57b531b49150fca626dfa54d2ee1f99f5c8c209dd",
+    "electron/preload-dashboard.js": "de4b7b368d56ecd5c60daf8ef1dd13a33f7f8e6e3e71bccc6a3a00ae1188916e",
+    "electron/preload-game.js": "7cb48237fb8d979b4ea76b475a2d0d8b158b218e68e0a5ff6bf696a0b3a1674e",
     "electron/tray-icon.ico": "927ee25d59681a2ac4afec9e586b7bbf9b8ceb87528be1d14cc4e5aa5b6dcf0f",
     "electron/tray-icon.png": "8c8f7cd81237ad15cac46d11a5f0f1324aa4fdd5d9b531b7e84330575ff2d5e3",
-    "app/app.js": "c11ac691e863d7ea5f8c2ee1cbc164e12b8dce674b27a1f1b3d2e005b18623df",
-    "app/help.js": "5d1805a77143ec54de30535ea06dd107cacf6fceb466444519a59cdd40c6e6a5",
+    "app/app.js": "8cc080d919092c08e14b814c02039d97c4c3bfa37c807b1369d520555fff9b75",
+    "app/help.js": "31e297b798c17ac61f123c7b91dc1d0db202c5d9e112a1a3787aff8c2dd47f4d",
     "app/icon.png": "66c6b57ddff4a6f8a27736770f4c9087ffa4c3aee6ad6f14847c480e71bf9296",
     "app/index.html": "15ec053d9b8a0ff14d1f545f4cb4084761d82f87725586e71f87d53223d1d514",
     "app/styles.css": "af267c6132e5e94c1100505657e5934f5f1781c0383c19685683448413ae415e"
   },
   "smoke": {
     "passed": true,
-    "checkedAt": "2026-09-13T04:35:21.900Z",
-    "source": "D:\\Projetos\\1.Autorais\\idledex-bot\\dist-release\\win-unpacked\\resources\\app",
-    "candidateHash": "f857b216cc4ec9abc24b4b1fcc4098442f4794a64c1cd7a73e071e7cc129182f",
-    "help": {
-      "tutorialOpen": true,
-      "sections": 35,
-      "closed": true,
-      "missing": [],
-      "quick": "HP inimigo para captura",
-      "inView": true
+    "scope": "candidate",
+    "main": "actual",
+    "checkedAt": "2026-09-14T18:13:14.793Z",
+    "candidateHash": "f79f94f0dcabb5dd7259abdd13abd58265d72f270505917c3e3684d7298575d7",
+    "runtime": "33.4.11",
+    "startup": {
+      "hooked": true,
+      "requireType": "undefined",
+      "processType": "undefined",
+      "ipcType": "undefined",
+      "apiType": "undefined"
     },
-    "accountReset": true,
-    "enabled": false,
-    "catchHp": 0,
-    "label": "BOT PAUSADO",
-    "input": "0"
+    "state": {
+      "enabled": false,
+      "catchHp": 0,
+      "label": "BOT PAUSADO",
+      "input": "0"
+    },
+    "help": {
+      "open": true,
+      "sections": 35,
+      "missing": 0,
+      "title": "HP inimigo para captura"
+    },
+    "isolation": true,
+    "accountReset": "synthetic",
+    "secondInstance": true,
+    "closeToTray": true,
+    "xssDom": true,
+    "suspend": "simulated-signal",
+    "hardwareAcceleration": false
   }
 }

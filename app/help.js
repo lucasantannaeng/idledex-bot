@@ -39,10 +39,10 @@ const HELP_TOPICS = [
         'Informe um percentual entre 5 e 60. Por exemplo, 30 corresponde a 30 HP de um máximo de 100. Ao chegar ao limiar, o motor pode tentar encerrar o encontro por fuga.',
         'Fuga só funciona quando permitida pelo jogo. Revive, filtros de alvos e recuperação também entram na decisão; não trate esse campo como garantia contra derrotas.'
     ]],
-    ['cfg-catch', 'HP inimigo para captura', 'Tenta capturar quando o HP do alvo chega ao limiar.', [
-        'Escolha de 10 a 90%. Com 50, um alvo de 100 HP se torna candidato ao arremesso ao chegar a 50 HP ou menos. Antes disso, o motor pode atacar para reduzir a vida.',
-        'Alvos prioritários (Shinies, alvos com grande desvantagem de nível onde qualquer golpe causaria nocaute, ou espécies inéditas de nível baixo) recebem arremesso direto sem ataque prévio.',
-        'A espécie precisa passar pelos filtros de captura, deve haver uma esfera disponível e o jogo precisa permitir o arremesso. Um limiar alto antecipa tentativas e pode consumir mais esferas; um limiar baixo aumenta a exposição a derrotar o alvo.'
+    ['cfg-catch', 'HP inimigo para captura', 'Define o limiar de arremesso direto, com prioridade à preservação do alvo.', [
+        'Ao atingir esse percentual de HP, o alvo recebe uma tentativa de captura quando há esfera e o jogo permite o arremesso.',
+        'Shinies, alvos com grande diferença de nível e espécies inéditas de nível baixo recebem arremesso direto. Nos demais casos, o enfraquecimento automático aguarda validação de uma fórmula de dano ou golpe comprovadamente não letal.',
+        'Enquanto essa validação estiver pendente, o motor também pode arremessar acima do limiar para preservar o alvo. O campo não funciona como limite estrito de HP e não autoriza ataques com risco de nocaute.'
     ]],
     ['cfg-ball-priority', 'Prioridade de esferas', 'Equilibra economia e força das esferas disponíveis.', [
         'Econômica começa pelas Pokébolas mais simples. Balanceada escolhe conforme o HP e o estoque. Forçar Ultra / Super prioriza esferas mais fortes disponíveis.',
@@ -102,7 +102,7 @@ const HELP_TOPICS = [
         'Os presets preservam alvos da área, opções de cura, descarte, entregas, boosts e o estado pausado. Monetização é o nome da estratégia de combate/captura; não garante lucro nem executa uma venda por si só.'
     ]],
     ['cfg-discard-iv-pct', 'Descarte automático por IV', 'Libera capturas com IV percentual abaixo do limiar.', [
-        'O percentual usa a soma dos seis IVs dividida por 186. Com 50%, capturas elegíveis abaixo desse valor podem ser liberadas após o recebimento da ficha completa. Use 0% para impedir descarte por esse limiar.',
+        'O percentual usa a soma dos seis IVs dividida por 186. Com 50%, capturas elegíveis abaixo desse valor podem ser liberadas após o recebimento da ficha completa. Use 0% para impedir descarte por esse limiar; esse é o padrão de um perfil novo.',
         'A liberação remove a criatura da coleção. O motor protege integrantes da equipe, líderes, shinies, criaturas travadas e formas/eventos especiais; IVs incompletos não autorizam liberação. Revise este campo antes de ativar o bot, sobretudo durante farming.'
     ]],
     ['cfg-pause-no-balls', 'Pausa por falta de esferas', 'Interrompe a automação ao esgotar as esferas.', [

@@ -7,6 +7,7 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, session, webConten
 const { resetGameSession, googleAccountChooser } = require('./account-session');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('node:url');
 
 // Explicit opt-in for local diagnostics; normal launches expose no debug port.
 if (process.argv.includes('--inspect-bot') || process.env.IDLEDEX_DEBUG === '1') {
@@ -42,7 +43,8 @@ function loadConfig() {
             }
             if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
                 if (typeof saved.schemaVersion === 'number' && saved.schemaVersion > SCHEMA_VERSION) {
-                    console.warn(`[CONFIG] Arquivo com versão futura de schema (${saved.schemaVersion} > ${SCHEMA_VERSION}); carregando sem sobrescrever.`);
+                    console.warn(`[CONFIG] Versão futura de schema (${saved.schemaVersion}); execução pausada e arquivo preservado.`);
+                    return normalizeConfig({ ...saved, enabled: false, auto_idle: false });
                 }
                 return normalizeConfig(saved);
             }
@@ -121,7 +123,7 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            sandbox: false,
+            sandbox: true,
             webviewTag: true,
             preload: path.join(__dirname, 'preload-dashboard.js'),
             backgroundThrottling: false, // Prevents background freezing
@@ -134,7 +136,9 @@ function createWindow() {
     mainWindow.webContents.on('will-navigate', (event, url) => {
         try {
             const parsed = new URL(url);
-            if (parsed.protocol !== 'file:') {
+            parsed.hash = '';
+            const dashboardUrl = pathToFileURL(path.join(__dirname, '../app/index.html')).href;
+            if (parsed.href !== dashboardUrl) {
                 event.preventDefault();
             }
         } catch (_) {
@@ -249,7 +253,7 @@ function isAllowedGuestUrl(rawUrl) {
     if (!rawUrl || rawUrl === 'about:blank') return true;
     try {
         const u = new URL(rawUrl);
-        if (u.protocol !== 'https:') return false;
+        if (u.protocol !== 'https:' || u.username || u.password || u.port) return false;
         if (u.hostname === 'idledex.com') return true;
         if (u.hostname === 'accounts.google.com') return true;
         return false;
@@ -362,10 +366,16 @@ app.whenReady().then(() => {
                 return;
             }
 
-            const gamePreload = path.join(__dirname, 'preload-game.js');
+            const gamePreload = path.join(__dirname, 'generated/preload-game.js');
             webPreferences.preload = gamePreload;
-            webPreferences.contextIsolation = false;
-            webPreferences.sandbox = false;
+            webPreferences.contextIsolation = true;
+            webPreferences.sandbox = true;
+            webPreferences.nodeIntegration = false;
+            webPreferences.nodeIntegrationInWorker = false;
+            webPreferences.nodeIntegrationInSubFrames = false;
+            webPreferences.webviewTag = false;
+            webPreferences.webSecurity = true;
+            webPreferences.allowRunningInsecureContent = false;
             delete webPreferences.preloadURL;
         });
 
@@ -438,12 +448,12 @@ app.whenReady().then(() => {
             console.log('[MAIN] Sistema entrando em suspensão. Pausando bot para segurança.');
             try {
                 const cfg = loadConfig();
-                if (cfg && cfg.enabled) {
+                if (cfg) {
                     cfg.enabled = false;
                     saveConfig(cfg);
-                    if (mainWindow && !mainWindow.isDestroyed()) {
-                        mainWindow.webContents.send('host-command', { cmd: 'toggle-bot', payload: { enabled: false } });
-                    }
+                }
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('host-command', { cmd: 'toggle-bot', payload: { enabled: false } });
                 }
             } catch (_) {}
         });

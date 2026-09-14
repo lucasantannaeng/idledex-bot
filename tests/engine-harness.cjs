@@ -62,12 +62,14 @@ function createEngine(fetch = async () => ({ ok: false })) {
         document: { querySelector() { return null; }, querySelectorAll() { return []; } },
         CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
         KeyboardEvent: class { constructor(type, options) { this.type = type; Object.assign(this, options); } },
-        Uint8Array, ArrayBuffer, DataView, TextDecoder, atob, Date: Clock, URL, Blob, AbortController,
+        structuredClone, Uint8Array, ArrayBuffer, DataView, TextDecoder, atob, Date: Clock, URL, Blob, AbortController,
         performance: { now() { return now; } },
         setTimeout(fn, delay) { return schedule(fn, delay); },
         setInterval(fn, delay) { return schedule(fn, delay, true); },
         clearTimeout(id) { timers.delete(id); }, clearInterval(id) { timers.delete(id); },
         require(name) {
+            if (name === './config-schema') return require('../electron/config-schema');
+            if (name === './bridge-contract') return require('../electron/bridge-contract');
             if (name !== 'electron') throw new Error(`Unexpected dependency: ${name}`);
             return {
                 webFrame: { executeJavaScript(source) { vm.runInContext(source, context); } },

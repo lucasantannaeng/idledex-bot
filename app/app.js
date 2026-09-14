@@ -45,10 +45,6 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize Webview Preload and Navigation
     if (gameView) {
-        if (window.electronAPI && window.electronAPI.gamePreloadPath) {
-            gameView.preload = window.electronAPI.gamePreloadPath;
-            appendLog('Preload autônomo acoplado ao Webview.', 'info');
-        }
         gameView.src = 'https://idledex.com/play';
 
         // Listen for IPC messages from guest preload
@@ -103,6 +99,31 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (window.electronAPI && window.electronAPI.onToggleBotTray) {
         window.electronAPI.onToggleBotTray(() => {
             toggleBotState();
+        });
+    }
+
+    // Listen for Host Commands (e.g. system suspend or main process signals)
+    if (window.electronAPI && window.electronAPI.onHostCommand) {
+        window.electronAPI.onHostCommand((data) => {
+            if (data && data.cmd === 'toggle-bot') {
+                if (data.payload && data.payload.enabled === false) {
+                    if (botEnabled) {
+                        toggleBotState();
+                    } else {
+                        currentConfig = { ...(currentConfig || {}), enabled: false };
+                        setBotEnabledState(false);
+                        if (gameView && gameReady) {
+                            gameView.send('host-command', { cmd: 'toggle-bot', payload: { enabled: false } });
+                        }
+                    }
+                } else if (data.payload && data.payload.enabled === true) {
+                    if (!botEnabled) {
+                        toggleBotState();
+                    }
+                } else {
+                    toggleBotState();
+                }
+            }
         });
     }
 
@@ -761,11 +782,13 @@ async function toggleBotState() {
 
     if (!nextState) {
         // Emergency Pause: stop immediately in UI and guest, then persist
+        const candidate = { ...(currentConfig || {}), enabled: false };
+        // Reloads and subsequent edits must preserve the pause even when disk fails.
+        currentConfig = candidate;
         setBotEnabledState(false);
         if (gameView && gameReady) {
             gameView.send('host-command', { cmd: 'toggle-bot', payload: { enabled: false } });
         }
-        const candidate = { ...(currentConfig || {}), enabled: false };
         if (window.electronAPI?.saveConfig) {
             try {
                 const ok = await window.electronAPI.saveConfig(candidate);

@@ -1,23 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const url = require('url');
-
-function getGamePreloadPath() {
-    let p = path.join(__dirname, 'preload-game.js');
-    if (p.includes('app.asar') && !fs.existsSync(p)) {
-        const unpacked = p.replace('app.asar', 'app.asar.unpacked');
-        if (fs.existsSync(unpacked)) {
-            p = unpacked;
-        }
-    }
-    return url.pathToFileURL(p).href;
-}
 
 contextBridge.exposeInMainWorld('electronAPI', {
-    // Webview guest preload script file URL
-    gamePreloadPath: getGamePreloadPath(),
-
     // Configuration persistence
     getConfig: () => ipcRenderer.invoke('get-config'),
     saveConfig: (cfg) => ipcRenderer.invoke('save-config', cfg),
@@ -30,5 +13,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // System Tray triggers
     onToggleBotTray: (callback) => {
         ipcRenderer.on('toggle-bot-tray', () => callback());
+    },
+
+    // Host commands (e.g. system suspend or main process signals)
+    onHostCommand: (callback) => {
+        ipcRenderer.on('host-command', (_event, data) => callback(data));
     }
 });
