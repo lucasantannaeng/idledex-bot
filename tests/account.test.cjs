@@ -27,3 +27,9 @@ test('Google OAuth chooser preserves request parameters and does not touch unrel
     assert.equal(googleAccountChooser('https://example.com/o/oauth2/v2/auth?client_id=test'), null);
     assert.equal(googleAccountChooser('https://accounts.google.com/signin'), null);
 });
+
+test('Google OAuth chooser preserves request when authuser is present (post-2FA callback)', () => {
+    assert.equal(googleAccountChooser('https://accounts.google.com/o/oauth2/v2/auth?client_id=test&authuser=0'), null);
+    assert.equal(googleAccountChooser('https://accounts.google.com/o/oauth2/auth?client_id=test&authuser=1'), null);
+});
+

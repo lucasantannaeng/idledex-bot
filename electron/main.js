@@ -254,8 +254,18 @@ function isAllowedGuestUrl(rawUrl) {
     try {
         const u = new URL(rawUrl);
         if (u.protocol !== 'https:' || u.username || u.password || u.port) return false;
-        if (u.hostname === 'idledex.com') return true;
-        if (u.hostname === 'accounts.google.com') return true;
+        const h = u.hostname.toLowerCase();
+        if (h === 'idledex.com' || h.endsWith('.idledex.com')) return true;
+        if (
+            h === 'accounts.google.com' ||
+            h === 'myaccount.google.com' ||
+            h === 'oauth2.googleapis.com' ||
+            h === 'accounts.youtube.com' ||
+            h === 'google.com' ||
+            h.endsWith('.google.com') ||
+            h === 'google.com.br' ||
+            h.endsWith('.google.com.br')
+        ) return true;
         return false;
     } catch (_) {
         return false;
@@ -265,12 +275,19 @@ function isAllowedGuestUrl(rawUrl) {
 function configureSessionPermissions(ses) {
     if (!ses) return;
     if (typeof ses.setPermissionRequestHandler === 'function') {
-        ses.setPermissionRequestHandler((wc, permission, callback) => {
+        ses.setPermissionRequestHandler((wc, permission, callback, details) => {
+            const requestingUrl = details?.requestingUrl || (wc && typeof wc.getURL === 'function' && (typeof wc.isDestroyed !== 'function' || !wc.isDestroyed()) ? wc.getURL() : '');
+            if (isAllowedGuestUrl(requestingUrl) && ['storage-access', 'top-level-storage-access', 'identity-credentials'].includes(permission)) {
+                return callback(true);
+            }
             callback(false);
         });
     }
     if (typeof ses.setPermissionCheckHandler === 'function') {
-        ses.setPermissionCheckHandler(() => {
+        ses.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => {
+            if (isAllowedGuestUrl(requestingOrigin) && ['storage-access', 'top-level-storage-access', 'identity-credentials'].includes(permission)) {
+                return true;
+            }
             return false;
         });
     }
@@ -383,11 +400,13 @@ app.whenReady().then(() => {
         contents.on('did-attach-webview', (attachEvent, guestContents) => {
             guestContents.on('will-navigate', (navEvent, url) => {
                 if (!isAllowedGuestUrl(url)) {
+                    console.warn(`[MAIN] Blocked guest navigation to unauthorized URL: ${url}`);
                     navEvent.preventDefault();
                 }
             });
             guestContents.on('will-redirect', (redirEvent, url) => {
                 if (!isAllowedGuestUrl(url)) {
+                    console.warn(`[MAIN] Blocked guest redirect to unauthorized URL: ${url}`);
                     redirEvent.preventDefault();
                 }
             });

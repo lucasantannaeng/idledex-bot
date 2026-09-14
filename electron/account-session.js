@@ -17,12 +17,13 @@ function googleAccountChooser(address) {
     const url = new URL(address);
     if (url.protocol !== 'https:' || url.hostname !== 'accounts.google.com' ||
         !['/o/oauth2/auth', '/o/oauth2/v2/auth'].includes(url.pathname)) return null;
+    // If the request already has an authenticated user (authuser), do NOT alter it or re-prompt!
+    if (url.searchParams.has('authuser')) return null;
     const original = url.href;
     const prompts = (url.searchParams.get('prompt') || '').split(/\s+/).filter(p => p && p !== 'none');
     if (!prompts.includes('select_account')) prompts.push('select_account');
     url.searchParams.set('prompt', prompts.join(' '));
     url.searchParams.delete('login_hint');
-    url.searchParams.delete('authuser');
     return url.href === original ? null : url.href;
 }
 

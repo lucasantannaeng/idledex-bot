@@ -139,10 +139,19 @@ test('T02: isAllowedGuestUrl allows official idledex and google oauth while reje
     assert.equal(main.isAllowedGuestUrl(''), true);
     assert.equal(main.isAllowedGuestUrl('about:blank'), true);
 
+    // Google 2FA & regional auth domains
+    assert.equal(main.isAllowedGuestUrl('https://myaccount.google.com/signinoptions/two-step-verification'), true);
+    assert.equal(main.isAllowedGuestUrl('https://oauth2.googleapis.com/token'), true);
+    assert.equal(main.isAllowedGuestUrl('https://accounts.google.com.br/o/oauth2/v2/auth'), true);
+    assert.equal(main.isAllowedGuestUrl('https://accounts.youtube.com/accounts/SetSID'), true);
+
     // Adversarial URLs
     assert.equal(main.isAllowedGuestUrl('http://idledex.com'), false, 'Plain HTTP must be rejected');
     assert.equal(main.isAllowedGuestUrl('https://idledex.com.evil.com/play'), false, 'Subdomain attack must be rejected');
     assert.equal(main.isAllowedGuestUrl('https://evil-google.com/oauth'), false, 'Lookalike domain must be rejected');
+    assert.equal(main.isAllowedGuestUrl('https://myaccount.google.com.evil.com'), false);
+    assert.equal(main.isAllowedGuestUrl('https://oauth2.googleapis.com.evil.com'), false);
+    assert.equal(main.isAllowedGuestUrl('https://evil-google.com.br'), false);
     assert.equal(main.isAllowedGuestUrl('javascript:alert(1)'), false, 'Javascript scheme must be rejected');
     assert.equal(main.isAllowedGuestUrl('file:///etc/passwd'), false, 'File scheme must be rejected');
 });

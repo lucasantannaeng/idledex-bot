@@ -448,3 +448,18 @@ de corpo de mapa, dados de colisão inválidos e aceite de release sem smoke.
 - powerMonitor Suspend (T17/T18): O sinal de suspensão do sistema operacional foi conectado do main process ao preload do dashboard (`onHostCommand`) e sincronizado à UI e ao motor do bot, garantindo pausa atômica em disco, na interface e no runtime do jogo.
 - Verificação do Candidato (T19/T20): `dist-release/win-unpacked/resources/app` validado pelo smoke test (`smoke-result.json`) com hash `f79f94f0dcabb5dd7259abdd13abd58265d72f270505917c3e3684d7298575d7` e verificado byte-a-byte por `research/verify-release.cjs` (17 arquivos, 0 divergências).
 
+## 2026-09-14 — Correção do Congelamento de 2FA no Login Google e Empacotamento dos Executáveis (author: antigravity)
+- **Causa Raiz 1 (Domínios de 2FA bloqueados)**: O método `isAllowedGuestUrl()` em `electron/main.js` restringia as URLs permitidas exclusivamente a `idledex.com` e `accounts.google.com`. Ao prosseguir para o Google Prompt / confirmação de 2FA em dispositivo móvel, o fluxo redireciona temporariamente para `myaccount.google.com`, `oauth2.googleapis.com`, `accounts.youtube.com`, ou variantes regionais como `accounts.google.com.br`. O interceptador `will-navigate` e `will-redirect` invocava `preventDefault()`, travando a janela em carregamento infinito até expirar e voltar ao seletor de contas.
+- **Causa Raiz 2 (Remoção indevida de `authuser` no `googleAccountChooser`)**: Em `electron/account-session.js`, a função interceptava todas as requisições para `/o/oauth2/*`, removendo o parâmetro `authuser` e reinjetando `prompt=select_account`. No callback final do 2FA, quando o Google redireciona com o usuário já validado (`authuser=0`), a remoção do `authuser` forçava o Google a cancelar o login automático e reexibir a lista de contas com o e-mail, sem autenticar na aplicação.
+- **Correções Cirúrgicas**:
+  1. `electron/main.js`: Expansão da whitelist de convidados (`isAllowedGuestUrl`) para incluir domínios oficiais de 2FA (`myaccount.google.com`, `oauth2.googleapis.com`, `accounts.youtube.com`, `*.google.com`, `*.google.com.br`) mantendo estrita rejeição de lookalikes (`evil-google.com`, etc.) e portas fora do padrão. Em `configureSessionPermissions`, proteção defensiva com checagem de tipo em `wc.getURL` e `wc.isDestroyed`.
+  2. `electron/account-session.js`: Se a URL já contiver `authuser` (usuário previamente autenticado pelo 2FA), `googleAccountChooser` retorna `null` imediatamente sem alterar os parâmetros e sem deletar `authuser`.
+- **Testes & Empacotamento**:
+  - 154 testes unitários do Node.js (`tests/*.test.cjs`) e 9 testes em Python aprovados (100% pass).
+  - Smoke test em Electron real (`research/smoke-result.json`) aprovado com hash `234701ff8d475899c028a1c35c73693575e7ff120afe8c8ee2e5bff3c267aa42`.
+  - Verificação de release candidate (`research/verify-release.cjs`): 17 arquivos validados com 0 divergências.
+  - Executáveis compilados em `dist-release/`:
+    - Portátil: `IdleDex_Desktop_Portable_2.5.0.exe` (74.5 MB)
+    - Instalador: `IdleDex_Desktop_Setup_2.5.0.exe` (82.1 MB)
+    - Pasta Descompactada: `dist-release/win-unpacked/IdleDex_Desktop.exe`
+
