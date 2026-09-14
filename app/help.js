@@ -93,17 +93,33 @@ const HELP_TOPICS = [
         'A espécie fixada bloqueia a troca enquanto habitar a rota atual. Viagens para entregas têm um fluxo separado e podem interromper temporariamente a caça.'
     ]],
     ['cfg-pinned-species', 'Fixar espécie para farming', 'Mantém a rota quando ela contém a espécie indicada.', [
-        'Digite o identificador da espécie, por exemplo pikachu. Se ela estiver entre os spawns da rota, a troca automática de rota é bloqueada para permitir tentativas repetidas.',
-        'Isso não seleciona a espécie na lista de captura. Marque-a no Radar se quiser restringir os alvos e desative Apenas Não Registrados para capturar duplicatas. Apague o campo para liberar a troca de rota.'
+        'Selecione até 2 espécies entre os spawns da rota atual nos menus suspensos (dropdowns). Se ao menos uma delas estiver presente na rota, a troca automática de rota é bloqueada para permitir farming focado de IVs e naturezas.',
+        'Ao fixar espécies, as opções Auto-Troca de Rota e Capturar Apenas Não Registrados são automaticamente bloqueadas com travas de conflito para evitar que o bot saia da rota ou ignore duplicatas da espécie desejada.',
+        'Para desativar o farming e liberar a troca de rota, selecione "(Nenhuma)" em ambos os campos de espécie.'
     ]],
     ['cfg-strategy', 'Presets de configuração', 'Preenche opções de captura para Equilibrado, Coleção ou Monetização.', [
         'Equilibrado: captura até 50% de HP, esferas balanceadas, combate dos não selecionados e sem filtros exclusivos de shiny/inéditos. Coleção: captura até 50%, apenas inéditos, fuga dos demais e esferas econômicas. Monetização: captura até 30%, combate dos demais e esferas econômicas.',
         'Escolha o preset, confira os campos e clique em Salvar Ajustes. Você pode personalizar os valores antes de salvar. Mudar de preset sempre substitui os filtros de captura que ele controla, evitando herdar Apenas Shinies ou Apenas Não Registrados do modo anterior.',
         'Os presets preservam alvos da área, opções de cura, descarte, entregas, boosts e o estado pausado. Monetização é o nome da estratégia de combate/captura; não garante lucro nem executa uma venda por si só.'
     ]],
+    ['cfg-iv-mode', 'Modo de avaliação de IV', 'Escolha entre porcentagem total ou mínimos individuais por atributo.', [
+        'Porcentagem Total (%) avalia a soma dos seis IVs dividida por 186. Se a porcentagem calculada for inferior ao limiar definido no controle deslizante, a captura pode ser descartada.',
+        'Mínimos por Categoria permite definir o valor mínimo aceitável (de 0 a 31) para cada um dos atributos individuais: HP, Ataque, Defesa, Ataque Especial, Defesa Especial e Velocidade. Uma criatura só é mantida se atender ou superar o valor mínimo em todos os atributos configurados.',
+        'Use mínimos individuais para focar em atributos competitivos específicos (como 31 em Velocidade ou Ataque).'
+    ]],
     ['cfg-discard-iv-pct', 'Descarte automático por IV', 'Libera capturas com IV percentual abaixo do limiar.', [
         'O percentual usa a soma dos seis IVs dividida por 186. Com 50%, capturas elegíveis abaixo desse valor podem ser liberadas após o recebimento da ficha completa. Use 0% para impedir descarte por esse limiar; esse é o padrão de um perfil novo.',
         'A liberação remove a criatura da coleção. O motor protege integrantes da equipe, líderes, shinies, criaturas travadas e formas/eventos especiais; IVs incompletos não autorizam liberação. Revise este campo antes de ativar o bot, sobretudo durante farming.'
+    ]],
+    ['cfg-desired-nature', 'Filtro de natureza', 'Filtra capturas pela personalidade ou bônus de atributos.', [
+        'Qualquer Natureza aceita criaturas de qualquer personalidade sem restrição adicional.',
+        'Melhores Natures (Smogon) mantém apenas naturezas competitivas populares que aumentam atributos ofensivos ou defensivos sem penalizar a velocidade (como Adamant, Jolly, Modest, Timid, Bold, Impish, Calm e Careful).',
+        'Selecionar uma natureza específica (ex: Adamant ou Modest) restringe a retenção exclusivamente a essa natureza. Criaturas com naturezas diferentes serão elegíveis para descarte ou limpeza da Box, exceto se protegidas pelas salvaguardas invioláveis.'
+    ]],
+    ['cfg-auto-box-cleanup', 'Modo limpeza de box', 'Libera criaturas excedentes da Box que não atendem aos critérios de IV e Natureza.', [
+        'O botão Executar Limpeza de Box Agora inicia imediatamente uma varredura nas criaturas armazenadas na Box (fora da equipe ativa). Criaturas que não atenderem ao modo de IV e ao filtro de Natureza configurados são liberadas.',
+        'Auto-Limpeza de Box Periódica executa essa mesma varredura de forma contínua em segundo plano a cada 2 minutos enquanto o bot estiver em execução.',
+        'Salvaguardas Invioláveis: Shinies, integrantes da Equipe, criaturas Bloqueadas no jogo e a última cópia restante de cada espécie NUNCA são liberadas sob nenhuma hipótese.'
     ]],
     ['cfg-pause-no-balls', 'Pausa por falta de esferas', 'Interrompe a automação ao esgotar as esferas.', [
         'Esta pausa é acionada pela patrulha quando as esferas acabam e Não Selecionados está em Fugir Imediato. Confira o estoque em Mochila, reabasteça no jogo e retome manualmente quando estiver pronto.',

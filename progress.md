@@ -170,3 +170,19 @@ abaixo não equivalem ao aceite desta revisão; H01–H03 seguem sem prova exigi
 - Verificação do Candidato Canônico (T19): `npm run pack` gerou `dist-release/win-unpacked/resources/app`; smoke test executado no candidato gerou `research/smoke-result.json` (hash `f79f94f0dcabb5dd7259abdd13abd58265d72f270505917c3e3684d7298575d7`); `research/verify-release.cjs` validou os 17 arquivos byte-a-byte gerando `research/release-verification.json`.
 - Testes: 153/153 Node (`npm test`), 9/9 Python (`python -m unittest discover tests`), 0 problemas no `hermes cron doctor` (2 jobs ativos).
 
+## 2026-09-14 — Fase 21: Mesclagem UI Spawns/Config, Travas de Conflito, Limpeza de Box & Filtros IV/Nature (author: antigravity)
+- Unificação de UI (21.2): Spawns da Área e Mapa & Economia mesclados em Configurações sem redundâncias. Radar simplificado com card descritivo e botão de atalho direto para Configurações.
+- Travas de Conflito Mútuas (21.1 / 21.3): Implementadas travas no schema, normalização e DOM para opções conflitantes (`auto_idle` vs `auto_roam`/`auto_route_switch`, `pinned_species` vs `auto_route_switch`/`catch_only_uncaught`).
+- Fixar Espécie (Farming IV) (21.2 / 21.3): Substituído campo de texto livre por 2 dropdowns populados dinamicamente com as espécies presentes na área detectada, com badge visual de status ativo.
+- Critérios de IV e Natureza Estilo In-Game (Print 3) (21.1 / 21.2 / 21.4): Suporte a modo Percentual (%) ou Mínimos Individuais (0 a 31 nos 6 atributos: HP, Atk, Def, SpA, SpD, Spe) com soma em tempo real (/186), e filtro de 25 Natures oficiais + "any" + "competitive" (Smogon).
+- Modo Limpeza de Box (21.1 / 21.2 / 21.4): Ação manual (`cleanup-box`) e rotina periódica automática (`auto_box_cleanup`) liberando excedentes que não atendem aos critérios de IV/Natureza, com salvaguardas invioláveis (Shinies, Equipe, Bloqueados e última cópia da espécie).
+- Validação Empírica & Releases (21.5):
+  - Suítes de testes automatizados: 160/160 Node tests aprovados (`npm test`), 9/9 Python tests aprovados, `hermes cron doctor` com 0 falhas em 2 jobs.
+  - Smoke test do Electron: 100% aprovado (`research/smoke-result.json`, candidateHash `7e40120c52616cca995f68df9b4db518362902e540d52efaef7aaeaa0ea0e415`).
+  - Verificação de integridade da distribuição (`research/verify-release.cjs`): 17 arquivos validados com hash idêntico.
+  - Compilação dos binários finais em `dist-release/`:
+    - `dist-release/IdleDex_Desktop_Portable_2.5.0.exe` (74.5 MB)
+    - `dist-release/IdleDex_Desktop_Setup_2.5.0.exe` (82.1 MB)
+    - `dist-release/win-unpacked/IdleDex_Desktop.exe` (188.8 MB)
+
+

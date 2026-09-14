@@ -882,6 +882,221 @@ function minimizeToTray() {
 
 // --- 7. CONFIGURATION LOGIC ---
 
+function setPinnedSelectValue(elementId, val) {
+    const sel = document.getElementById(elementId);
+    if (!sel) return;
+    if (!val) {
+        sel.value = '';
+        return;
+    }
+    const valLower = String(val).toLowerCase().trim();
+    if (Array.isArray(sel.options) || (sel.options && typeof sel.options[Symbol.iterator] === 'function')) {
+        const hasOpt = Array.from(sel.options).some(o => (o.value || '').toLowerCase() === valLower);
+        if (!hasOpt && typeof sel.appendChild === 'function') {
+            const opt = document.createElement('option');
+            opt.value = valLower;
+            opt.textContent = valLower.charAt(0).toUpperCase() + valLower.slice(1);
+            sel.appendChild(opt);
+        }
+    }
+    sel.value = valLower;
+}
+
+function setIvModeUI(mode) {
+    const isIndiv = mode === 'individual';
+    const pctCont = document.getElementById('iv-container-percent');
+    const indCont = document.getElementById('iv-container-individual');
+    if (pctCont?.style) pctCont.style.display = isIndiv ? 'none' : 'flex';
+    if (indCont?.style) indCont.style.display = isIndiv ? 'block' : 'none';
+    const select = document.getElementById('cfg-iv-mode');
+    if (select && select.value !== mode) {
+        select.value = mode;
+    }
+}
+
+function updateMinIvSum() {
+    const stats = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
+    let sum = 0;
+    for (const stat of stats) {
+        const input = document.getElementById(`cfg-min-iv-${stat}`);
+        if (input) {
+            let val = parseInt(input.value, 10);
+            if (!Number.isFinite(val) || val < 0) val = 0;
+            if (val > 31) { val = 31; input.value = '31'; }
+            sum += val;
+        }
+    }
+    const sumLbl = document.getElementById('lbl-min-iv-sum');
+    if (sumLbl) {
+        const pct = Math.round((sum / 186) * 100);
+        sumLbl.textContent = `IVs ${sum}/186 (${pct}%)`;
+    }
+    return sum;
+}
+
+function updateConflictLocks() {
+    const elIdle = document.getElementById('cfg-auto-idle');
+    const elRoam = document.getElementById('cfg-auto-roam');
+    const elSwitch = document.getElementById('cfg-auto-route-switch');
+    const elUncaught = document.getElementById('cfg-only-uncaught');
+    const lockIdle = document.getElementById('lock-auto-idle');
+    const lockRoam = document.getElementById('lock-auto-roam');
+    const lockSwitch = document.getElementById('lock-auto-route-switch');
+    const lockUncaught = document.getElementById('lock-only-uncaught');
+    const badgeFarming = document.getElementById('badge-farming-active');
+
+    const sp1 = (getVal('cfg-pinned-species-1') || '').trim();
+    const sp2 = (getVal('cfg-pinned-species-2') || '').trim();
+    const rawLegacyPin = (getVal('cfg-pinned-species') || '').trim();
+    const hasPinned = Boolean(sp1 || sp2 || rawLegacyPin);
+
+    if (badgeFarming?.style) {
+        badgeFarming.style.display = hasPinned ? 'inline-block' : 'none';
+    }
+
+    const isIdle = elIdle ? Boolean(elIdle.checked) : false;
+    const isRoam = elRoam ? Boolean(elRoam.checked) : false;
+    const isSwitch = elSwitch ? Boolean(elSwitch.checked) : false;
+
+    // 1. Farming Locks (pinned species locks auto-route-switch and catch-only-uncaught)
+    if (hasPinned) {
+        if (elSwitch) {
+            elSwitch.checked = false;
+            elSwitch.disabled = true;
+        }
+        if (lockSwitch?.style) {
+            lockSwitch.textContent = '🔒 Farming';
+            lockSwitch.style.display = 'inline';
+        }
+        if (elUncaught) {
+            elUncaught.checked = false;
+            elUncaught.disabled = true;
+        }
+        if (lockUncaught?.style) {
+            lockUncaught.style.display = 'inline';
+        }
+    } else {
+        if (lockUncaught?.style) lockUncaught.style.display = 'none';
+        if (elUncaught) elUncaught.disabled = false;
+
+        if (!isIdle) {
+            if (elSwitch) elSwitch.disabled = false;
+            if (lockSwitch?.style) lockSwitch.style.display = 'none';
+        }
+    }
+
+    // 2. Auto-Idle vs Auto-Roam / Route-Switch Locks
+    if (isIdle) {
+        if (elRoam) {
+            elRoam.checked = false;
+            elRoam.disabled = true;
+        }
+        if (lockRoam?.style) lockRoam.style.display = 'inline';
+        if (elSwitch) {
+            elSwitch.checked = false;
+            elSwitch.disabled = true;
+        }
+        if (lockSwitch?.style) {
+            lockSwitch.textContent = '🔒 Auto-Idle';
+            lockSwitch.style.display = 'inline';
+        }
+        if (elIdle) elIdle.disabled = false;
+        if (lockIdle?.style) lockIdle.style.display = 'none';
+    } else if (isRoam || isSwitch) {
+        if (elIdle) {
+            elIdle.checked = false;
+            elIdle.disabled = true;
+        }
+        if (lockIdle?.style) lockIdle.style.display = 'inline';
+        if (elRoam) elRoam.disabled = false;
+        if (lockRoam?.style) lockRoam.style.display = 'none';
+        if (!hasPinned) {
+            if (elSwitch) elSwitch.disabled = false;
+            if (lockSwitch?.style) lockSwitch.style.display = 'none';
+        }
+    } else {
+        if (elIdle) elIdle.disabled = false;
+        if (lockIdle?.style) lockIdle.style.display = 'none';
+        if (elRoam) elRoam.disabled = false;
+        if (lockRoam?.style) lockRoam.style.display = 'none';
+        if (!hasPinned) {
+            if (elSwitch) elSwitch.disabled = false;
+            if (lockSwitch?.style) lockSwitch.style.display = 'none';
+        }
+    }
+}
+
+function populatePinnedSpeciesDropdowns(availableSpecies) {
+    currentAreaSpeciesList = Array.isArray(availableSpecies) ? availableSpecies : [];
+    const sel1 = document.getElementById('cfg-pinned-species-1');
+    const sel2 = document.getElementById('cfg-pinned-species-2');
+    if (!sel1 || !sel2) return;
+
+    const val1 = (sel1.value || '').toLowerCase().trim();
+    const val2 = (sel2.value || '').toLowerCase().trim();
+
+    const speciesList = [];
+    const seen = new Set();
+    for (const sp of currentAreaSpeciesList) {
+        if (!sp) continue;
+        const name = typeof sp === 'string' ? sp : (sp.name || sp.speciesId || '');
+        const id = typeof sp === 'string' ? sp : (sp.speciesId || sp.name || '');
+        const canonical = (name || id).trim();
+        const key = canonical.toLowerCase();
+        if (canonical && !seen.has(key)) {
+            seen.add(key);
+            speciesList.push({ name: canonical, value: key });
+        }
+    }
+
+    const buildOptions = (currentVal, placeholder) => {
+        const frag = document.createDocumentFragment();
+        const defOpt = document.createElement('option');
+        defOpt.value = '';
+        defOpt.textContent = placeholder;
+        frag.appendChild(defOpt);
+
+        let matchFound = false;
+        for (const item of speciesList) {
+            const opt = document.createElement('option');
+            opt.value = item.value;
+            opt.textContent = item.name;
+            if (item.value === currentVal) {
+                opt.selected = true;
+                matchFound = true;
+            }
+            frag.appendChild(opt);
+        }
+
+        if (currentVal && !matchFound) {
+            const preservedOpt = document.createElement('option');
+            preservedOpt.value = currentVal;
+            preservedOpt.textContent = currentVal.charAt(0).toUpperCase() + currentVal.slice(1);
+            preservedOpt.selected = true;
+            frag.appendChild(preservedOpt);
+        }
+
+        return frag;
+    };
+
+    if (typeof sel1.replaceChildren === 'function') {
+        sel1.replaceChildren(buildOptions(val1, '(Espécie 1: Nenhuma)'));
+    }
+    if (typeof sel2.replaceChildren === 'function') {
+        sel2.replaceChildren(buildOptions(val2, '(Espécie 2: Nenhuma)'));
+    }
+    updateConflictLocks();
+}
+
+function triggerBoxCleanup() {
+    if (gameView && gameReady) {
+        gameView.send('host-command', { cmd: 'manual-action', payload: { action: 'cleanup-box' } });
+        appendLog('🧹 Solicitando limpeza de Box ao motor de jogo conforme filtros de IV e Nature...', 'info');
+    } else {
+        appendLog('⚠️ Jogo não está pronto para executar limpeza de Box no momento.', 'warning');
+    }
+}
+
 function applyConfigToInputs(cfg) {
     if (!cfg) return;
     setVal('cfg-strategy', cfg.strategy_mode || 'balanced');
@@ -912,11 +1127,42 @@ function applyConfigToInputs(cfg) {
     setCheck('cfg-auto-roam', cfg.auto_roam !== false);
     setCheck('cfg-auto-idle', cfg.auto_idle !== false);
     setCheck('cfg-auto-route-switch', !!cfg.auto_route_switch);
-    setVal('cfg-pinned-species', cfg.pinned_species || '');
+
+    let p1 = '';
+    let p2 = '';
+    if (Array.isArray(cfg.pinned_species)) {
+        p1 = (cfg.pinned_species[0] || '').toLowerCase().trim();
+        p2 = (cfg.pinned_species[1] || '').toLowerCase().trim();
+    } else if (typeof cfg.pinned_species === 'string' && cfg.pinned_species.trim()) {
+        const parts = cfg.pinned_species.split(',').map(s => s.toLowerCase().trim()).filter(Boolean);
+        p1 = parts[0] || '';
+        p2 = parts[1] || '';
+    }
+    setVal('cfg-pinned-species', cfg.pinned_species ? (Array.isArray(cfg.pinned_species) ? cfg.pinned_species.join(', ') : cfg.pinned_species) : '');
+    setPinnedSelectValue('cfg-pinned-species-1', p1);
+    setPinnedSelectValue('cfg-pinned-species-2', p2);
+
+    const ivMode = cfg.iv_evaluation_mode === 'individual' ? 'individual' : 'percent';
+    setVal('cfg-iv-mode', ivMode);
+    setIvModeUI(ivMode);
+
     const discardPct = cfg.discard_iv_pct !== undefined ? cfg.discard_iv_pct : 50;
     setVal('cfg-discard-iv-pct', discardPct);
     const lblDiscard = document.getElementById('lbl-discard-iv-pct');
     if (lblDiscard) lblDiscard.innerText = discardPct + '%';
+
+    const minIvs = cfg.min_ivs || {};
+    setVal('cfg-min-iv-hp', minIvs.hp ?? 0);
+    setVal('cfg-min-iv-atk', minIvs.atk ?? 0);
+    setVal('cfg-min-iv-def', minIvs.def ?? 0);
+    setVal('cfg-min-iv-spa', minIvs.spa ?? 0);
+    setVal('cfg-min-iv-spd', minIvs.spd ?? 0);
+    setVal('cfg-min-iv-spe', minIvs.spe ?? 0);
+    updateMinIvSum();
+
+    setVal('cfg-desired-nature', (cfg.desired_nature || 'any').toLowerCase().trim());
+    setCheck('cfg-auto-box-cleanup', !!cfg.auto_box_cleanup);
+
     setCheck('cfg-pause-no-balls', cfg.pause_on_no_balls !== false);
     setCheck('cfg-auto-dailies', cfg.auto_claim_dailies !== false);
     setCheck('cfg-auto-lock', cfg.auto_lock_valuable !== false);
@@ -925,6 +1171,8 @@ function applyConfigToInputs(cfg) {
     setVal('cfg-auto-travel-surplus', cfg.auto_travel_surplus_threshold || 5);
     setCheck('cfg-auto-boosts', !!cfg.auto_use_boosts);
     setCheck('cfg-close-to-tray', !!cfg.close_to_tray);
+
+    updateConflictLocks();
 }
 
 function onStrategyChange(mode) {
@@ -938,6 +1186,7 @@ function onStrategyChange(mode) {
     setVal('cfg-ball-priority', mode === 'balanced' ? 'balanced' : 'economy');
     setVal('cfg-unselected-action', mode === 'collection' ? 'flee' : 'battle');
     setVal('cfg-unselected-action-radar', mode === 'collection' ? 'flee' : 'battle');
+    updateConflictLocks();
     if (mode === 'collection') {
         appendLog('🎯 [PRESET] Modo Coleção: Capturar apenas inéditos, fugir dos demais e Pokébolas econômicas.', 'info');
     } else if (mode === 'monetize') {
@@ -967,6 +1216,53 @@ async function switchAccount() {
 
 async function saveBotSettings() {
     const thisRev = ++saveRevision;
+
+    const pin1 = (getVal('cfg-pinned-species-1') || '').trim().toLowerCase();
+    const pin2 = (getVal('cfg-pinned-species-2') || '').trim().toLowerCase();
+    const rawLegacyPin = (getVal('cfg-pinned-species') || '').trim();
+
+    let resolvedPinned = null;
+    const pinnedArr = [pin1, pin2].filter(Boolean);
+    if (pinnedArr.length > 0) {
+        const unique = [...new Set(pinnedArr)];
+        resolvedPinned = unique.length === 1 ? unique[0] : unique;
+    } else if (rawLegacyPin) {
+        const parts = rawLegacyPin.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        const unique = [...new Set(parts)].slice(0, 2);
+        resolvedPinned = unique.length === 0 ? null : (unique.length === 1 ? unique[0] : unique);
+    }
+
+    const ivMode = getVal('cfg-iv-mode') || 'percent';
+    const minIvs = {
+        hp: Math.max(0, Math.min(31, getNumber('cfg-min-iv-hp', 0))),
+        atk: Math.max(0, Math.min(31, getNumber('cfg-min-iv-atk', 0))),
+        def: Math.max(0, Math.min(31, getNumber('cfg-min-iv-def', 0))),
+        spa: Math.max(0, Math.min(31, getNumber('cfg-min-iv-spa', 0))),
+        spd: Math.max(0, Math.min(31, getNumber('cfg-min-iv-spd', 0))),
+        spe: Math.max(0, Math.min(31, getNumber('cfg-min-iv-spe', 0))),
+    };
+
+    const hasPinnedActive = Boolean(resolvedPinned);
+    const autoIdleChecked = getCheck('cfg-auto-idle');
+    const autoRoamChecked = getCheck('cfg-auto-roam');
+    const autoRouteSwitchChecked = getCheck('cfg-auto-route-switch');
+    const onlyUncaughtChecked = getCheck('cfg-only-uncaught');
+
+    // Strict conflict enforcement before saving
+    let effectiveAutoIdle = autoIdleChecked;
+    let effectiveAutoRoam = autoRoamChecked;
+    let effectiveRouteSwitch = autoRouteSwitchChecked;
+    let effectiveOnlyUncaught = onlyUncaughtChecked;
+
+    if (effectiveAutoIdle) {
+        effectiveAutoRoam = false;
+        effectiveRouteSwitch = false;
+    }
+    if (hasPinnedActive) {
+        effectiveRouteSwitch = false;
+        effectiveOnlyUncaught = false;
+    }
+
     const updated = {
         ...currentConfig,
         enabled: botEnabled,
@@ -979,7 +1275,7 @@ async function saveBotSettings() {
         auto_heal_center: getCheck('cfg-auto-heal-center'),
         catch_hp_pct: getNumber('cfg-catch', 50) / 100,
         catch_only_shiny: getCheck('cfg-only-shiny'),
-        catch_only_uncaught: getCheck('cfg-only-uncaught'),
+        catch_only_uncaught: effectiveOnlyUncaught,
         ball_priority: getVal('cfg-ball-priority') || 'balanced',
         move_selection_mode: getVal('cfg-move-mode') || 'smart',
         target_species: currentTargetSpecies || [],
@@ -987,12 +1283,16 @@ async function saveBotSettings() {
         unselected_action: getVal('cfg-unselected-action') || getVal('cfg-unselected-action-radar') || 'battle',
         min_iv_alert: 130,
         roam_step_delay_ms: parseInt(getVal('cfg-roam-delay'), 10) || 300,
-        auto_route_switch: getCheck('cfg-auto-route-switch'),
-        pinned_species: getVal('cfg-pinned-species').trim() || null,
+        auto_route_switch: effectiveRouteSwitch,
+        pinned_species: resolvedPinned,
+        iv_evaluation_mode: ivMode,
+        min_ivs: minIvs,
+        desired_nature: (getVal('cfg-desired-nature') || 'any').toLowerCase().trim(),
+        auto_box_cleanup: getCheck('cfg-auto-box-cleanup'),
         discard_iv_pct: getNumber('cfg-discard-iv-pct', 50),
         pause_on_no_balls: getCheck('cfg-pause-no-balls'),
-        auto_roam: getCheck('cfg-auto-roam'),
-        auto_idle: getCheck('cfg-auto-idle'),
+        auto_roam: effectiveAutoRoam,
+        auto_idle: effectiveAutoIdle,
         auto_claim_dailies: getCheck('cfg-auto-dailies'),
         auto_lock_valuable: getCheck('cfg-auto-lock'),
         auto_npc_quests: getCheck('cfg-auto-npc-quests'),
@@ -1001,6 +1301,12 @@ async function saveBotSettings() {
         auto_use_boosts: getCheck('cfg-auto-boosts'),
         close_to_tray: getCheck('cfg-close-to-tray'),
     };
+
+    setCheck('cfg-auto-roam', effectiveAutoRoam);
+    setCheck('cfg-auto-idle', effectiveAutoIdle);
+    setCheck('cfg-auto-route-switch', effectiveRouteSwitch);
+    setCheck('cfg-only-uncaught', effectiveOnlyUncaught);
+    updateConflictLocks();
 
     // Persist to main process
     try {
@@ -1118,3 +1424,8 @@ window.handleTelemetry = handleTelemetry;
 window.appendLog = appendLog;
 window.getCurrentConfig = () => currentConfig;
 window.isBotEnabled = () => botEnabled;
+window.setIvModeUI = setIvModeUI;
+window.updateMinIvSum = updateMinIvSum;
+window.updateConflictLocks = updateConflictLocks;
+window.populatePinnedSpeciesDropdowns = populatePinnedSpeciesDropdowns;
+window.triggerBoxCleanup = triggerBoxCleanup;

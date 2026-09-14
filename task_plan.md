@@ -375,3 +375,30 @@ Este fechamento atualiza o status das pendências da seção Auditoria Codex. Fa
   - H02 / R02: Validação de isolamento de sessões com logout e reset sintético verificado via smoke.
   - H03 / R09: Ciclo de laboratório robusto com mutual exclusion e retenção de última cópia.
   - H04 / R10: Cadeia canônica de distribuição unificada em `dist-release` com verificação de manifesto e sha256.
+
+## Phase 21: Unificação de Spawns & Mapa, Travas de Conflito, Limpeza de Box e Filtros de IV/Nature
+- [x] 21.1 Schema de Configuração (`electron/config-schema.js`):
+  - Adicionar `iv_evaluation_mode` ('percent'|'individual'), `min_ivs` ({hp,atk,def,spa,spd,spe}), `desired_nature`, `auto_box_cleanup`.
+  - Expandir `pinned_species` para suportar array de até 2 espécies com normalização segura e retrocompatibilidade.
+  - Implementar regras de normalização de travas de conflito (auto_idle vs auto_roam/auto_route_switch, pinned_species vs auto_route_switch/only_uncaught).
+- [x] 21.2 Reestruturação e Mesclagem da UI (`app/index.html` & `app/styles.css`):
+  - Mover card Spawns da Área para dentro de Configurações, unificando com Mapa & Economia sem redundâncias.
+  - Criar interface de seleção de até 2 espécies em Fixar Espécie (Farming IV) via dropdowns dinâmicos.
+  - Criar interface de IVs e Nature baseada no Print 3 (toggle % / mínimos individuais de 6 atributos e seletor de naturezas).
+  - Criar seção e botão de Limpeza de Box com indicador de salvaguardas invioláveis.
+  - Estilizar travas de conflito visuais (.lock-tag, disabled com opacity e cursor not-allowed).
+- [x] 21.3 Lógica do Dashboard & Sincronização (`app/app.js` & `app/help.js`):
+  - Popular dropdowns de espécies fixadas a partir dos spawns da área.
+  - Aplicar travas de conflito reativas no DOM ao alterar inputs.
+  - Serializar/deserializar novas propriedades e conectar botão de limpeza de box via IPC (`cleanup-box`).
+- [x] 21.4 Motor de Execução no Jogo (`electron/preload-game.js`):
+  - Avaliação unificada de IVs e Nature (`monMatchesKeepCriteria`) para descarte e limpeza.
+  - Implementar comando `executeBoxCleanup()` via `creature:release` em lote com confirmação atômica e salvaguardas (shiny, team, locked, última cópia).
+  - Priorizar captura de `pinned_species` em combate mesmo sob modo `none` ou `flee`.
+- [x] 21.5 Pipeline, Recompilação do Preload & Testes Automatizados:
+  - Executar `scripts/build-preload.cjs` para atualizar o bundle.
+  - Atualizar e expandir suíte de testes (`config-schema.test.cjs`, `dashboard-dom.test.cjs`, `engine.test.cjs`).
+  - Executar `npm test`, `python -m unittest discover tests` e smoke test real do Electron.
+  - Reempacotar e validar release candidate (`research/verify-release.cjs` e executáveis).
+
+

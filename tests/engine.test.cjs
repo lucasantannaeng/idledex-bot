@@ -994,3 +994,71 @@ test('T12: closed throw window (canThrow: false) never throws ball even for dire
     assert.strictEqual(ballThrows.length, 0, 'Must NEVER throw ball when server canThrow permission is false');
 });
 
+test('T21: Box cleanup releases duplicate low-IV non-matching creatures and honors all safeguards (shinies, team, locked, last copy)', () => {
+    const engine = createEngine();
+    const socket = engine.socket(); socket.open();
+    socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
+    engine.configure({
+        enabled: true,
+        iv_evaluation_mode: 'percent',
+        discard_iv_pct: 60,
+        desired_nature: 'any',
+        protect_last_copy: true,
+    });
+
+    // Populate collection
+    socket.message({ t: 'team', d: { creatures: [
+        // 1. Leader (team member) - low IV -> PROTECTED
+        { id: 'lead', name: 'Charizard', speciesId: 6, teamSlot: 0, isLeader: true, ivs: { hp: 5, atk: 5, def: 5, spa: 5, spd: 5, spe: 5 } },
+        // 2. Shiny in Box - low IV -> PROTECTED
+        { id: 'box-shiny', name: 'Gyarados', speciesId: 130, boxSlot: 0, isShiny: true, ivs: { hp: 5, atk: 5, def: 5, spa: 5, spd: 5, spe: 5 } },
+        // 3. Locked in Box - low IV -> PROTECTED
+        { id: 'box-locked', name: 'Dragonite', speciesId: 149, boxSlot: 1, isLocked: true, ivs: { hp: 5, atk: 5, def: 5, spa: 5, spd: 5, spe: 5 } },
+        // 4. Only copy of Snorlax in Box - low IV -> PROTECTED (last copy)
+        { id: 'box-snorlax', name: 'Snorlax', speciesId: 143, boxSlot: 2, ivs: { hp: 5, atk: 5, def: 5, spa: 5, spd: 5, spe: 5 } },
+        // 5. Duplicate Rattata #1 in Box - low IV (30/186 = 16% < 60%) -> ELIGIBLE FOR RELEASE
+        { id: 'box-rat-1', name: 'Rattata', speciesId: 19, boxSlot: 3, ivs: { hp: 5, atk: 5, def: 5, spa: 5, spd: 5, spe: 5 } },
+        // 6. Duplicate Rattata #2 in Box - high IV (180/186 = 97% >= 60%) -> PROTECTED (keeps criteria)
+        { id: 'box-rat-2', name: 'Rattata', speciesId: 19, boxSlot: 4, ivs: { hp: 30, atk: 30, def: 30, spa: 30, spd: 30, spe: 30 } },
+    ] } });
+
+    // Trigger box cleanup manual action
+    engine.command('manual-action', { action: 'cleanup-box' });
+
+    const releaseEvents = socket.sent.filter(c => c.t === 'creature:release');
+    assert.strictEqual(releaseEvents.length, 1, 'Must send creature:release event');
+    assert.deepStrictEqual(releaseEvents[0].d.creatureIds, ['box-rat-1'], 'Only duplicate low-IV non-safeguarded creature must be released');
+});
+
+test('T21: Box cleanup respects individual IV minimums and nature filters', () => {
+    const engine = createEngine();
+    const socket = engine.socket(); socket.open();
+    socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
+    engine.configure({
+        enabled: true,
+        iv_evaluation_mode: 'individual',
+        min_ivs: { hp: 0, atk: 31, def: 0, spa: 0, spd: 0, spe: 31 },
+        desired_nature: 'adamant',
+        protect_last_copy: true,
+    });
+
+    // 1 Party leader + 3 Pidgeys in Box
+    socket.message({ t: 'team', d: { creatures: [
+        { id: 'leader', name: 'Charizard', speciesId: 6, teamSlot: 0, isLeader: true, hp: 100, maxHp: 100, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 } },
+        // Candidate 1: 31 Atk, 31 Spe, but Timid (+Spe, -Atk) -> Fails nature filter -> Eligible
+        { id: 'pidg-1', name: 'Pidgey', speciesId: 16, teamSlot: null, boxSlot: 0, nature: 'timid', ivs: { hp: 20, atk: 31, def: 20, spa: 20, spd: 20, spe: 31 } },
+        // Candidate 2: Adamant (+Atk, -SpA), but Spe is 20 (< 31) -> Fails individual minimum -> Eligible
+        { id: 'pidg-2', name: 'Pidgey', speciesId: 16, teamSlot: null, boxSlot: 1, nature: 'adamant', ivs: { hp: 20, atk: 31, def: 20, spa: 20, spd: 20, spe: 20 } },
+        // Candidate 3: Adamant, 31 Atk, 31 Spe -> Meets all criteria -> KEEP!
+        { id: 'pidg-3', name: 'Pidgey', speciesId: 16, teamSlot: null, boxSlot: 2, nature: 'adamant', ivs: { hp: 25, atk: 31, def: 25, spa: 10, spd: 25, spe: 31 } },
+    ] } });
+
+    engine.command('manual-action', { action: 'cleanup-box' });
+
+    const releaseEvents = socket.sent.filter(c => c.t === 'creature:release');
+    assert.strictEqual(releaseEvents.length, 1);
+    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('pidg-1'), true, 'pidg-1 fails nature');
+    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('pidg-2'), true, 'pidg-2 fails individual IVs');
+    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('pidg-3'), false, 'pidg-3 passes all criteria and must NOT be released');
+});
+

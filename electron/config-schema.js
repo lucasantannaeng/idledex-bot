@@ -42,6 +42,10 @@ const DEFAULT_CONFIG = Object.freeze({
     auto_travel_surplus_threshold: 5, // 1..100
     auto_route_switch: false,
     pinned_species: null,
+    iv_evaluation_mode: 'percent', // 'percent' | 'individual'
+    min_ivs: Object.freeze({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }),
+    desired_nature: 'any', // 'any' | 'competitive' | specific nature
+    auto_box_cleanup: false,
     close_to_tray: false,
 });
 
@@ -51,6 +55,16 @@ const VALID_BALL_PRIORITIES = new Set(['balanced', 'economy', 'force_highest']);
 const VALID_MOVE_MODES = new Set(['smart', 'max_damage', 'first']);
 const VALID_UNSELECTED_ACTIONS = new Set(['battle', 'flee']);
 const VALID_TARGET_MODES = new Set(['all', 'selected', 'none']);
+const VALID_IV_EVAL_MODES = new Set(['percent', 'individual']);
+const VALID_NATURES = new Set([
+    'any', 'competitive',
+    'hardy', 'docile', 'serious', 'bashful', 'quirky',
+    'lonely', 'brave', 'adamant', 'naughty',
+    'bold', 'relaxed', 'impish', 'lax',
+    'modest', 'mild', 'quiet', 'rash',
+    'calm', 'gentle', 'sassy', 'careful',
+    'timid', 'hasty', 'jolly', 'naive'
+]);
 
 function normalizeFraction(val, fallback, legacy = false) {
     if (typeof val !== 'number' || !Number.isFinite(val)) return fallback;
@@ -149,15 +163,65 @@ function normalizeConfig(raw, fallback = DEFAULT_CONFIG) {
     out.auto_travel_surplus_threshold = normalizeInt(raw.auto_travel_surplus_threshold, 1, 100, base.auto_travel_surplus_threshold);
     out.auto_route_switch = normalizeBool(raw.auto_route_switch, base.auto_route_switch);
 
+    out.iv_evaluation_mode = typeof raw.iv_evaluation_mode === 'string' && VALID_IV_EVAL_MODES.has(raw.iv_evaluation_mode)
+        ? raw.iv_evaluation_mode : (base.iv_evaluation_mode || 'percent');
+
+    const rawMin = (raw.min_ivs && typeof raw.min_ivs === 'object') ? raw.min_ivs : (base.min_ivs || {});
+    out.min_ivs = {
+        hp: normalizeInt(rawMin.hp, 0, 31, 0),
+        atk: normalizeInt(rawMin.atk, 0, 31, 0),
+        def: normalizeInt(rawMin.def, 0, 31, 0),
+        spa: normalizeInt(rawMin.spa ?? rawMin.spAtk, 0, 31, 0),
+        spd: normalizeInt(rawMin.spd ?? rawMin.spDef, 0, 31, 0),
+        spe: normalizeInt(rawMin.spe ?? rawMin.speed, 0, 31, 0),
+    };
+
+    const rawNat = typeof raw.desired_nature === 'string' ? raw.desired_nature.toLowerCase().trim() : '';
+    out.desired_nature = VALID_NATURES.has(rawNat) ? rawNat : (base.desired_nature || 'any');
+
+    out.auto_box_cleanup = normalizeBool(raw.auto_box_cleanup, base.auto_box_cleanup || false);
+
     if (raw.pinned_species === undefined) {
         out.pinned_species = base.pinned_species;
-    } else if (raw.pinned_species != null && typeof raw.pinned_species === 'string' && raw.pinned_species.trim().length > 0) {
-        out.pinned_species = raw.pinned_species.trim();
+    } else if (Array.isArray(raw.pinned_species)) {
+        const cleaned = [];
+        const seen = new Set();
+        for (const item of raw.pinned_species) {
+            if (item != null) {
+                const str = String(item).trim().toLowerCase();
+                if (str.length > 0 && !seen.has(str)) {
+                    seen.add(str);
+                    cleaned.push(str);
+                    if (cleaned.length >= 2) break;
+                }
+            }
+        }
+        out.pinned_species = cleaned.length === 0 ? null : (cleaned.length === 1 ? cleaned[0] : cleaned);
+    } else if (raw.pinned_species != null && typeof raw.pinned_species === 'string') {
+        const trimmed = raw.pinned_species.trim();
+        if (!trimmed) {
+            out.pinned_species = null;
+        } else if (trimmed.includes(',')) {
+            const parts = trimmed.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+            const unique = [...new Set(parts)].slice(0, 2);
+            out.pinned_species = unique.length === 0 ? null : (unique.length === 1 ? unique[0] : unique);
+        } else {
+            out.pinned_species = trimmed.toLowerCase();
+        }
     } else {
         out.pinned_species = null;
     }
 
     out.close_to_tray = normalizeBool(raw.close_to_tray, base.close_to_tray);
+
+    // --- MUTUAL EXCLUSION / CONFLICT LOCKS ---
+    // 1. When species are pinned for IV farming, auto route switch and catch-only-uncaught are locked
+    const hasPinned = out.pinned_species != null &&
+        (typeof out.pinned_species === 'string' ? out.pinned_species.length > 0 : out.pinned_species.length > 0);
+    if (hasPinned) {
+        out.auto_route_switch = false;
+        out.catch_only_uncaught = false;
+    }
 
     return out;
 }

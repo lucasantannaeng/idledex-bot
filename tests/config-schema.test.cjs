@@ -1,4 +1,4 @@
-﻿const test = require('node:test');
+const test = require('node:test');
 const assert = require('node:assert/strict');
 const { SCHEMA_VERSION, DEFAULT_CONFIG, normalizeConfig } = require('../electron/config-schema');
 const { createEngine } = require('./engine-harness.cjs');
@@ -66,4 +66,55 @@ test('T05: valid HP fractions and zero thresholds survive normalization', () => 
     assert.equal(config.potion_hp_pct, 0.35);
     assert.equal(config.catch_hp_pct, 1);
 });
+
+test('Phase 21: IV evaluation mode, individual min_ivs, and nature normalization', () => {
+    // 1. Defaults
+    const defaultConfig = normalizeConfig({});
+    assert.equal(defaultConfig.iv_evaluation_mode, 'percent');
+    assert.deepEqual(defaultConfig.min_ivs, { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 });
+    assert.equal(defaultConfig.desired_nature, 'any');
+    assert.equal(defaultConfig.auto_box_cleanup, false);
+
+    // 2. Custom values and stat clamping
+    const custom = normalizeConfig({
+        iv_evaluation_mode: 'individual',
+        min_ivs: { hp: 31, atk: 25, def: 40, spa: -5, spd: 15, spe: 30 },
+        desired_nature: 'Adamant',
+        auto_box_cleanup: true
+    });
+    assert.equal(custom.iv_evaluation_mode, 'individual');
+    assert.deepEqual(custom.min_ivs, { hp: 31, atk: 25, def: 31, spa: 0, spd: 15, spe: 30 });
+    assert.equal(custom.desired_nature, 'adamant');
+    assert.equal(custom.auto_box_cleanup, true);
+
+    // 3. Competitive nature keyword
+    assert.equal(normalizeConfig({ desired_nature: 'competitive' }).desired_nature, 'competitive');
+    assert.equal(normalizeConfig({ desired_nature: 'INVALID_NATURE' }).desired_nature, 'any');
+});
+
+test('Phase 21: pinned_species supports up to 2 species and locks conflicting settings', () => {
+    // 1. Array of 2 species
+    const twoSpecies = normalizeConfig({
+        pinned_species: ['Beldum', 'ABSOL'],
+        auto_route_switch: true,
+        catch_only_uncaught: true
+    });
+    assert.deepEqual(twoSpecies.pinned_species, ['beldum', 'absol']);
+    // Conflict locks: farming IV disables auto route switch and catch only uncaught
+    assert.equal(twoSpecies.auto_route_switch, false);
+    assert.equal(twoSpecies.catch_only_uncaught, false);
+
+    // 2. Array with more than 2 items is capped at 2
+    const capped = normalizeConfig({ pinned_species: ['beldum', 'absol', 'mawile'] });
+    assert.deepEqual(capped.pinned_species, ['beldum', 'absol']);
+
+    // 3. Deduplication of species in pinned list
+    const dedup = normalizeConfig({ pinned_species: ['beldum', 'beldum'] });
+    assert.equal(dedup.pinned_species, 'beldum');
+
+    // 4. Comma-separated string support
+    const comma = normalizeConfig({ pinned_species: 'mawile, sableye' });
+    assert.deepEqual(comma.pinned_species, ['mawile', 'sableye']);
+});
+
 

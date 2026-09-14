@@ -83,23 +83,15 @@
 
                     <div class="card">
                         <div class="card-header">
-                            <span class="card-title" data-help="radar">📍 Spawns da Área</span>
-                            <span id="current-map-badge" class="badge" style="background:var(--cyan); color:#000; font-weight:600; font-size:0.72rem; padding:2px 6px; border-radius:4px;">Aguardando Mapa...</span>
+                            <span class="card-title" data-help="radar">📍 Rota & Spawns</span>
+                            <span id="current-map-badge-radar" class="badge" style="background:var(--cyan); color:#000; font-weight:600; font-size:0.72rem; padding:2px 6px; border-radius:4px;">Aguardando Mapa...</span>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0 6px 0;">
-                            <span data-help="cfg-unselected-action" style="font-size:0.75rem; color:var(--text-muted);">Não Selecionados:</span>
-                            <select id="cfg-unselected-action-radar" class="form-control" style="width:130px; padding:2px 6px; font-size:0.75rem;">
-                                <option value="battle">⚔️ Lutar por XP</option>
-                                <option value="flee">🏃 Fugir Imediato</option>
-                            </select>
+                        <div id="radar-spawns-summary" style="font-size:0.74rem; color:var(--text-dim); margin-top:6px; line-height:1.4;">
+                            A gestão unificada de espécies da área, alvos de captura e farming IV agora reside na aba de Configurações.
                         </div>
-                        <div id="area-species-list" style="margin-top:6px; display:flex; flex-direction:column; gap:4px; max-height:130px; overflow-y:auto; padding-right:4px;">
-                            <div style="color:var(--text-dim); font-size:0.75rem;">Aguardando detecção de mapa...</div>
-                        </div>
-                        <div style="display:flex; gap:6px; margin-top:8px;">
-                            <button id="btn-select-all-species" type="button" class="tb-btn" style="flex:1; font-size:0.72rem; padding:4px;">Marcar Todos</button>
-                            <button id="btn-deselect-all-species" type="button" class="tb-btn" style="flex:1; font-size:0.72rem; padding:4px;">Desmarcar</button>
-                        </div>
+                        <button id="btn-goto-config-spawns" type="button" class="tb-btn" style="width:100%; margin-top:8px; font-size:0.72rem; padding:5px;">
+                            ⚙️ Abrir Spawns & Alvos em Configurações
+                        </button>
                     </div>
                 </div>
 
@@ -255,18 +247,11 @@
                                 </select>
                             </div>
                             <div class="form-item">
-                                <label>Não Selecionados na Área</label>
-                                <select id="cfg-unselected-action" class="form-control" style="width:135px;">
-                                    <option value="battle">⚔️ Lutar por XP</option>
-                                    <option value="flee">🏃 Fugir Imediato</option>
-                                </select>
-                            </div>
-                            <div class="form-item">
                                 <label>Capturar Apenas Shinies ✨</label>
                                 <input type="checkbox" id="cfg-only-shiny">
                             </div>
-                            <div class="form-item">
-                                <label>Capturar Apenas Não Registrados</label>
+                            <div class="form-item" id="row-only-uncaught">
+                                <label>Capturar Apenas Não Registrados <span id="lock-only-uncaught" class="lock-tag" style="display:none;">🔒 Farming</span></label>
                                 <input type="checkbox" id="cfg-only-uncaught">
                             </div>
 
@@ -299,23 +284,72 @@
                                 <input type="checkbox" id="cfg-auto-heal-center">
                             </div>
 
-                            <!-- NAVEGAÇÃO & ECONOMIA -->
-                            <div class="form-section-title">🗺️ Mapa & Economia</div>
-                            <div class="form-item">
-                                <label>Auto-Patrulha na Grama</label>
+                            <!-- NAVEGAÇÃO, ROTA & SPAWNS DA ÁREA (UNIFICADO) -->
+                            <div class="form-section-title">🗺️ Mapa, Rota & Spawns da Área</div>
+
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <span style="font-size:0.75rem; color:var(--text-label);">Rota / Zona Atual:</span>
+                                <span id="current-map-badge" class="badge" style="background:var(--cyan); color:#000; font-weight:600; font-size:0.72rem; padding:2px 6px; border-radius:4px;">Aguardando Mapa...</span>
+                            </div>
+
+                            <div class="form-item" id="row-auto-roam">
+                                <label>Auto-Patrulha na Grama <span id="lock-auto-roam" class="lock-tag" style="display:none;">🔒 Auto-Idle</span></label>
                                 <input type="checkbox" id="cfg-auto-roam">
                             </div>
                             <div class="form-item">
                                 <label>Delay entre Passos (ms)</label>
                                 <input type="number" id="cfg-roam-delay" class="form-control" style="width:65px;" min="220" max="1000" step="10">
                             </div>
-                            <div class="form-item">
-                                <label>Auto-Troca de Rota (ao capturar alvos)</label>
+
+                            <!-- CARD DE SPAWNS DA ÁREA (INTEGRADO SEM REDUNDÂNCIAS) -->
+                            <div style="background:var(--bg-elevated); border:1px solid var(--border); border-radius:6px; padding:8px; margin:4px 0 8px 0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                    <span style="font-size:0.74rem; font-weight:600; color:var(--text-main);" data-help="radar">📍 Espécies na Área</span>
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <span data-help="cfg-unselected-action" style="font-size:0.70rem; color:var(--text-muted);">Demais:</span>
+                                        <select id="cfg-unselected-action" class="form-control" style="width:115px; padding:2px 4px; font-size:0.70rem;">
+                                            <option value="battle">⚔️ Lutar XP</option>
+                                            <option value="flee">🏃 Fugir</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div id="area-species-list" style="margin-top:4px; display:flex; flex-direction:column; gap:4px; max-height:120px; overflow-y:auto; padding-right:4px;">
+                                    <div style="color:var(--text-dim); font-size:0.75rem;">Aguardando detecção de mapa...</div>
+                                </div>
+                                <div style="display:flex; gap:6px; margin-top:6px;">
+                                    <button id="btn-select-all-species" type="button" class="tb-btn" style="flex:1; font-size:0.70rem; padding:3px;">Marcar Todos</button>
+                                    <button id="btn-deselect-all-species" type="button" class="tb-btn" style="flex:1; font-size:0.70rem; padding:3px;">Desmarcar</button>
+                                </div>
+                            </div>
+
+                            <div class="form-item" id="row-auto-route-switch">
+                                <label>Auto-Troca de Rota (ao capturar alvos) <span id="lock-auto-route-switch" class="lock-tag" style="display:none;">🔒 Farming</span></label>
                                 <input type="checkbox" id="cfg-auto-route-switch">
                             </div>
+
+                            <!-- FIXAR ESPÉCIE (FARMING IV - ATÉ 2 DA ÁREA) -->
+                            <div style="margin:4px 0 8px 0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                    <label style="font-size:0.75rem; color:var(--text-label);" data-help="cfg-pinned-species">Fixar Espécie (Farming IV - até 2):</label>
+                                    <span id="badge-farming-active" class="badge" style="display:none; background:rgba(16,185,129,0.2); color:var(--emerald); font-size:0.65rem; border:1px solid rgba(16,185,129,0.4); padding:1px 4px; border-radius:3px;">Ativo</span>
+                                </div>
+                                <div style="display:flex; gap:6px;">
+                                    <select id="cfg-pinned-species-1" class="form-control" style="flex:1; font-size:0.72rem;">
+                                        <option value="">(Espécie 1: Nenhuma)</option>
+                                    </select>
+                                    <select id="cfg-pinned-species-2" class="form-control" style="flex:1; font-size:0.72rem;">
+                                        <option value="">(Espécie 2: Nenhuma)</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <div class="form-item">
-                                <label>Fixar Espécie (Farming IV)</label>
-                                <input type="text" id="cfg-pinned-species" class="form-control" style="width:135px; font-size:0.75rem;" placeholder="Ex: pikachu">
+                                <label>Pausar ao Esgotar Pokébolas</label>
+                                <input type="checkbox" id="cfg-pause-no-balls">
+                            </div>
+                            <div class="form-item" id="row-auto-idle">
+                                <label>Auto-Idle Nativo do Servidor <span id="lock-auto-idle" class="lock-tag" style="display:none;">🔒 Patrulha</span></label>
+                                <input type="checkbox" id="cfg-auto-idle">
                             </div>
                             <div class="form-item">
                                 <label>Preset de configuração</label>
@@ -325,20 +359,76 @@
                                     <option value="monetize">Monetização</option>
                                 </select>
                             </div>
+
+                            <!-- CRITÉRIOS DE IV, NATURE & DESCARTE (PRINT 3) -->
+                            <div class="form-section-title">🎯 Critérios de IV, Nature & Descarte</div>
                             <div class="form-item">
-                                <label>Descarte Auto IV &lt; (%)</label>
+                                <label>Modo de Avaliação de IV</label>
+                                <select id="cfg-iv-mode" class="form-control" style="width:150px;">
+                                    <option value="percent">Porcentagem Total (%)</option>
+                                    <option value="individual">Mínimos por Categoria</option>
+                                </select>
+                            </div>
+
+                            <!-- AVALIAÇÃO POR % -->
+                            <div id="iv-container-percent" class="form-item">
+                                <label>Descarte se IV Total &lt; (%)</label>
                                 <div style="display:flex; align-items:center; gap:8px;">
-                                    <input type="range" id="cfg-discard-iv-pct" min="0" max="90" step="5" value="50" style="width:90px;">
+                                    <input type="range" id="cfg-discard-iv-pct" min="0" max="95" step="5" value="50" style="width:90px;">
                                     <span id="lbl-discard-iv-pct" style="font-family:var(--font-mono); font-size:0.75rem; width:35px; color:var(--cyan);">50%</span>
                                 </div>
                             </div>
-                            <div class="form-item">
-                                <label>Pausar ao Esgotar Pokébolas</label>
-                                <input type="checkbox" id="cfg-pause-no-balls">
+
+                            <!-- AVALIAÇÃO POR MÍNIMOS INDIVIDUAIS (PRINT 3) -->
+                            <div id="iv-container-individual" style="display:none; background:var(--bg-elevated); border:1px solid var(--border); border-radius:6px; padding:8px; margin:4px 0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                    <span style="font-size:0.72rem; color:var(--text-dim); font-weight:600;">MÍNIMOS INDIVIDUAIS (0-31)</span>
+                                    <span id="lbl-min-iv-sum" style="font-family:var(--font-mono); font-size:0.70rem; color:var(--cyan);">IVs 0/186</span>
+                                </div>
+                                <div class="iv-grid">
+                                    <div class="iv-cell"><label>HP</label><input type="number" id="cfg-min-iv-hp" class="form-control" min="0" max="31" value="0"></div>
+                                    <div class="iv-cell"><label>Atk</label><input type="number" id="cfg-min-iv-atk" class="form-control" min="0" max="31" value="0"></div>
+                                    <div class="iv-cell"><label>Def</label><input type="number" id="cfg-min-iv-def" class="form-control" min="0" max="31" value="0"></div>
+                                    <div class="iv-cell"><label>SpA</label><input type="number" id="cfg-min-iv-spa" class="form-control" min="0" max="31" value="0"></div>
+                                    <div class="iv-cell"><label>SpD</label><input type="number" id="cfg-min-iv-spd" class="form-control" min="0" max="31" value="0"></div>
+                                    <div class="iv-cell"><label>Spe</label><input type="number" id="cfg-min-iv-spe" class="form-control" min="0" max="31" value="0"></div>
+                                </div>
                             </div>
+
+                            <!-- FILTRO DE NATURE -->
                             <div class="form-item">
-                                <label>Auto-Idle Nativo</label>
-                                <input type="checkbox" id="cfg-auto-idle">
+                                <label>Filtro de Natureza (Personalidade)</label>
+                                <select id="cfg-desired-nature" class="form-control" style="width:165px; font-size:0.72rem;">
+                                    <option value="any">Qualquer Natureza</option>
+                                    <option value="competitive">⭐ Melhores Natures (Smogon)</option>
+                                    <option value="adamant">Adamant (+Atk, -SpA)</option>
+                                    <option value="jolly">Jolly (+Spe, -SpA)</option>
+                                    <option value="modest">Modest (+SpA, -Atk)</option>
+                                    <option value="timid">Timid (+Spe, -Atk)</option>
+                                    <option value="bold">Bold (+Def, -Atk)</option>
+                                    <option value="impish">Impish (+Def, -SpA)</option>
+                                    <option value="calm">Calm (+SpD, -Atk)</option>
+                                    <option value="careful">Careful (+SpD, -SpA)</option>
+                                    <option value="brave">Brave (+Atk, -Spe)</option>
+                                    <option value="quiet">Quiet (+SpA, -Spe)</option>
+                                    <option value="relaxed">Relaxed (+Def, -Spe)</option>
+                                    <option value="sassy">Sassy (+SpD, -Spe)</option>
+                                    <option value="naive">Naive (+Spe, -SpD)</option>
+                                    <option value="hasty">Hasty (+Spe, -Def)</option>
+                                </select>
+                            </div>
+
+                            <!-- MODO LIMPEZA DE BOX -->
+                            <div class="form-section-title">🧹 Modo Limpeza de Box</div>
+                            <button id="btn-cleanup-box" type="button" class="tb-btn" style="width:100%; padding:7px; font-weight:600; border-color:var(--rose); color:var(--rose); font-size:0.74rem;">
+                                🧹 Executar Limpeza de Box Agora
+                            </button>
+                            <div class="form-item">
+                                <label>Auto-Limpeza de Box Periódica</label>
+                                <input type="checkbox" id="cfg-auto-box-cleanup">
+                            </div>
+                            <div style="font-size:0.68rem; color:var(--text-dim); line-height:1.4; margin-top:2px;">
+                                🛡️ <b>Salvaguardas Invioláveis:</b> Shinies, membros da Equipe, Pokémon Bloqueados e a última cópia de cada espécie <u>nunca</u> são liberados.
                             </div>
 
                             <!-- AUTOMAÇÕES DE JOGADOR (v2.4) -->

@@ -277,3 +277,80 @@ test('T18: onHostCommand toggle-bot enabled:false pauses active bot and notifies
     const pauseCmd = app.sent.slice(before).find(c => c.cmd === 'toggle-bot' && c.payload.enabled === false);
     assert.ok(pauseCmd, 'Guest must receive pause command');
 });
+
+test('T21: conflict locks enforce mutual exclusion between auto_idle, auto_roam, and pinned species', async () => {
+    const app = dashboard({ enabled: false });
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+
+    // 1. Auto-idle enabled locks auto-roam and auto-route-switch
+    app.inputs.get('cfg-auto-idle').checked = true;
+    app.inputs.get('cfg-auto-roam').checked = true;
+    app.inputs.get('cfg-auto-route-switch').checked = true;
+    app.window.updateConflictLocks();
+
+    assert.equal(app.inputs.get('cfg-auto-roam').checked, false);
+    assert.equal(app.inputs.get('cfg-auto-roam').disabled, true);
+    assert.equal(app.inputs.get('cfg-auto-route-switch').checked, false);
+    assert.equal(app.inputs.get('cfg-auto-route-switch').disabled, true);
+
+    // 2. Auto-roam enabled unchecks auto-idle
+    app.inputs.get('cfg-auto-idle').checked = false;
+    app.inputs.get('cfg-auto-roam').checked = true;
+    app.window.updateConflictLocks();
+    assert.equal(app.inputs.get('cfg-auto-idle').disabled, true);
+
+    // 3. Pinned species active locks auto-route-switch and catch-only-uncaught
+    app.inputs.get('cfg-auto-idle').checked = false;
+    app.inputs.get('cfg-auto-roam').checked = true;
+    app.inputs.get('cfg-auto-route-switch').checked = true;
+    app.inputs.get('cfg-only-uncaught').checked = true;
+    app.inputs.get('cfg-pinned-species-1').value = 'pikachu';
+    app.inputs.get('cfg-pinned-species-2').value = 'eevee';
+    app.window.updateConflictLocks();
+
+    assert.equal(app.inputs.get('cfg-auto-route-switch').checked, false);
+    assert.equal(app.inputs.get('cfg-auto-route-switch').disabled, true);
+    assert.equal(app.inputs.get('cfg-only-uncaught').checked, false);
+    assert.equal(app.inputs.get('cfg-only-uncaught').disabled, true);
+
+    // 4. Save settings persists pinned species array and respects locks
+    await app.window.saveBotSettings();
+    const lastSaved = app.saved.at(-1);
+    assert.deepEqual(lastSaved.pinned_species, ['pikachu', 'eevee']);
+    assert.equal(lastSaved.auto_route_switch, false);
+    assert.equal(lastSaved.catch_only_uncaught, false);
+});
+
+test('T21: IV mode, individual minimums, nature filter, and box cleanup trigger', async () => {
+    const app = dashboard({ enabled: false });
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+
+    app.inputs.get('cfg-iv-mode').value = 'individual';
+    app.inputs.get('cfg-min-iv-hp').value = 31;
+    app.inputs.get('cfg-min-iv-atk').value = 31;
+    app.inputs.get('cfg-min-iv-def').value = 25;
+    app.inputs.get('cfg-min-iv-spa').value = 10;
+    app.inputs.get('cfg-min-iv-spd').value = 20;
+    app.inputs.get('cfg-min-iv-spe').value = 31;
+    app.inputs.get('cfg-desired-nature').value = 'adamant';
+    app.inputs.get('cfg-auto-box-cleanup').checked = true;
+
+    const sum = app.window.updateMinIvSum();
+    assert.equal(sum, 148);
+
+    await app.window.saveBotSettings();
+    const lastSaved = app.saved.at(-1);
+    assert.equal(lastSaved.iv_evaluation_mode, 'individual');
+    assert.deepEqual(lastSaved.min_ivs, { hp: 31, atk: 31, def: 25, spa: 10, spd: 20, spe: 31 });
+    assert.equal(lastSaved.desired_nature, 'adamant');
+    assert.equal(lastSaved.auto_box_cleanup, true);
+
+    // Manual box cleanup dispatch
+    const beforeSent = app.sent.length;
+    app.window.triggerBoxCleanup();
+    const cleanupCmd = app.sent.slice(beforeSent).find(c => c.cmd === 'manual-action' && c.payload?.action === 'cleanup-box');
+    assert.ok(cleanupCmd, 'triggerBoxCleanup must dispatch cleanup-box manual action to gameView');
+});
+

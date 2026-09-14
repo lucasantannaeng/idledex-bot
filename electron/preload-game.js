@@ -334,11 +334,14 @@ function initMainWorldEngine(configSchema) {
 
         // Check if there is a pinned species present on this route
         if (botConfig.pinned_species) {
-            const pinnedId = String(botConfig.pinned_species).toLowerCase().trim();
-            const hasPinned = currentMapSpecies.some(s => 
-                String(s.speciesId).toLowerCase() === pinnedId || 
-                String(s.name).toLowerCase() === pinnedId
-            );
+            const pinnedList = Array.isArray(botConfig.pinned_species)
+                ? botConfig.pinned_species.map(s => String(s).toLowerCase().trim())
+                : [String(botConfig.pinned_species).toLowerCase().trim()];
+            const hasPinned = currentMapSpecies.some(s => {
+                const sId = String(s.speciesId || '').toLowerCase().trim();
+                const sName = String(s.name || '').toLowerCase().trim();
+                return pinnedList.some(p => p && (sId === p || sName === p));
+            });
             if (hasPinned) {
                 // User pinned this species for high-IV farming: stay on this route!
                 return false;
@@ -2113,6 +2116,54 @@ function handleGameMessage(msg) {
         return otherCopies.length >= 1;
     }
 
+    function monMatchesKeepCriteria(mon, config = botConfig) {
+        if (!mon || !hasCompleteIVs(mon)) return true;
+
+        const mode = config.iv_evaluation_mode || 'percent';
+        const stats = mon.ivs || {};
+        const hp = Number(stats.hp || 0);
+        const atk = Number(stats.atk || 0);
+        const def = Number(stats.def || 0);
+        const spa = Number(stats.spa !== undefined ? stats.spa : (stats.spAtk || 0));
+        const spd = Number(stats.spd !== undefined ? stats.spd : (stats.spDef || 0));
+        const spe = Number(stats.spe !== undefined ? stats.spe : (stats.speed || 0));
+        const ivSum = hp + atk + def + spa + spd + spe;
+        const ivPct = Math.round((ivSum / 186) * 100);
+
+        if (mode === 'individual') {
+            const minIvs = config.min_ivs || {};
+            if (hp < (minIvs.hp ?? 0) ||
+                atk < (minIvs.atk ?? 0) ||
+                def < (minIvs.def ?? 0) ||
+                spa < (minIvs.spa ?? 0) ||
+                spd < (minIvs.spd ?? 0) ||
+                spe < (minIvs.spe ?? 0)) {
+                return false;
+            }
+        } else {
+            const cutoffPct = config.discard_iv_pct ?? 0;
+            if (cutoffPct > 0 && ivPct < cutoffPct) {
+                return false;
+            }
+        }
+
+        const desiredNature = String(config.desired_nature || 'any').toLowerCase().trim();
+        if (desiredNature && desiredNature !== 'any') {
+            const monNature = String(mon.nature || '').toLowerCase().trim();
+            if (desiredNature === 'competitive') {
+                const speciesId = String(mon.speciesId || (mon.species || (mon.name ? mon.name.toLowerCase() : ''))).toLowerCase();
+                const bestList = BEST_NATURES_GEN1_TO_5[speciesId] || ["adamant", "jolly", "modest", "timid", "bold", "calm", "impish", "careful"];
+                if (!bestList.includes(monNature)) {
+                    return false;
+                }
+            } else if (monNature !== desiredNature) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     function checkMonIVStrategy(mon) {
         if (!botConfig.enabled || !mon || !mon.id || releasedCreatureIds.has(mon.id) || pendingReleases.has(mon.id) || isReservedForDonation(mon) || pendingReleases.size >= 500) return;
 
@@ -2126,26 +2177,118 @@ function handleGameMessage(msg) {
             return;
         }
 
-        const stats = mon.ivs;
-        const ivSum = (stats.hp || 0) + (stats.atk || 0) + (stats.def || 0) + 
-                      (stats.spAtk || stats.spa || 0) + (stats.spDef || stats.spd || 0) + (stats.speed || stats.spe || 0);
+        const mode = botConfig.iv_evaluation_mode || 'percent';
+        const cutoffPct = botConfig.discard_iv_pct ?? 0;
+        const desiredNature = String(botConfig.desired_nature || 'any').toLowerCase().trim();
+        const minIvs = botConfig.min_ivs || {};
+        const hasIndividualMin = mode === 'individual' && Object.values(minIvs).some(v => v > 0);
+        const hasPercentMin = mode === 'percent' && cutoffPct > 0;
+        const hasNatureFilter = desiredNature !== 'any';
+
+        if (!hasIndividualMin && !hasPercentMin && !hasNatureFilter) {
+            return;
+        }
+
+        if (monMatchesKeepCriteria(mon, botConfig)) {
+            return;
+        }
+
+        const stats = mon.ivs || {};
+        const ivSum = Number(stats.hp || 0) + Number(stats.atk || 0) + Number(stats.def || 0) + 
+                      Number(stats.spa !== undefined ? stats.spa : (stats.spAtk || 0)) + 
+                      Number(stats.spd !== undefined ? stats.spd : (stats.spDef || 0)) + 
+                      Number(stats.spe !== undefined ? stats.spe : (stats.speed || 0));
         const ivPct = Math.round((ivSum / 186) * 100);
 
-        const cutoffPct = botConfig.discard_iv_pct ?? 0;
+        const speciesName = mon.species || mon.name || 'Criatura';
+        pendingReleases.set(mon.id, {
+            speciesName,
+            ivSum,
+            ivPct,
+            cutoffPct,
+            requestedAt: Date.now(),
+        });
+        sendEvent("creature:release", { creatureIds: [mon.id] });
+        logEvent(`📤 Solicitando liberação de ${speciesName} (IV: ${ivSum}/186 - ${ivPct}%${mon.nature ? ', Nature: ' + mon.nature : ''})...`, "info");
+    }
 
-        // Auto release low IV creatures via official creature:release protocol
-        if (cutoffPct > 0 && ivPct < cutoffPct) {
-            const speciesName = mon.species || mon.name || 'Criatura';
+    function executeBoxCleanup(manual = false) {
+        if (!activeWs || activeWs.readyState !== WebSocket.OPEN) {
+            if (manual) logEvent('⚠️ Limpeza de Box indisponível: conexão com o jogo não está aberta.', 'warning');
+            return;
+        }
+
+        const mode = botConfig.iv_evaluation_mode || 'percent';
+        const cutoffPct = botConfig.discard_iv_pct ?? 0;
+        const desiredNature = String(botConfig.desired_nature || 'any').toLowerCase().trim();
+        const minIvs = botConfig.min_ivs || {};
+        const hasIndividualMin = mode === 'individual' && Object.values(minIvs).some(v => v > 0);
+        const hasPercentMin = mode === 'percent' && cutoffPct > 0;
+        const hasNatureFilter = desiredNature !== 'any';
+
+        if (!hasIndividualMin && !hasPercentMin && !hasNatureFilter) {
+            if (manual) {
+                logEvent('⚠️ Limpeza de Box ignorada: configure critérios de descarte (IV% > 0, Mínimos Individuais > 0 ou Nature) antes de executar.', 'warning');
+            }
+            return;
+        }
+
+        const allCreatures = Object.values(collection);
+        const boxCreatures = allCreatures.filter(mon =>
+            mon && mon.id &&
+            Number.isInteger(mon.boxSlot) && mon.boxSlot >= 0 &&
+            !isProtectedCreature(mon) &&
+            hasCompleteIVs(mon) &&
+            !releasedCreatureIds.has(mon.id) &&
+            !pendingReleases.has(mon.id) &&
+            !isReservedForDonation(mon)
+        );
+
+        const discardCandidates = [];
+        for (const mon of boxCreatures) {
+            if (botConfig.protect_last_copy !== false && !hasSurplusCopies(mon)) {
+                continue;
+            }
+            if (!monMatchesKeepCriteria(mon, botConfig)) {
+                discardCandidates.push(mon);
+            }
+        }
+
+        if (discardCandidates.length === 0) {
+            if (manual) {
+                logEvent('🧹 [LIMPEZA DE BOX] Nenhuma criatura na Box elegível para descarte foi encontrada.', 'info');
+            }
+            return;
+        }
+
+        const availableSlots = Math.max(0, 500 - pendingReleases.size);
+        const toRelease = discardCandidates.slice(0, Math.min(availableSlots, 30));
+
+        if (toRelease.length === 0) {
+            logEvent('⚠️ [LIMPEZA DE BOX] Limite de operações pendentes atingido. Aguarde a confirmação do servidor.', 'warning');
+            return;
+        }
+
+        const ids = toRelease.map(m => m.id);
+        const now = Date.now();
+        for (const mon of toRelease) {
+            const stats = mon.ivs || {};
+            const ivSum = Number(stats.hp || 0) + Number(stats.atk || 0) + Number(stats.def || 0) + 
+                          Number(stats.spa !== undefined ? stats.spa : (stats.spAtk || 0)) + 
+                          Number(stats.spd !== undefined ? stats.spd : (stats.spDef || 0)) + 
+                          Number(stats.spe !== undefined ? stats.spe : (stats.speed || 0));
+            const ivPct = Math.round((ivSum / 186) * 100);
             pendingReleases.set(mon.id, {
-                speciesName,
+                speciesName: mon.species || mon.name || 'Criatura',
                 ivSum,
                 ivPct,
-                cutoffPct,
-                requestedAt: Date.now(),
+                cutoffPct: botConfig.discard_iv_pct ?? 0,
+                requestedAt: now,
             });
-            sendEvent("creature:release", { creatureIds: [mon.id] });
-            logEvent(`📤 Solicitando liberação de ${speciesName} (IV: ${ivSum}/186 - ${ivPct}% < ${cutoffPct}%)...`, "info");
         }
+
+        sendEvent("creature:release", { creatureIds: ids });
+        logEvent(`🧹 [LIMPEZA DE BOX] Solicitando liberação de ${ids.length} criatura(s) da Box (${discardCandidates.length} candidatas no total)...`, 'info');
     }
 
     function checkOutOfBattleMaintenance() {
@@ -2215,6 +2358,10 @@ function handleGameMessage(msg) {
 
             if (botConfig.auto_travel_deliveries) {
                 checkAutoTravelDeliveries();
+            }
+
+            if (botConfig.auto_box_cleanup) {
+                executeBoxCleanup(false);
             }
 
             if (botConfig.auto_use_boosts && inventory.boosts) {
@@ -2318,13 +2465,27 @@ function handleGameMessage(msg) {
         let isCaptureTarget = false;
         let shouldFleeUnselected = false;
 
+        const pinnedList = botConfig.pinned_species
+            ? (Array.isArray(botConfig.pinned_species)
+                ? botConfig.pinned_species.map(s => String(s).toLowerCase().trim())
+                : [String(botConfig.pinned_species).toLowerCase().trim()])
+            : [];
+        const fName = String(foeSpecies).toLowerCase().trim();
+        const fId = String(foeSpeciesId).toLowerCase().trim();
+        const isPinned = pinnedList.some(p => p && (fName === p || fId === p));
+
         // PRIORITY HIERARCHY:
         // 1. Shiny is absolute #1 priority (never flee, always capture)
         if (isShiny) {
             isCaptureTarget = true;
             shouldFleeUnselected = false;
         }
-        // 2. Uncaught species is absolute #2 priority when catch_only_uncaught is enabled
+        // 2. Pinned species for IV farming (always capture, never flee)
+        else if (isPinned) {
+            isCaptureTarget = true;
+            shouldFleeUnselected = false;
+        }
+        // 3. Uncaught species is absolute #3 priority when catch_only_uncaught is enabled
         else if (botConfig.catch_only_uncaught && isUncaught) {
             isCaptureTarget = true;
             shouldFleeUnselected = false;
@@ -2920,6 +3081,9 @@ function handleGameMessage(msg) {
             }
             else if (payload.action === 'trigger-auto-travel') {
                 checkAutoTravelDeliveries(true);
+            }
+            else if (payload.action === 'cleanup-box') {
+                executeBoxCleanup(true);
             }
         }
     });

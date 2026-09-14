@@ -4,7 +4,7 @@
 function createBridgeContract() {
     const channels = new Set(['game-telemetry', 'game-log']);
     const commands = new Set(['update-config', 'toggle-bot', 'manual-action']);
-    const actions = new Set(['idle-start', 'idle-stop', 'claim-all', 'trigger-auto-travel']);
+    const actions = new Set(['idle-start', 'idle-stop', 'claim-all', 'trigger-auto-travel', 'cleanup-box']);
     const telemetryFields = new Set(['connected', 'autoTravel', 'inBattle', 'currentBattleId',
         'battleMoves', 'playerId', 'currentMap', 'currentMapName', 'currentMapBiome', 'mapStatus',
         'mapAvailable', 'routeSwitch', 'availableSpecies', 'lastCapturedMon', 'playerPos', 'onGrass',

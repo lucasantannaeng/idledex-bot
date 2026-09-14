@@ -412,6 +412,56 @@ h1, h2, h3, h4, h5, h6, .card-title, .form-section-title {
     border-color: var(--text-dim);
 }
 
+/* CONFLICT LOCK & DISABLED STATES */
+.lock-tag {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(244, 63, 94, 0.15);
+    color: var(--rose);
+    border: 1px solid rgba(244, 63, 94, 0.3);
+    margin-left: 6px;
+    font-family: var(--font-mono);
+}
+
+.form-item.disabled, .form-control:disabled, input:disabled, select:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* IV INDIVIDUAL GRID (Print 3 style) */
+.iv-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.iv-cell {
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.iv-cell label {
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    color: var(--text-dim);
+    font-weight: 600;
+}
+
+.iv-cell input {
+    width: 42px;
+    padding: 2px 4px;
+    font-size: 0.75rem;
+    text-align: right;
+    font-family: var(--font-mono);
+}
+
 /* LOG FEED */
 .log-box, .log-container {
     background: var(--bg-base);
