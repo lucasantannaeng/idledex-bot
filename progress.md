@@ -186,3 +186,48 @@ abaixo não equivalem ao aceite desta revisão; H01–H03 seguem sem prova exigi
     - `dist-release/win-unpacked/IdleDex_Desktop.exe` (188.8 MB)
 
 
+
+
+## 2026-09-15 ? Corre??es funcionais 2.5.1 (author: codex)
+- Pedido confirmado: lista/foco de captura e limpeza da Box falhavam em todas as formas de abertura. Baseline167 testes passava, mas listeners da UI n?o eram exercitados.
+- Reprodu??es no Electron real: aba ativa errada, bot?o de limpeza inerte, modo/soma IV sem atualiza??o e perda de foco de teclado. Corrigidos, com alvos/pins num?ricos chegando ao motor.
+
+
+## 2026-09-15 — Correções funcionais 2.5.1 (author: codex)
+- Pedido confirmado: lista/foco de captura e limpeza da Box falhavam em todas as formas de abertura. Baseline 167 testes passava, mas listeners da UI não eram exercitados.
+- Reproduções no Electron real: aba ativa errada, botão de limpeza inerte, modo/soma IV sem atualização e perda de foco de teclado. Corrigidos, com alvos/pins numéricos chegando ao motor.
+- Corrigidos lote sem última cópia, lookup de natureza por ID, piso IV arredondado e captura descartada antes da avaliação. Dados obrigatórios ausentes agora impedem release/doação; ordens invertidas de eventos cobertas.
+- Pausa/crash/suspensão/logout sincronizam ambos os motores; saves pendentes não reativam pausa. Erros de gravação restauram campos. Limpeza manual salva critérios exibidos antes de executar.
+- Regressões 213 Node e 35 Python, zero falhas/skips, exit 0; py_compile e diff-check 0. Main real/candidato 2.5.1 testado offline; 17 arquivos idênticos ao fonte, hash b04bb6811b3da64bc4eaf722ed0c0fc872b2492e649633ad78a250bea1ba9327. Imagem inspecionada.
+- Build portátil/instalador ainda em processo de compactação nesta anotação; inspecionar seu resultado antes da entrega. Evidências e pendências em research/2026-09-15-functional-audit.md.
+- Gate externo hermes cron doctor exit 1: duas falhas do job de memória (provedores e Telegram). Nenhuma rotina modificada. H01/H02/H03 e demais limites da auditoria permanecem abertos; objetivo não concluído.
+
+### Fechamento do pacote 2.5.1 — 2026-09-15 (author: codex)
+- Processo de build concluiu exit 0; portátil, instalador e pasta win-unpacked têm versão 2.5.1.
+- verify-installers.cjs extraiu os 17 arquivos de app de cada EXE e conferiu igualdade com fonte e hash do smoke. Ambos aprovados, exit 0; installer-verification.json e artifacts-2.5.1.json preservam hashes.
+- README, QUICKSTART e tests.md conciliados com comandos atuais e limites de cobertura. Requisitos pendentes continuam listados na auditoria; pacote corrigido disponível, objetivo global permanece ativo.
+
+## 2026-09-15 — Fase 24: Resolução da Auditoria Codex CLI, Contrato Oficial da Box (v2.5.2) e Hardening de Release (author: antigravity)
+- Auditoria e Resolução do Contrato da Box (`research/protocol-20260915/box-contract.md` e `index-Ykq_gMSa.js`):
+  1. Proteção de Mega: `isProtectedCreature` atualizado para checar `mon.isMega` (padrão do cliente oficial) além de `mon.mega`.
+  2. Proteção de Mercado: `isProtectedCreature` atualizado com `mon.isListed` e `mon.listingId`, impedindo descarte ou doação de Pokémon anunciados.
+  3. Reconciliação autoritativa do Box Loading: `collectionLoaded` passa a ser exigido antes de qualquer limpeza de Box, doação a NPC ou descarte pós-captura. Welcome parcial não autoriza descarte nem confirmação de remoções; somente o evento autoritativo `team` com `t.creatures` valida a coleção completa e marca `collectionLoaded: true`.
+  4. Preservação de última cópia em lote com reserva cumulativa (`selectedIds`).
+  5. Sincronização estrita de pausa entre bot e AUTO nativo (`idle:stop` / `idle:start`).
+- Correções de Interface & DOM Real:
+  1. Botão "Executar Limpeza de Box Agora": listener de clique ativado com salvamento prévio dos critérios e bloqueio reentrante.
+  2. Modo de IV e Mínimos Individuais: listeners de `change` e `input` conectados, atualizando dinamicamente a soma e campos visuais.
+  3. Abas do Sidebar: corrigidas para navegação robusta via `data-panel`.
+  4. Lista de Spawns da Área: preservação de foco e scroll do teclado durante atualizações periódicas de telemetria; tratamento canônico de IDs numéricos nos dropdowns de fixação.
+- Correção no Servidor de Segurança Python:
+  1. Drenagem de buffer de requisição com payload excedente (`MAX_BODY_SIZE = 65536`) em `bot.py` para evitar aborto abrupto de TCP RST no Windows (`WinError 10053`) antes da leitura do status HTTP 413.
+- Bateria de Testes & Verificação Criptográfica (100% de Sucesso):
+  - Suíte Node (`npm test`): **221/221** testes aprovados (0 falhas, 0 pulados).
+  - Suíte Python (`python -m unittest discover tests`): **35/35** testes aprovados (0 falhas, 0 pulados).
+  - Electron Candidate Smoke Test (`research/smoke-result.json`): 100% aprovado (`candidateHash: 65b3c7eab1fe95f9c8757a9f522721d037d90b74919995f1e5f52d0ee8ebc7bb`).
+  - Verificação de Integridade de Release (`research/verify-release.cjs`): 17/17 arquivos validados byte-a-byte sem discrepâncias.
+  - Verificação dos Instaladores (`research/verify-installers.cjs`): extração e validação dos 17 arquivos internos de ambos os executáveis, com hashes idênticos ao candidato.
+- Binários Compilados em `dist-release/`:
+  - `dist-release/IdleDex_Desktop_Portable_2.5.2.exe` (74.5 MB, SHA256: `03d5dfde311b0ce59887dc55130f8ef801326702e3fd4439ef96fd2331e9b4cb`)
+  - `dist-release/IdleDex_Desktop_Setup_2.5.2.exe` (82.1 MB, SHA256: `0e8ad11dea1ba9b1539bab8072b12baacd20b96e81bc4e24e9e888c175b70999`)
+  - `dist-release/win-unpacked/IdleDex_Desktop.exe` (188.8 MB)

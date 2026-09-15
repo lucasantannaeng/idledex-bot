@@ -160,29 +160,31 @@ dashboard_auth_token: Optional[str] = None
 class DashboardHandler(BaseHTTPRequestHandler):
     """Exposes REST API and serves local dashboard UI with loopback security."""
 
+    request_timeout = 5.0
+
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(self.request_timeout)
+
+    def _allowed_authorities(self):
+        port = self.server.server_address[1]
+        suffix = "" if port == 80 else f":{port}"
+        return {f"localhost{suffix}", f"127.0.0.1{suffix}"}
+
     def _is_allowed_host(self) -> bool:
-        host = self.headers.get("Host", "")
-        if not host:
-            return False
-        hostname = host.split(":")[0].strip().lower()
-        return hostname in ("127.0.0.1", "localhost")
+        hosts = self.headers.get_all("Host", [])
+        return len(hosts) == 1 and hosts[0].lower() in self._allowed_authorities()
 
     def _get_allowed_origin(self) -> Optional[str]:
         origin = self.headers.get("Origin")
         if not origin:
             return None
-        try:
-            parsed = urllib.parse.urlparse(origin)
-            if parsed.scheme in ("http", "https") and parsed.hostname in ("127.0.0.1", "localhost"):
-                return origin
-        except Exception:
-            pass
-        return None
+        return origin if origin in {f"http://{host}" for host in self._allowed_authorities()} else None
 
     def _is_authenticated(self, payload: Any = None) -> bool:
         expected = getattr(getattr(self, "server", None), "auth_token", None) or globals().get("dashboard_auth_token")
         if not expected:
-            return True
+            return False
         token = self.headers.get("X-Auth-Token")
         if not token:
             auth_header = self.headers.get("Authorization", "")
@@ -198,7 +200,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         break
         if not token and isinstance(payload, dict):
             token = payload.get("auth_token")
-        return bool(token and secrets.compare_digest(str(token), str(expected)))
+        return isinstance(token, str) and secrets.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
 
     def _send_json(self, status: int, payload: Any):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -289,7 +291,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif clean_path == "/api/config":
             if bot:
                 from dataclasses import asdict
-                self._send_json(200, asdict(bot.config))
+                public_config = asdict(bot.config)
+                for key in ("session_token", "ws_token", "discord_webhook"):
+                    public_config.pop(key, None)
+                public_config["session_token_configured"] = bool(bot.config.session_token)
+                self._send_json(200, public_config)
             else:
                 self._send_json(500, {"error": "Bot não inicializado"})
         else:
@@ -308,9 +314,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
 
         MAX_BODY_SIZE = 65536
+        if self.headers.get("Transfer-Encoding") or len(self.headers.get_all("Content-Length", [])) > 1:
+            self._send_json(400, {"ok": False, "error": "Invalid request framing"})
+            return
         try:
             length = int(self.headers.get("Content-Length", 0))
         except ValueError:
+            self._send_json(400, {"ok": False, "error": "Invalid Content-Length"})
+            return
+
+        if length < 0:
             self._send_json(400, {"ok": False, "error": "Invalid Content-Length"})
             return
 
@@ -328,11 +341,21 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send_json(413, {"ok": False, "error": "Payload Too Large"})
             return
 
-        raw_body = self.rfile.read(length).decode("utf-8", errors="ignore") if length > 0 else "{}"
         try:
-            payload = json.loads(raw_body) if raw_body else {}
-        except Exception:
+            raw_body = self.rfile.read(length) if length > 0 else b"{}"
+        except TimeoutError:
+            self._send_json(408, {"ok": False, "error": "Request body timeout"})
+            return
+        if length and len(raw_body) != length:
+            self._send_json(400, {"ok": False, "error": "Incomplete request body"})
+            return
+        try:
+            payload = json.loads(raw_body.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
             self._send_json(400, {"ok": False, "error": "Invalid JSON format"})
+            return
+        if not isinstance(payload, dict):
+            self._send_json(400, {"ok": False, "error": "JSON payload must be an object"})
             return
 
         clean_path = self.path.split("?")[0]
@@ -344,18 +367,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
         bot = globals().get("current_bot")
 
         if clean_path == "/api/token":
-            token_input = payload.get("token") or payload.get("cookies", {}).get("__Secure-better-auth.session_token", "")
-            if not token_input and isinstance(payload.get("cookies"), str):
-                token_input = payload.get("cookies")
-
-            clean_token = clean_session_token(str(token_input))
+            token_input = payload.get("token")
+            if not token_input:
+                cookies = payload.get("cookies", "")
+                token_input = cookies.get("__Secure-better-auth.session_token", "") if isinstance(cookies, dict) else cookies
+            clean_token = clean_session_token(token_input) if isinstance(token_input, str) else ""
             if not clean_token:
                 self._send_json(400, {"ok": False, "error": "Token vazio ou inválido"})
                 return
 
             if bot:
-                bot.config.session_token = clean_token
-                bot.config.save()
+                if not self._update_config(bot.config, {"session_token": clean_token}):
+                    return
                 log_event("🔐 Novo token recebido e gravado no config.json!", "success")
                 bot.trigger_reconnect()
                 self._send_json(200, {"ok": True, "message": "Token atualizado com sucesso"})
@@ -364,7 +387,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         elif clean_path == "/api/config":
             if bot:
-                bot.config.update(payload)
+                if not self._update_config(bot.config, payload):
+                    return
                 log_event("⚙️ Configurações salvas e aplicadas!", "info")
                 self._send_json(200, {"ok": True, "config": bot.get_state_snapshot().get("config")})
             else:
@@ -387,12 +411,25 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def _update_config(self, config: BotConfig, payload: dict) -> bool:
+        try:
+            config.update(payload)
+        except (ValueError, TypeError):
+            self._send_json(400, {"ok": False, "error": "Configuração inválida"})
+            return False
+        except OSError:
+            self._send_json(500, {"ok": False, "error": "Não foi possível gravar a configuração"})
+            return False
+        return True
+
     def log_message(self, format, *args):
         pass  # Suppress verbose standard HTTP request logs
 
 
 def start_http_dashboard(port: int = 8080, host: str = "127.0.0.1") -> HTTPServer:
     """Start the dashboard web server on specified loopback port with fallback."""
+    if host != "127.0.0.1":
+        raise ValueError("The legacy dashboard must bind to 127.0.0.1")
     global dashboard_auth_token
     if not dashboard_auth_token:
         dashboard_auth_token = secrets.token_hex(16)
@@ -943,7 +980,7 @@ class IdleDexBot:
                         await self.handle_message(message)
 
             except (websockets.exceptions.InvalidStatus, websockets.exceptions.InvalidStatusCode) as e:
-                status_code = getattr(e, "status_code", 0)
+                status_code = getattr(getattr(e, "response", e), "status_code", 0)
                 if status_code in (401, 403):
                     self.needs_token = True
                     self.token_status = f"Erro de autenticação HTTP {status_code}. Atualize o token."

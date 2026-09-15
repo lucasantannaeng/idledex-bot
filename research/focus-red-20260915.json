@@ -1,0 +1,4 @@
+{
+  "passed": false,
+  "error": "A capture badge update must preserve keyboard focus\n+ actual - expected\n\n+ undefined\n- '129'"
+}

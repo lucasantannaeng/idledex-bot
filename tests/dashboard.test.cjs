@@ -35,6 +35,56 @@ function dashboard(config) {
     return { events, sent, saved, context, inputs, window, checkboxes, getHostCommandHandler: () => hostCommandHandler };
 }
 
+test('saving settings during guest navigation defers delivery until dom-ready', async () => {
+    const app = dashboard({enabled:false, catch_hp_pct:0.25});
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+    app.events['did-start-loading']();
+    app.inputs.get('cfg-catch').value = 70;
+    app.sent.length = 0;
+    await app.window.saveBotSettings();
+    assert.equal(app.sent.length, 0);
+    app.events['dom-ready']();
+    assert.equal(app.sent.at(-1).payload.catch_hp_pct, 0.7);
+});
+
+test('system pause disables native AUTO and survives a reload even when already paused', async () => {
+    const app = dashboard({enabled:false, auto_idle:true});
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+    app.getHostCommandHandler()({cmd:'toggle-bot', payload:{enabled:false,auto_idle:false,reason:'suspend'}});
+    app.events['did-start-loading']();
+    app.events['dom-ready']();
+    assert.equal(app.sent.at(-1).payload.enabled, false);
+    assert.equal(app.sent.at(-1).payload.auto_idle, false);
+    assert.equal(app.inputs.get('cfg-auto-idle').checked, false);
+});
+
+test('area selection rolls back visible state when saving fails', async () => {
+    const app = dashboard({enabled:false, target_mode:'all', target_species:[]});
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+    app.window.electronAPI.saveConfig = async () => false;
+    app.window.selectAllAreaSpecies(false);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(vm.runInContext('currentTargetMode', app.context), 'all');
+});
+
+test('box cleanup applies the visible filters before releasing and aborts on save failure', async () => {
+    const app = dashboard({enabled:false, discard_iv_pct:0});
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+    app.inputs.get('cfg-discard-iv-pct').value = 80;
+    await app.window.triggerBoxCleanup();
+    assert.equal(app.saved.at(-1)?.discard_iv_pct, 80);
+    assert.equal(app.sent.at(-2).cmd, 'update-config');
+    assert.equal(app.sent.at(-1).payload.action, 'cleanup-box');
+    app.window.electronAPI.saveConfig = async () => false;
+    const count = app.sent.length;
+    await app.window.triggerBoxCleanup();
+    assert.equal(app.sent.length, count, 'Failed save must not clean using older criteria');
+});
+
 test('saved configuration reaches guest on first load and every reload', async () => {
     const saved = { enabled: false, strategy_mode: 'collection', catch_hp_pct: 0, discard_iv_pct: 0 };
     const app = dashboard(saved);
@@ -349,7 +399,7 @@ test('T21: IV mode, individual minimums, nature filter, and box cleanup trigger'
 
     // Manual box cleanup dispatch
     const beforeSent = app.sent.length;
-    app.window.triggerBoxCleanup();
+    await app.window.triggerBoxCleanup();
     const cleanupCmd = app.sent.slice(beforeSent).find(c => c.cmd === 'manual-action' && c.payload?.action === 'cleanup-box');
     assert.ok(cleanupCmd, 'triggerBoxCleanup must dispatch cleanup-box manual action to gameView');
 });
@@ -407,6 +457,3 @@ test('T23: conflict explanation accurately signals blocking options to disable',
     assert.ok(uncaughtConflict, 'Conflict explanation must be provided for locked only-uncaught');
     assert.equal(uncaughtConflict.blockingOption, 'Fixar Espécie (Farming IV)');
 });
-
-
-

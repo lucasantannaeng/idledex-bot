@@ -10,7 +10,8 @@ const fs = require('fs');
 const { pathToFileURL } = require('node:url');
 
 // Explicit opt-in for local diagnostics; normal launches expose no debug port.
-if (process.argv.includes('--inspect-bot') || process.env.IDLEDEX_DEBUG === '1') {
+const diagnosticsEnabled = process.argv.includes('--inspect-bot') || process.env.IDLEDEX_DEBUG === '1';
+if (diagnosticsEnabled) {
     app.commandLine.appendSwitch('remote-debugging-port', '9222');
 }
 
@@ -30,8 +31,14 @@ app.on('second-instance', () => {
 
 const { SCHEMA_VERSION, DEFAULT_CONFIG, normalizeConfig } = require('./config-schema');
 const CONFIG_PATH = path.join(app.getPath('userData'), 'bot-config.json');
+let pausedAfterSaveFailure = false;
 
 function loadConfig() {
+    const config = readConfig();
+    return pausedAfterSaveFailure ? { ...config, enabled: false, auto_idle: false } : config;
+}
+
+function readConfig() {
     try {
         if (fs.existsSync(CONFIG_PATH)) {
             let saved;
@@ -72,6 +79,7 @@ function saveConfig(cfg) {
         const temporaryPath = CONFIG_PATH + '.tmp';
         fs.writeFileSync(temporaryPath, JSON.stringify(normalized, null, 4), 'utf-8');
         fs.renameSync(temporaryPath, CONFIG_PATH);
+        pausedAfterSaveFailure = false;
         return true;
     } catch (e) {
         return false;
@@ -170,10 +178,11 @@ function createWindow() {
         }
     }, 500);
 
-    // Forward ALL renderer console messages to stdout for diagnosis
+    // Renderer output may contain account data; forwarding is opt-in and redacted.
     mainWindow.webContents.on('console-message', (event, level, msg, line, sourceId) => {
+        if (!diagnosticsEnabled) return;
         const lvl = ['V','I','W','E'][level] || '?';
-        console.log(`[HOST ${lvl}] ${msg}`);
+        console.log(`[HOST ${lvl}] ${sanitizeLogMessage(msg)}`);
     });
 
     mainWindow.on('close', (event) => {
@@ -181,7 +190,8 @@ function createWindow() {
         const cfg = loadConfig();
         if (cfg.close_to_tray) {
             event.preventDefault();
-            mainWindow.hide();
+            if (tray && !tray.isDestroyed()) mainWindow.hide();
+            else mainWindow.minimize();
             if (tray && typeof tray.displayBalloon === 'function') {
                 try {
                     tray.displayBalloon({
@@ -295,8 +305,10 @@ function configureSessionPermissions(ses) {
 
 function sanitizeLogMessage(msg) {
     return String(msg || '')
-        .replace(/(session_token|ws_token|token|key|cookie)=([a-zA-Z0-9_\-\.]+)/gi, '$1=[REDACTED]')
-        .replace(/(Bearer\s+)[a-zA-Z0-9_\-\.]+/gi, '$1[REDACTED]');
+        .replace(/\b((?:set-)?cookie\s*:\s*)[^\r\n]+/gi, '$1[REDACTED]')
+        .replace(/((?:session_token|ws_token|access_token|refresh_token|token|key|cookie)\s*=\s*)[^\s&"'<>]+/gi, '$1[REDACTED]')
+        .replace(/("(?:session_token|ws_token|access_token|refresh_token|token|key|cookie)"\s*:\s*")[^"]*/gi, '$1[REDACTED]')
+        .replace(/(Bearer\s+)[^\s"'<>]+/gi, '$1[REDACTED]');
 }
 
 // IPC Handlers
@@ -307,15 +319,44 @@ ipcMain.handle('get-config', (event) => {
 
 ipcMain.handle('save-config', (event, cfg) => {
     if (!isAuthorizedSender(event)) return false;
+    if (switchingAccount && (cfg?.enabled === true || cfg?.auto_idle === true)) return false;
     return saveConfig(cfg);
 });
 
 let switchingAccount = false;
+
+function pauseAutomation(reason) {
+    const config = { ...loadConfig(), enabled: false, auto_idle: false };
+    const persisted = saveConfig(config);
+    // A failed write must not make a dashboard reload restore the old active state.
+    pausedAfterSaveFailure = !persisted;
+    if (!persisted) console.error('[MAIN] Pausa aplicada em memória; não foi possível persistir a configuração.');
+
+    // Notify the dashboard before recovery so its dom-ready handler cannot resend
+    // the configuration that was active before the crash or system suspension.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        try {
+            mainWindow.webContents.send('host-command', {
+                cmd: 'toggle-bot', payload: { enabled: false, auto_idle: false, reason },
+            });
+        } catch (_) {}
+    }
+    const gameSession = session.fromPartition('persist:idledex');
+    for (const contents of webContents.getAllWebContents()) {
+        if (contents.isDestroyed() || contents.session !== gameSession || contents.getType() !== 'webview') continue;
+        try {
+            contents.send('host-command', { cmd: 'update-config', payload: config });
+            contents.send('host-command', { cmd: 'manual-action', payload: { action: 'idle-stop' } });
+        } catch (_) {}
+    }
+    return persisted;
+}
+
 ipcMain.handle('switch-account', async (event) => {
     if (!isAuthorizedSender(event) || switchingAccount) return { ok: false };
     switchingAccount = true;
     try {
-        if (!saveConfig({ ...loadConfig(), enabled: false })) throw new Error('Could not save paused state');
+        if (!pauseAutomation('switch-account')) throw new Error('Could not save paused state');
         await resetGameSession(session.fromPartition('persist:idledex'), webContents.getAllWebContents());
         return { ok: true };
     } catch (error) {
@@ -328,7 +369,8 @@ ipcMain.handle('switch-account', async (event) => {
 ipcMain.on('minimize-to-tray', (event) => {
     if (!isAuthorizedSender(event)) return;
     if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.hide();
+        if (tray && !tray.isDestroyed()) mainWindow.hide();
+        else mainWindow.minimize();
         if (tray && typeof tray.displayBalloon === 'function') {
             try {
                 tray.displayBalloon({
@@ -400,13 +442,13 @@ app.whenReady().then(() => {
         contents.on('did-attach-webview', (attachEvent, guestContents) => {
             guestContents.on('will-navigate', (navEvent, url) => {
                 if (!isAllowedGuestUrl(url)) {
-                    console.warn(`[MAIN] Blocked guest navigation to unauthorized URL: ${url}`);
+                    console.warn('[MAIN] Blocked guest navigation to an unauthorized URL.');
                     navEvent.preventDefault();
                 }
             });
             guestContents.on('will-redirect', (redirEvent, url) => {
                 if (!isAllowedGuestUrl(url)) {
-                    console.warn(`[MAIN] Blocked guest redirect to unauthorized URL: ${url}`);
+                    console.warn('[MAIN] Blocked guest redirect to an unauthorized URL.');
                     redirEvent.preventDefault();
                 }
             });
@@ -425,6 +467,7 @@ app.whenReady().then(() => {
             });
 
             guestContents.on('console-message', (ev, level, msg) => {
+                if (!diagnosticsEnabled) return;
                 const lvl = ['V','I','W','E'][level] || '?';
                 console.log(`[GUEST ${lvl}] ${sanitizeLogMessage(msg)}`);
             });
@@ -434,13 +477,7 @@ app.whenReady().then(() => {
                 const reason = details?.reason || 'unknown';
                 const exitCode = details?.exitCode ?? -1;
                 console.warn(`[MAIN] Webview guest render-process-gone: reason=${reason}, exitCode=${exitCode}`);
-                try {
-                    const cfg = loadConfig();
-                    if (cfg && cfg.enabled) {
-                        cfg.enabled = false;
-                        saveConfig(cfg);
-                    }
-                } catch (_) {}
+                pauseAutomation('renderer-gone');
                 if (guestCrashCount < 3) {
                     guestCrashCount++;
                     console.log(`[MAIN] Tentando recuperar webview (tentativa ${guestCrashCount}/3)...`);
@@ -465,16 +502,7 @@ app.whenReady().then(() => {
     if (typeof powerMonitor !== 'undefined' && powerMonitor && typeof powerMonitor.on === 'function') {
         powerMonitor.on('suspend', () => {
             console.log('[MAIN] Sistema entrando em suspensão. Pausando bot para segurança.');
-            try {
-                const cfg = loadConfig();
-                if (cfg) {
-                    cfg.enabled = false;
-                    saveConfig(cfg);
-                }
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('host-command', { cmd: 'toggle-bot', payload: { enabled: false } });
-                }
-            } catch (_) {}
+            pauseAutomation('suspend');
         });
         powerMonitor.on('resume', () => {
             console.log('[MAIN] Sistema retornou da suspensão. Estado permanece pausado para segurança.');

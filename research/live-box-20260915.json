@@ -1,0 +1,262 @@
+{
+  "observedAt": "2026-09-15T23:18:56.993Z",
+  "inspectionMode": "read-only",
+  "launchedPid": 16592,
+  "gameActionsSent": 0,
+  "telemetryAvailable": true,
+  "connected": false,
+  "automation": {
+    "enabled": false,
+    "auto_idle": false,
+    "auto_box_cleanup": false
+  },
+  "collectionCount": 198,
+  "teamCount": 6,
+  "teamSlotCount": 6,
+  "boxSlotCount": 190,
+  "bothSlotsNullCount": 2,
+  "bothSlotsNullListedCount": 2,
+  "focus": {
+    "availableSpecies": [
+      {
+        "speciesId": 182,
+        "caught": true
+      },
+      {
+        "speciesId": 191,
+        "caught": true
+      },
+      {
+        "speciesId": 192,
+        "caught": true
+      },
+      {
+        "speciesId": 204,
+        "caught": true
+      },
+      {
+        "speciesId": 205,
+        "caught": true
+      },
+      {
+        "speciesId": 220,
+        "caught": true
+      },
+      {
+        "speciesId": 221,
+        "caught": true
+      },
+      {
+        "speciesId": 215,
+        "caught": true
+      },
+      {
+        "speciesId": 227,
+        "caught": true
+      },
+      {
+        "speciesId": 238,
+        "caught": true
+      },
+      {
+        "speciesId": 201,
+        "caught": true
+      }
+    ],
+    "inputCount": 11,
+    "checkedSpeciesIds": [],
+    "currentTargetMode": "none",
+    "onlyUncaught": false
+  },
+  "slotTypes": {
+    "boxSlot": {
+      "null": 8,
+      "number": 190
+    },
+    "teamSlot": {
+      "number": 6,
+      "null": 192
+    }
+  },
+  "flags": {
+    "isListed": {
+      "false": 196,
+      "true": 2
+    },
+    "isMega": {
+      "false": 198
+    },
+    "isLocked": {
+      "false": 197,
+      "true": 1
+    },
+    "locked": {
+      "null": 198
+    }
+  },
+  "speciesCounts": {
+    "161": 4,
+    "162": 8,
+    "163": 8,
+    "164": 31,
+    "167": 37,
+    "168": 63,
+    "169": 1,
+    "196": 4,
+    "197": 9,
+    "201": 1,
+    "204": 14,
+    "205": 11,
+    "215": 1,
+    "238": 1,
+    "259": 1,
+    "286": 1,
+    "317": 1,
+    "337": 1,
+    "338": 1
+  },
+  "listedEntries": [
+    {
+      "speciesId": 201,
+      "boxSlotType": "null",
+      "teamSlotType": "null",
+      "teamSlot": null,
+      "isListed": true,
+      "isMega": false,
+      "mega": null,
+      "isLocked": false,
+      "locked": null
+    },
+    {
+      "speciesId": 164,
+      "boxSlotType": "null",
+      "teamSlotType": "null",
+      "teamSlot": null,
+      "isListed": true,
+      "isMega": false,
+      "mega": null,
+      "isLocked": false,
+      "locked": null
+    }
+  ],
+  "recheck": {
+    "observedAt": "2026-09-15T23:19:52.908Z",
+    "connected": true,
+    "collectionCount": 198,
+    "teamCount": 6,
+    "automation": {
+      "enabled": false,
+      "auto_idle": false,
+      "auto_box_cleanup": false
+    },
+    "focus": {
+      "currentTargetMode": "none",
+      "unselectedAction": "battle",
+      "targetMode": "none",
+      "targetSpecies": [],
+      "onlyUncaught": null,
+      "controls": [
+        {
+          "speciesId": "182",
+          "checked": false,
+          "disabled": false
+        },
+        {
+          "speciesId": "191",
+          "checked": false,
+          "disabled": false
+        },
+        {
+          "speciesId": "192",
+          "checked": false,
+          "disabled": false
+        },
+        {
+          "speciesId": "204",
+          "checked": false,
+          "disabled": false
+        },
+        {
+          "speciesId": "205",
+          "checked": false,
+          "disabled": false
+        },
+        {
+          "speciesId": "220",
+          "checked": false,
+          "disabled": false
+        },
+        {
+          "speciesId": "221",
+          "checked": false,
+          "disabled": false
+        },
+        {
+          "speciesId": "215",
+          "checked": false,
+          "disabled": false
+        },
+        {
+          "speciesId": "227",
+          "checked": false,
+          "disabled": false
+        },
+        {
+          "speciesId": "238",
+          "checked": false,
+          "disabled": false
+        },
+        {
+          "speciesId": "201",
+          "checked": false,
+          "disabled": false
+        }
+      ]
+    }
+  },
+  "notes": [
+    "Only local CDP Runtime.evaluate read-only expressions were sent. No game commands or clicks were sent.",
+    "First sample was connected=false; the subsequent recheck was connected=true with identical collection and team counts.",
+    "Creature instance identifiers, account identifiers, cookies and tokens were not read or saved."
+  ],
+  "finalCheck": {
+    "observedAt": "2026-09-15T23:20:48.523Z",
+    "connected": true,
+    "automation": {
+      "enabled": false,
+      "auto_idle": false,
+      "auto_box_cleanup": false
+    },
+    "visibleLogEntries": 17,
+    "releaseRequests": 0,
+    "releaseConfirmations": 0,
+    "boxCleanup": 0,
+    "connectionMessages": [
+      {
+        "disconnect": false,
+        "reconnect": false,
+        "socket": true
+      },
+      {
+        "disconnect": false,
+        "reconnect": false,
+        "socket": true
+      },
+      {
+        "disconnect": true,
+        "reconnect": false,
+        "socket": true
+      },
+      {
+        "disconnect": false,
+        "reconnect": false,
+        "socket": true
+      },
+      {
+        "disconnect": false,
+        "reconnect": false,
+        "socket": true
+      }
+    ]
+  }
+}

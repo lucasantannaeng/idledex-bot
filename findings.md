@@ -463,3 +463,11 @@ de corpo de mapa, dados de colisão inválidos e aceite de release sem smoke.
     - Instalador: `IdleDex_Desktop_Setup_2.5.0.exe` (82.1 MB)
     - Pasta Descompactada: `dist-release/win-unpacked/IdleDex_Desktop.exe`
 
+
+
+## 2026-09-15 ? Revis?o funcional (author: codex)
+- Chamar fun??es diretamente em testes mascarou listeners ausentes. A prova nova usa cliques e eventos no DOM real do candidato.
+- IDs de esp?cies podem ser num?ricos; comparar s? a quantidade de spawns conserva uma lista obsoleta. Renderiza??o precisa preservar foco e sele??o.
+- Confirmar captura/?ltima c?pia exige considerar ordem de mensagens e lote inteiro. Aus?ncia de nota/natureza exigida n?o prova inelegibilidade.
+- O main precisa parar motor e AUTO independentemente do dashboard, e o dashboard precisa invalidar saves pendentes em toda pausa.
+- HTTP/config/economia/userscript legados t?m corre??es locais, mas n?o equivalem ? homologa??o de seus protocolos de combate. Fontes e matriz atual em research/2026-09-15-functional-audit.md.

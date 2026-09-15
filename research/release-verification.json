@@ -1,24 +1,24 @@
 {
-  "checkedAt": "2026-09-15T01:53:03.740Z",
-  "version": "2.5.0",
+  "checkedAt": "2026-09-15T23:34:13.511Z",
+  "version": "2.5.2",
   "sourceMatchesDistribution": true,
   "candidatePath": "dist-release/win-unpacked/resources/app",
-  "candidateHash": "ece9c54c82834c952ab4cebd6a11ff41eaa45497592e927b99799e245f520d2c",
+  "candidateHash": "65b3c7eab1fe95f9c8757a9f522721d037d90b74919995f1e5f52d0ee8ebc7bb",
   "shippedFileCount": 17,
   "hashes": {
     "electron/account-session.js": "feadf88e62ae9da2474bff50d205018e3d018b1f19c1e7036dbaa287275929de",
     "electron/bridge-contract.js": "68b0e3ade521aba5813c6f56ed82b2ed541160aa74037063573a7d1a27b68261",
     "electron/config-schema.js": "5d5fd2e42b9bfab524f9e61fd32ef47163842e8052e19b78673e07eb21ae0d81",
-    "electron/generated/preload-game.js": "d833b8278a1733da4bc90ba46f84fc19eab44e0ad9b29f929dcdecc8a6878bb1",
+    "electron/generated/preload-game.js": "0c86cfcf1ec2ae38b1de2df3757629f18854190907606fe6878b245cee9e3814",
     "electron/icon.ico": "927ee25d59681a2ac4afec9e586b7bbf9b8ceb87528be1d14cc4e5aa5b6dcf0f",
     "electron/icon.png": "66c6b57ddff4a6f8a27736770f4c9087ffa4c3aee6ad6f14847c480e71bf9296",
-    "electron/main.js": "668804562858bd32147532989cd4ae0815e75130dd6f6391f0b33eb0eb30353d",
+    "electron/main.js": "c504c1d59e5217da01f973c5d82fa37c1092a7cecc17c439e61f92227241b66f",
     "electron/preload-dashboard.js": "de4b7b368d56ecd5c60daf8ef1dd13a33f7f8e6e3e71bccc6a3a00ae1188916e",
-    "electron/preload-game.js": "e63dde5d109734ceb204ea249fe3c8eb6f21ad38dd4c115fd491b75ff71124e1",
+    "electron/preload-game.js": "e980290233c8b8bcd7d34079aca6fb7259640d3a6706f0e910eb6a04b89cb316",
     "electron/tray-icon.ico": "927ee25d59681a2ac4afec9e586b7bbf9b8ceb87528be1d14cc4e5aa5b6dcf0f",
     "electron/tray-icon.png": "8c8f7cd81237ad15cac46d11a5f0f1324aa4fdd5d9b531b7e84330575ff2d5e3",
-    "app/app.js": "ff7d8a77bbcbe1504f42eb0a8171f424712847c1d103056f87c6f9a65368b4de",
-    "app/help.js": "1dc460a18ae81084d9710fee766a99eaf1e386d296b46630d952e93308382068",
+    "app/app.js": "f03049465bbe5797752f4e45e502aec9d63ec0631a5b5609499397ccc4210ab4",
+    "app/help.js": "b2ccaebf421b9a3812d19b5c2350b3a98248af0ce9846b8e0dbcd0899475ed2d",
     "app/icon.png": "66c6b57ddff4a6f8a27736770f4c9087ffa4c3aee6ad6f14847c480e71bf9296",
     "app/index.html": "c3caba347afeec2fef5185f2e4f6a8078b667dce40b3df8c5ea58b7bab4e5729",
     "app/styles.css": "6a61b3f54eb4818af5d05cc06cd11d2a10a5790efaf44453e5f61868eb5373d0"
@@ -27,8 +27,8 @@
     "passed": true,
     "scope": "candidate",
     "main": "actual",
-    "checkedAt": "2026-09-15T01:52:54.660Z",
-    "candidateHash": "ece9c54c82834c952ab4cebd6a11ff41eaa45497592e927b99799e245f520d2c",
+    "checkedAt": "2026-09-15T23:34:06.881Z",
+    "candidateHash": "65b3c7eab1fe95f9c8757a9f522721d037d90b74919995f1e5f52d0ee8ebc7bb",
     "runtime": "33.4.11",
     "startup": {
       "hooked": true,
@@ -42,6 +42,24 @@
       "catchHp": 0,
       "label": "BOT PAUSADO",
       "input": "0"
+    },
+    "controls": {
+      "activeTab": "config",
+      "individualVisible": true,
+      "sum": "IVs 31/186 (17%)",
+      "cleanup": true
+    },
+    "captureFocus": {
+      "ids": [
+        "129",
+        "133"
+      ],
+      "pins": [
+        "",
+        "133",
+        "129"
+      ],
+      "focusedSpecies": "129"
     },
     "help": {
       "open": true,

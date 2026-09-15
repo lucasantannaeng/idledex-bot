@@ -122,7 +122,7 @@ const HELP_TOPICS = [
         'Criaturas com esta qualidade também recebem proteção contra sacrifício/entrega para NPCs (Professor e Colecionador) e podem ser travadas automaticamente se o Auto-Lock estiver ativo.'
     ]],
     ['cfg-auto-box-cleanup', 'Modo limpeza de box', 'Libera criaturas excedentes da Box que não atendem aos critérios de IV e Natureza.', [
-        'O botão Executar Limpeza de Box Agora inicia imediatamente uma varredura nas criaturas armazenadas na Box (fora da equipe ativa). Criaturas que não atenderem ao modo de IV e ao filtro de Natureza configurados são liberadas.',
+        'O botão Executar Limpeza de Box Agora salva e aplica os ajustes exibidos antes de iniciar a varredura na Box (fora da equipe). Se a gravação falhar, a limpeza não começa. Criaturas que não atenderem aos critérios configurados são elegíveis para liberação.',
         'Auto-Limpeza de Box Periódica executa essa mesma varredura de forma contínua em segundo plano a cada 2 minutos enquanto o bot estiver em execução.',
         'Salvaguardas Invioláveis: Shinies, integrantes da Equipe, criaturas Bloqueadas no jogo e a última cópia restante de cada espécie NUNCA são liberadas sob nenhuma hipótese.'
     ]],

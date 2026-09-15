@@ -1,5 +1,25 @@
 # Task Plan: idleDEX Bot Fixes & Enhancements
 
+## Phase 24: Resolução da Auditoria Codex CLI, Contrato da Box & Release v2.5.2 (author: antigravity)
+- [x] Analisar a última conversa do Codex CLI e auditoria de contrato da Box (`box-contract.md`).
+- [x] Implementar salvaguardas de `isMega` e `isListed` em `isProtectedCreature` no preload.
+- [x] Exigir `collectionLoaded` antes de `executeBoxCleanup`, `isDonatableCreature` e descarte pós-captura.
+- [x] Corrigir perda de foco de teclado em spawns de área e listeners de UI (`btn-cleanup-box`, `cfg-iv-mode`, `cfg-min-iv-*`).
+- [x] Corrigir fechamento TCP abrupto (RST) sob payload excessivo no servidor de segurança Python (`bot.py`).
+- [x] Executar regressões completas (221 testes Node e 35 testes Python, 100% aprovados).
+- [x] Gerar pacote de distribuição `dist-release/`, executar smoke test e verificação com 17 arquivos idênticos.
+- [x] Compilar executáveis portáteis e instalador NSIS v2.5.2 e validar integridade criptográfica.
+
+## Revisão funcional anterior — 2026-09-14 (author: codex)
+
+- [x] Corrigir lista/foco de captura, incluindo atualização da área e persistência (DOM real offline e motor por fixtures).
+- [x] Corrigir acionamento e critérios de limpeza da Box, preservando última cópia e recursos protegidos (sem consumo na conta real).
+- [x] Verificar controles de IV, abas e pausa após falhas/suspensão.
+- [x] Executar regressões, interação em Electron real e gerar candidato com integridade verificada.
+- [x] Conciliar evidências, pendências herdadas e diário do cofre; objetivo continua aberto conforme auditoria de 15/09.
+
+Pedido confirmado por Luca: lista de foco de captura, limpeza de Box e outras funções falham em qualquer forma de abertura. Baseline atual: 167/167 testes Node passam, mas não cobrem os caminhos novos reproduzidos nesta revisão.
+
 > **Conciliação de pendências — 2026-09-10 (author: codex):** este arquivo continua sendo fonte de requisitos; não foi substituído por um histórico sem efeito. A seção 9 de [plan.md](plan.md) mapeia os dez itens antigos abertos (R01–R10), distingue fechamentos históricos de pendências reais e acrescenta H01–H04 para grama nativa, validação real de interface/contas, entrega efetiva no laboratório e encerramento documental/distribuição. Checkboxes antigos preservados nesta revisão; [x] histórico não comprova toda a versão atual.
 
 ## Pedido atual — tutorial, ajuda, presets, contas, grama e pacote único (2026-09-09)
@@ -440,4 +460,3 @@ Este fechamento atualiza o status das pendências da seção Auditoria Codex. Fa
   - Electron Smoke Test aprovado (`research/smoke-result.json`).
   - Verificação de release aprovada com 17 arquivos e integridade de hash (`research/verify-release.cjs`).
   - Executáveis recompilados com sucesso: `dist-release/IdleDex_Desktop_Portable_2.5.0.exe` e `dist-release/IdleDex_Desktop_Setup_2.5.0.exe`.
-

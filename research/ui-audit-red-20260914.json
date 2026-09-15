@@ -1,0 +1,4 @@
+{
+  "passed": false,
+  "error": "Visible controls must invoke their actions through actual DOM events\n+ actual - expected\n\n  {\n+   activeTab: 'combat',\n+   cleanup: false,\n+   individualVisible: false,\n+   sum: 'IVs 0/186 (0%)'\n-   activeTab: 'config',\n-   cleanup: true,\n-   individualVisible: true,\n-   sum: 'IVs 31/186 (17%)'\n  }"
+}

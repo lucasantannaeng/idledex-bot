@@ -14,6 +14,7 @@ let currentTargetSpecies = [];
 let currentTargetMode = 'all'; // 'all' | 'selected' | 'none'
 let saveRevision = 0;
 let lastRenderedMapId = "";
+let lastRenderedAreaKey = "";
 let lastRenderedPinnedSpeciesKey = "";
 let currentAreaSpeciesList = [];
 let gameReady = false;
@@ -109,13 +110,26 @@ window.addEventListener('DOMContentLoaded', async () => {
         window.electronAPI.onHostCommand((data) => {
             if (data && data.cmd === 'toggle-bot') {
                 if (data.payload && data.payload.enabled === false) {
+                    if (data.payload.auto_idle === false) {
+                        ++saveRevision;
+                        currentConfig = { ...(currentConfig || {}), enabled: false, auto_idle: false };
+                        setBotEnabledState(false);
+                        setCheck('cfg-auto-idle', false);
+                        updateConflictLocks();
+                        if (['renderer-gone', 'switch-account'].includes(data.payload.reason)) {
+                            gameReady = false;
+                        } else {
+                            syncConfigToGame();
+                        }
+                        return;
+                    }
                     if (botEnabled) {
                         toggleBotState();
                     } else {
                         currentConfig = { ...(currentConfig || {}), enabled: false };
                         setBotEnabledState(false);
                         if (gameView && gameReady) {
-                            gameView.send('host-command', { cmd: 'toggle-bot', payload: { enabled: false } });
+                            syncConfigToGame();
                         }
                     }
                 } else if (data.payload && data.payload.enabled === true) {
@@ -162,6 +176,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     document.getElementById('btn-save-settings')?.addEventListener?.('click', saveBotSettings);
     document.getElementById('btn-clear-logs')?.addEventListener?.('click', clearLogs);
+    document.getElementById('btn-cleanup-box')?.addEventListener?.('click', triggerBoxCleanup);
+    document.getElementById('cfg-iv-mode')?.addEventListener?.('change', (event) => setIvModeUI(event.target.value));
+    for (const stat of ['hp', 'atk', 'def', 'spa', 'spd', 'spe']) {
+        document.getElementById('cfg-min-iv-' + stat)?.addEventListener?.('input', updateMinIvSum);
+    }
 
     // Conflict interaction guidance on locked rows
     const lockedRows = [
@@ -215,7 +234,8 @@ function handleTelemetry(data) {
             setBotEnabledState(data.config.enabled, autoIdle);
             // If the bot auto-paused (e.g. out of balls, lab error), persist it to disk
             if (!data.config.enabled && currentConfig && currentConfig.enabled) {
-                currentConfig.enabled = false;
+                ++saveRevision;
+                currentConfig = { ...currentConfig, enabled: false };
                 if (window.electronAPI && window.electronAPI.saveConfig) {
                     window.electronAPI.saveConfig(currentConfig).catch(() => {});
                 }
@@ -445,6 +465,7 @@ function updateAreaSpawnsUI(data) {
 
     const mapId = data.currentMap || "";
     const species = Array.isArray(data.availableSpecies) ? data.availableSpecies : [];
+    const areaKey = JSON.stringify(species.map(sp => [String(sp.speciesId ?? ''), sp.name, sp.minLevel, sp.maxLevel, sp.frequency, !!sp.caught]));
 
     // Dynamically update pinned species dropdowns with area species
     populatePinnedSpeciesDropdowns(species);
@@ -461,7 +482,9 @@ function updateAreaSpawnsUI(data) {
     const existingInputs = typeof listEl.querySelectorAll === 'function'
         ? Array.from(listEl.querySelectorAll('input[type="checkbox"]'))
         : [];
-    if (mapId === lastRenderedMapId && existingInputs.length === species.length && existingInputs.length > 0) {
+    const focusedSpecies = existingInputs.find(input => input === document.activeElement)?.value;
+    const previousScroll = listEl.scrollTop;
+    if (mapId === lastRenderedMapId && areaKey === lastRenderedAreaKey && existingInputs.length === species.length && existingInputs.length > 0) {
         for (const sp of species) {
             const sid = String(sp.speciesId || "");
             const input = existingInputs.find(cb => cb.value === sid);
@@ -491,6 +514,7 @@ function updateAreaSpawnsUI(data) {
     }
 
     lastRenderedMapId = mapId;
+    lastRenderedAreaKey = areaKey;
 
     const fragment = document.createDocumentFragment();
     for (const sp of species) {
@@ -550,6 +574,11 @@ function updateAreaSpawnsUI(data) {
         fragment.appendChild(label);
     }
     listEl.replaceChildren(fragment);
+    if (focusedSpecies !== undefined) {
+        Array.from(listEl.querySelectorAll('input[type="checkbox"]'))
+            .find(input => input.value === focusedSpecies)?.focus({ preventScroll: true });
+    }
+    listEl.scrollTop = previousScroll;
 }
 
 function onAreaSpeciesToggle(speciesId, isChecked) {
@@ -591,11 +620,13 @@ async function saveAreaSettings() {
             const ok = await window.electronAPI.saveConfig(candidate);
             if (thisRev !== saveRevision) return;
             if (!ok) {
+                restoreSavedAreaSelection();
                 appendLog('❌ Falha ao salvar alvos da área no disco. Alterações não aplicadas.', 'error');
                 return;
             }
         } catch (err) {
             if (thisRev !== saveRevision) return;
+            restoreSavedAreaSelection();
             appendLog(`❌ Erro ao salvar alvos da área: ${err.message}`, 'error');
             return;
         }
@@ -611,6 +642,14 @@ async function saveAreaSettings() {
 }
 
 // --- 3.2 LAST CAPTURE EVALUATION UI ---
+
+function restoreSavedAreaSelection() {
+    currentTargetSpecies = (currentConfig?.target_species || []).map(String);
+    currentTargetMode = currentConfig?.target_mode || (currentTargetSpecies.length ? 'selected' : 'all');
+    setVal('cfg-unselected-action', currentConfig?.unselected_action || 'battle');
+    setVal('cfg-unselected-action-radar', currentConfig?.unselected_action || 'battle');
+    if (lastTelemetry) updateAreaSpawnsUI(lastTelemetry);
+}
 
 function updateLastCaptureUI(mon) {
     if (!mon) return;
@@ -925,7 +964,7 @@ function switchPanel(panelId) {
     // Switch tabs
     const tabs = document.querySelectorAll('.s-tab');
     tabs.forEach(tab => {
-        const isTarget = tab.getAttribute('onclick')?.includes(`'${panelId}'`);
+        const isTarget = tab.getAttribute('data-panel') === panelId;
         tab.classList.toggle('active', isTarget);
     });
 
@@ -1318,8 +1357,8 @@ function populatePinnedSpeciesDropdowns(availableSpecies) {
         if (!sp) continue;
         const name = typeof sp === 'string' ? sp : (sp.name || sp.speciesId || '');
         const id = typeof sp === 'string' ? sp : (sp.speciesId || sp.name || '');
-        const canonical = (name || id).trim();
-        const key = (id || name).trim().toLowerCase();
+        const canonical = String(name || id).trim();
+        const key = String(id || name).trim().toLowerCase();
         if (canonical && !seen.has(key)) {
             seen.add(key);
             speciesList.push({ name: canonical, value: key });
@@ -1379,12 +1418,21 @@ function populatePinnedSpeciesDropdowns(availableSpecies) {
     updateConflictLocks();
 }
 
-function triggerBoxCleanup() {
-    if (gameView && gameReady) {
-        gameView.send('host-command', { cmd: 'manual-action', payload: { action: 'cleanup-box' } });
-        appendLog('🧹 Solicitando limpeza de Box ao motor de jogo conforme filtros de IV e Nature...', 'info');
-    } else {
+async function triggerBoxCleanup() {
+    if (!gameView || !gameReady) {
         appendLog('⚠️ Jogo não está pronto para executar limpeza de Box no momento.', 'warning');
+        return false;
+    }
+    const button = document.getElementById('btn-cleanup-box');
+    if (button?.disabled) return false;
+    if (button) button.disabled = true;
+    try {
+        if (!await saveBotSettings() || !gameReady) return false;
+        gameView.send('host-command', { cmd: 'manual-action', payload: { action: 'cleanup-box' } });
+        appendLog('🧹 Limpeza de Box solicitada com os critérios exibidos e salvos.', 'info');
+        return true;
+    } finally {
+        if (button) button.disabled = false;
     }
 }
 
@@ -1493,9 +1541,11 @@ async function switchAccount() {
     const button = document.getElementById('btn-switch-account');
     if (button?.disabled) return;
     if (button) { button.disabled = true; button.textContent = 'Saindo…'; }
+    ++saveRevision;
     setBotEnabledState(false);
-    currentConfig = { ...(currentConfig || {}), enabled: false };
-    if (gameReady) gameView.send('host-command', { cmd: 'toggle-bot', payload: { enabled: false } });
+    currentConfig = { ...(currentConfig || {}), enabled: false, auto_idle: false };
+    setCheck('cfg-auto-idle', false);
+    syncConfigToGame();
     try {
         const result = await window.electronAPI.switchAccount();
         if (!result?.ok) throw new Error('Session reset failed');
@@ -1616,11 +1666,10 @@ async function saveBotSettings() {
     currentConfig = updated;
 
     // Push to guest webview
-    if (gameView) {
-        gameView.send('host-command', { cmd: 'update-config', payload: updated });
-    }
+    syncConfigToGame();
 
     appendLog('💾 Parâmetros de estratégia salvos e aplicados ao jogo!', 'success');
+    return true;
 }
 
 

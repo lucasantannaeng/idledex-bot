@@ -25,33 +25,67 @@
 
     let activeSocket = null;
     let inBattle = false;
+    let actionGeneration = 0;
+    const actionTimers = new Set();
+
+    function cancelActions() {
+        actionGeneration++;
+        for (const timer of actionTimers) clearTimeout(timer);
+        actionTimers.clear();
+    }
+
+    function scheduleAction(callback, delay) {
+        const socket = activeSocket;
+        const generation = actionGeneration;
+        const timer = setTimeout(() => {
+            actionTimers.delete(timer);
+            if (!CONFIG.enabled || socket !== activeSocket || generation !== actionGeneration) return;
+            callback();
+        }, delay);
+        actionTimers.add(timer);
+    }
 
     // 1. Hook WebSocket to capture game connection
     const OrigWebSocket = window.WebSocket;
-    window.WebSocket = function(...args) {
-        const ws = new OrigWebSocket(...args);
-        activeSocket = ws;
+    const retiredSockets = new WeakSet();
+    window.WebSocket = new Proxy(OrigWebSocket, { construct(target, args, newTarget) {
+        const ws = Reflect.construct(target, args, newTarget);
+        let candidate = false;
+        try {
+            const url = new URL(args[0], location.href);
+            candidate = url.protocol === 'wss:' && url.hostname === 'idledex.com' && !url.username && !url.password && !url.port;
+        } catch (_) {}
 
         ws.addEventListener('message', (e) => {
             if (typeof e.data !== 'string') return;
             try {
                 const msg = JSON.parse(e.data);
+                if (!candidate || retiredSockets.has(ws)) return;
+                if ((msg.t || msg.type) === 'welcome' && msg.d?.playerId) {
+                    if (activeSocket !== ws) {
+                        if (activeSocket) retiredSockets.add(activeSocket);
+                        cancelActions();
+                        inBattle = false;
+                        activeSocket = ws;
+                    }
+                    updateHudStatus('Conectado');
+                }
+                if (activeSocket !== ws) return;
                 handleGamePacket(msg);
             } catch (err) {}
         });
 
-        ws.addEventListener('open', () => {
-            console.log("[IdleDex Bot] WebSocket do jogo conectado e interceptado!");
-            updateHudStatus("Conectado");
-        });
-
         ws.addEventListener('close', () => {
+            if (activeSocket !== ws) return;
+            cancelActions();
+            activeSocket = null;
+            inBattle = false;
             console.log("[IdleDex Bot] WebSocket fechado.");
             updateHudStatus("Desconectado");
         });
 
         return ws;
-    };
+    }});
 
     function sendEvent(t, d) {
         if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
@@ -70,6 +104,7 @@
 
         // Combat Turn
         if (t === "battle:turn" || t === "battle:control") {
+            cancelActions();
             inBattle = true;
             const opp = d.opponent || {};
             const oppHp = opp.hpPercent !== undefined ? opp.hpPercent : 1.0;
@@ -78,7 +113,7 @@
             console.log(`[IdleDex Bot] Batalha ativa vs ${oppName} (HP: ${Math.round(oppHp * 100)}%)`);
             updateHudStatus(`Batalhando: ${oppName} (${Math.round(oppHp * 100)}%)`);
 
-            setTimeout(() => {
+            scheduleAction(() => {
                 if (!CONFIG.enabled || !inBattle) return;
                 // Capture if weak
                 if (CONFIG.autoCatch && oppHp <= CONFIG.catchHpPct) {
@@ -92,6 +127,7 @@
 
         // Combat Finished
         else if (t === "battle:end") {
+            cancelActions();
             inBattle = false;
             const victory = d.victory;
             const captured = d.captured;
@@ -100,7 +136,7 @@
             updateHudStatus(outcome);
 
             if (CONFIG.autoIdle) {
-                setTimeout(() => {
+                scheduleAction(() => {
                     sendEvent("idle:start");
                 }, 1000);
             }
@@ -154,6 +190,7 @@
 
         const btn = document.getElementById('idledex-bot-toggle');
         btn.addEventListener('click', () => {
+            cancelActions();
             CONFIG.enabled = !CONFIG.enabled;
             btn.textContent = CONFIG.enabled ? 'LIGADO' : 'PAUSADO';
             btn.style.background = CONFIG.enabled ? '#06b6d4' : '#64748b';

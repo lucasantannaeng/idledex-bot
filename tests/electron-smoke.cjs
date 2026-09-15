@@ -102,6 +102,61 @@ async function run() {
         input:document.getElementById('cfg-catch').value})`);
     assert.deepEqual([state.enabled, state.catchHp, state.input], [false, 0, '0']);
     assert.match(state.label, /PAUSADO/);
+    const controls = await host.executeJavaScript(`(async () => {
+        document.querySelector('[data-panel="config"]').click();
+        const activeTab = document.querySelector('.s-tab.active')?.dataset.panel;
+        const ivMode = document.getElementById('cfg-iv-mode');
+        ivMode.value = 'individual';
+        ivMode.dispatchEvent(new Event('change', {bubbles:true}));
+        const individualVisible = getComputedStyle(document.getElementById('iv-container-individual')).display !== 'none';
+        const hp = document.getElementById('cfg-min-iv-hp');
+        hp.value = '31';
+        hp.dispatchEvent(new Event('input', {bubbles:true}));
+        const sum = document.getElementById('lbl-min-iv-sum').textContent;
+        const commands = [];
+        const originalSend = gameView.send;
+        gameView.send = (channel, command) => commands.push(command);
+        try {
+            const button = document.getElementById('btn-cleanup-box');
+            button.click();
+            for (let i = 0; button.disabled && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        finally { gameView.send = originalSend; }
+        return {activeTab, individualVisible, sum, cleanup:commands.some(c => c.cmd === 'manual-action' && c.payload.action === 'cleanup-box')};
+    })()`);
+    assert.deepEqual(controls, {activeTab:'config', individualVisible:true, sum:'IVs 31/186 (17%)', cleanup:true},
+        'Visible controls must invoke their actions through actual DOM events');
+    const focus = await host.executeJavaScript(`(() => {
+        updateAreaSpawnsUI({currentMap:'route_fixture', availableSpecies:[
+            {speciesId:25,name:'Pikachu',minLevel:1,maxLevel:2},
+            {speciesId:133,name:'Eevee',minLevel:1,maxLevel:2}]});
+        window.focusFixture = {currentMap:'route_fixture', availableSpecies:[
+            {speciesId:129,name:'Magikarp',minLevel:3,maxLevel:4},
+            {speciesId:133,name:'Eevee',minLevel:1,maxLevel:2}]};
+        updateAreaSpawnsUI(window.focusFixture);
+        document.querySelector('#area-species-list input[value="129"]').focus();
+        window.focusFixture.availableSpecies[0].caught = true;
+        updateAreaSpawnsUI(window.focusFixture);
+        const focusedSpecies = document.activeElement?.value;
+        const ids = [...document.querySelectorAll('#area-species-list input')].map(el => el.value);
+        const pins = [...document.getElementById('cfg-pinned-species-1').options].map(el => el.value);
+        document.getElementById('btn-deselect-all-species').click();
+        return {ids,pins,focusedSpecies};
+    })()`);
+    assert.deepEqual(focus.ids, ['129','133'], 'Same-count spawn updates must replace stale capture targets');
+    assert.equal(focus.focusedSpecies, '129', 'A capture badge update must preserve keyboard focus');
+    assert.ok(focus.pins.includes('129'), 'Numeric species IDs must populate farming focus');
+    await until(() => host.executeJavaScript("currentConfig.target_mode === 'none'"), 'deselect capture targets');
+    await host.executeJavaScript(`updateAreaSpawnsUI(window.focusFixture);
+        document.querySelector('#area-species-list input[value="129"]').click();`);
+    await until(() => host.executeJavaScript("lastTelemetry?.config?.target_mode === 'selected' && lastTelemetry.config.target_species.join(',') === '129'"), 'selected target reaches the engine');
+    await host.executeJavaScript(`updateAreaSpawnsUI(window.focusFixture);
+        const select = document.getElementById('cfg-pinned-species-1');
+        select.value = '129';
+        select.dispatchEvent(new Event('change', {bubbles:true}));
+        document.getElementById('btn-save-settings').click();`);
+    await until(() => host.executeJavaScript("lastTelemetry?.config?.pinned_species === '129'"), 'farming focus reaches the engine');
+    assert.equal(JSON.parse(fs.readFileSync(configPath)).pinned_species, '129');
     assert.equal(await host.executeJavaScript("electronAPI.saveConfig({...currentConfig, pinned_species:'pikachu', close_to_tray:true})"), true);
     assert.equal(JSON.parse(fs.readFileSync(configPath)).pinned_species, 'pikachu');
     const reloaded = once(host, 'did-finish-load');
@@ -167,7 +222,7 @@ async function run() {
     const candidateHash = sourceMode ? null : require('../research/verify-release.cjs').computeDirHash(candidate);
     const report = { passed: true, scope: sourceMode ? 'source' : 'candidate', main: 'actual',
         checkedAt: new Date().toISOString(), candidateHash, runtime: process.versions.electron,
-        startup, state, help, isolation: true, accountReset: 'synthetic', secondInstance: true,
+        startup, state, controls, captureFocus:focus, help, isolation: true, accountReset: 'synthetic', secondInstance: true,
         closeToTray: true, xssDom: true, suspend: 'simulated-signal', hardwareAcceleration: false };
     application.saveConfig({ ...application.loadConfig(), close_to_tray: false });
     app.once('will-quit', () => {

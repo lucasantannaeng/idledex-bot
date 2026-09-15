@@ -1,98 +1,102 @@
-# ⚡ IdleDex Desktop Suite — Autonomous Automation & Intelligence Platform
+# IdleDex Desktop 2.5.1
 
-[![Electron](https://img.shields.io/badge/Electron-33.4.11-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
-[![Node.js](https://img.shields.io/badge/Node.js->=18.0-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E?logo=javascript&logoColor=black)](https://developer.mozilla.org/)
-[![Playwright](https://img.shields.io/badge/Playwright-Tested-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build](https://img.shields.io/badge/Build-Portable%20Standalone%20x64-blue?logo=windows&logoColor=white)](https://github.com/lucasantannaeng)
+Aplicativo Electron com o jogo embutido e controles locais de captura, combate,
+patrulha, recupera??o, Box e entregas. O produto principal ? o Desktop.
 
-> **Enterprise-grade automation client and real-time game telemetry dashboard for [IdleDex](https://idledex.com/play), featuring zero-injection native WebSocket stream interception, autonomous roaming, battle engine, Pokédex completion analysis, and complete local session isolation.**
+## Abrir a vers?o corrigida
 
----
+- Port?til: `dist-release/IdleDex_Desktop_Portable_2.5.1.exe`.
+- Instalador: `dist-release/IdleDex_Desktop_Setup_2.5.1.exe`.
+- Pasta completa: `dist-release/win-unpacked/IdleDex_Desktop.exe`.
 
-## 🌟 Overview
+Feche a vers?o anterior antes de abrir a nova. Para atualizar um atalho de uma
+instala??o existente, use o instalador 2.5.1. A sess?o e as op??es ficam no perfil
+local do Electron, separadas do pacote. Fa?a login pelo jogo; n?o ? necess?rio
+copiar cookies ou tokens.
 
-**IdleDex Desktop Suite** is a dedicated, zero-external-dependency automation client and operational dashboard engineered for the browser MMORPG *IdleDex*. Built upon Electron 33 with native multi-partition sandbox isolation, it provides seamless, human-like automation while intercepting live WebSocket frames directly in-memory — eliminating any need for browser extensions, external Python runtimes, memory injection, or manual cookie extraction.
+## Foco de captura
 
-Designed from the ground up to respect true game mechanics, IdleDex Desktop combines intelligent heuristic pathfinding, IV calculation, dynamic ball economy management, and autonomous NPC delivery routines into an elegant, high-density dark interface.
+Em **Config ? Spawns da ?rea**, marque as esp?cies desejadas. As altera??es da
+lista s?o salvas imediatamente. **Marcar Todos** seleciona todas as esp?cies;
+**Desmarcar** remove os alvos comuns. **N?o Selecionados** determina se o bot luta
+por XP ou foge. Esp?cies fixadas e Shinies mant?m a prioridade descrita no Tutorial.
 
----
+Os dois campos **Fixar Esp?cie** aceitam as esp?cies detectadas na ?rea. Selecione
+o foco e clique em **Salvar Ajustes**. O foco bloqueia op??es conflitantes de
+troca de rota e captura apenas de in?ditos. A lista aceita IDs num?ricos e mant?m
+o foco do teclado durante atualiza??es de captura.
 
-## 🚀 Key Features
+## Limpeza da Box
 
-* 🎮 **Zero-Injection WebSocket Interception**: Intercepts official game protocol messages (`welcome`, `spawn`, `battle`, `party`, `inventory`, `area_pokedex`) via in-memory preload hooks without modifying game bytecode or client source files.
-* 🧭 **Intelligent Roaming & Grass Navigation**: Autonomous movement loop using real client movement sequences, collision-aware boundary checks, and intelligent wild grass detection.
-* ⚔️ **Smart Combat & Capture Engine**:
-  * Prioritizes captures based on missing Pokédex entries, shiny/golden rarity, high IV thresholds, or custom player watchlists.
-  * Ball tier hierarchy management (Pokéball ➔ Great Ball ➔ Ultra Ball ➔ Master Ball) based on target rarity and current server allowances.
-  * Damage optimization selecting super-effective moves while holding back lethal hits on high-value catch targets.
-* 🏥 **Autonomous Recovery & Center Healing**: Continuous HP/PP telemetry with automatic potion application and smart Pokémon Center travel before team faints.
-* 🔬 **Laboratory Auto-Travel & NPC Deliveries**: Evaluates Box excess, travels autonomously to Professor Oak's lab when batches are ready, completes research deliveries, and returns to hunting routes without human intervention.
-* 📊 **Live Radar & Telemetry Dashboard**: Real-time HUD showing wild spawns, team vitals, capture rates, gold/dust hourly yields, and active route Pokédex completion percentages.
-* 🔒 **Anti-Leak & Complete Session Isolation**: Credentials, OAuth tokens, and cookies are stored exclusively in the user's local operating system profile (`%APPDATA%`). The compiled `.exe` contains zero personal data and can be safely shared.
-* 🎨 **Master Ball Identity & Dark Aesthetic**: Custom high-resolution Master Ball visual branding across application icons, multi-tier `.ico` assets, system tray, and Vercel/Linear-inspired dark UI.
+Escolha o percentual m?nimo de IV ou os m?nimos individuais, natureza e nota
+m?nima. **Executar Limpeza de Box Agora** salva os ajustes exibidos, aplica ao
+motor e solicita a limpeza. Se a grava??o falhar ou o jogo estiver recarregando,
+a limpeza n?o inicia. O Console informa falta de conex?o, aus?ncia de crit?rios,
+nenhum candidato e pedidos enviados ao servidor.
 
----
+- Sem crit?rios ativos, nenhuma criatura ? liberada.
+- Equipe, Shinies, criaturas bloqueadas e recursos reservados n?o s?o descartados.
+- A prote??o da ?ltima c?pia ? ativada por padr?o e considera o lote inteiro.
+- Dados necess?rios ausentes mant?m a criatura at? uma atualiza??o suficiente.
+- A nota m?nima funciona como prote??o adicional: atingir a nota conserva a
+  criatura mesmo quando ela n?o passa em IV/natureza.
+- Um pedido enviado n?o equivale a descarte confirmado. O motor aguarda o servidor.
 
-## 🏗️ Architecture & Security Model
+A rotina autom?tica de limpeza usa as op??es salvas. IVs e natureza s?o avaliados
+ap?s captura; o bot n?o conhece valores que o servidor n?o enviou.
 
-```text
-idledex-bot/
-├── app/                        # High-density Desktop UI
-│   ├── index.html              # Main dashboard HUD & config panels
-│   ├── app.js                  # UI state management, radar canvas & IPC bridge
-│   ├── styles.css              # Linear/Vercel dark premium design system
-│   └── icon.png                # Master Ball raster asset (512x512)
-├── electron/                   # Electron Runtime & Sandboxing
-│   ├── main.js                 # Window lifecycle, secure partition & atomic config
-│   ├── preload-game.js         # In-memory WebSocket tap & bot decision engine
-│   └── tray-icon.png           # System tray icon (32x32)
-├── build/                      # Build Resources & Packaging Artifacts
-│   ├── icon.ico                # Multi-resolution Windows icon (16px - 256px)
-│   └── icon.png                # Source branding icon (512x512)
-├── tests/                      # Automated Regression & Verification Suites
-│   ├── engine.test.cjs         # Core bot engine, combat & state tests
-│   ├── protocol.test.cjs       # Binary frames, UTF-8 & packet parser tests
-│   ├── security.test.cjs       # IPC sender validation & webview security
-│   ├── dashboard.test.cjs      # Config persistence & telemetry bridge tests
-│   ├── dashboard-dom.test.cjs  # DOM sanitization, CSP & tutorial tests
-│   ├── route-trip.test.cjs     # Auto-route switching & travel state machine
-│   ├── lab-trip.test.cjs       # Professor lab deliveries & return tests
-│   ├── electron-smoke.cjs      # Isolated packaged candidate smoke test
-│   └── test_legacy_security.py # Hardened legacy Python HTTP server tests
-├── research/                   # Reverse Engineering & Protocol Specifications
-│   ├── verify-release.cjs      # Candidate package integrity & allowlist verifier
-│   └── delivery-audit.md       # Audit trail, protocol schemas and contracts
-├── dist-release/               # Compiled Binaries (Git-Ignored)
-│   └── win-unpacked/           # Unpacked standalone distribution
-├── package.json                # Project manifest & electron-builder configuration
-└── README.md                   # Technical documentation
+## Pausa e conta
+
+**Pausar Bot** interrompe o motor local. Se **Auto-Idle Nativo** estiver marcado,
+o jogo pode continuar pelo AUTO. Desative essa op??o para controle manual.
+Suspens?o do computador, falha do renderer e troca de conta param ambos os modos.
+Uma grava??o pendente n?o deve reativar uma pausa autom?tica.
+
+Use **Sair / Trocar conta** para limpar a sess?o do jogo. As configura??es s?o
+preservadas, com automa??o pausada. Revise os alvos antes de retomar na nova conta.
+O teste de troca de sess?o ? sint?tico; login em uma segunda conta real continua
+sem comprova??o nesta revis?o.
+
+## Desenvolvimento e distribui??o
+
+```powershell
+npm.cmd ci
+npm.cmd test
+npm.cmd start
+npm.cmd run pack
+npm.cmd run dist:portable
+npm.cmd run dist:installer
 ```
 
-### Security & Privacy Architecture
-* **Strict Credential Partitioning**: The application uses Electron's isolated partition (`persist:idledex`). Google OAuth and session tokens are held by Chromium in local DPAPI-encrypted storage (`%APPDATA%/idledex-bot`).
-* **Zero Credential Bundling**: When compiling or sharing the portable `.exe`, **no session data or credentials are included**. A recipient launching the executable begins with a pristine, unauthenticated session.
-* **Atomic Configuration**: Player settings are stored locally in `bot-config.json` via write-to-temp and atomic rename, eliminating corruption risk during unexpected power loss.
+O preload ? gerado automaticamente pelos scripts de teste, execu??o e build.
+O runtime instalado e testado nesta revis?o ? Electron 33.4.11. A atualiza??o de
+runtime do backlog continua pendente; a vers?o 2.5.1 corrige a aplica??o.
 
----
+Consulte [tests.md](tests.md) para smoke e integridade do candidato, e
+[QUICKSTART.md](QUICKSTART.md) para opera??o. Diagn?stico local:
+`npm.cmd start -- --inspect-bot`; a porta de depura??o n?o abre no uso normal.
 
-## ⚙️ Game Mechanics & Engine Multipliers
+## Evid?ncia e limites
 
-The combat and decision engine strictly adheres to verified official server-side rules:
+A revis?o cobre o c?digo real com simula??es de protocolo e cliques no DOM do
+Electron, usando perfil descart?vel e rede offline. N?o houve libera??o de
+criaturas na conta real. Isso n?o comprova todos os contratos do servidor, login
+real de segunda conta ou consumo efetivo de lote no laborat?rio. A navega??o
+local usa heur?stica; n?o h? prova de equival?ncia ao algoritmo de grama nativo.
 
-| Domain | Rule / Multiplier | Engine Behavior |
-| :--- | :--- | :--- |
-| **Capture Logic** | Exact HP % Thresholds | Arremessos aguardam confirmação do servidor (`catch_result`); nunca dispara comandos em spam. |
-| **Ball Hierarchy** | Pokéball ➔ Great ➔ Ultra ➔ Master | Alterna automaticamente para esferas superiores se o alvo for Shiny ou lendário. |
-| **IV Filtering** | 6 IVs Totais (0-186 scale) | Avaliação rigorosa: criaturas com IVs inferiores ao piso configurado são marcadas para liberação/NPC. |
-| **Proteção de Caixa** | Equipe + Locks + Shinies + Eventos | Protegidos contra liberação acidental; descarte desativado se o limite for zero. |
-| **Auto-Viagem Lab** | Lotes válidos de excedentes | Só viaja se houver lotes completos e cargas disponíveis com o Professor. |
+A auditoria atual est? em [research/2026-09-15-functional-audit.md](research/2026-09-15-functional-audit.md).
+`plan.md` e `task_plan.md` preservam requisitos e hist?rico; checkboxes hist?ricos
+n?o substituem evid?ncia do candidato atual.
 
----
+## Legado
 
-## ⚡ Getting Started
+`bot.py`, `config.py`, `economy.py`, a spec PyInstaller e o userscript foram
+preservados. H? regress?es locais de HTTP, persist?ncia, cookies, economia e
+ciclo de vida WebSocket. O Python requer `websockets>=14.0` para a API usada.
+O userscript ainda cont?m mensagens de combate antigas e n?o ? equivalente ao
+Desktop. Os execut?veis Python antigos n?o foram reconstru?dos nesta entrega.
 
+<<<<<<< HEAD
 ### Option A: Portable Standalone Executable (Recommended for End Users)
 1. Baixe o executável compilado `IdleDex_Desktop_Portable_2.5.0.exe` (com o ícone da **Master Ball**).
 2. Execute o arquivo diretamente em qualquer computador com Windows 10/11 x64 (não requer instalação de Node.js, Python ou extensões).
@@ -162,5 +166,6 @@ node research/verify-release.cjs --app-dir dist-release/win-unpacked/resources/a
 ## 📄 License & Credits
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+Autor: Luca Rodrigues Gomes de Sant'Anna.
 
-*Disclaimer: IdleDex is a trademark of its respective creators. This software is an independent educational automation tool.*
+*Disclaimer: IdleDex is an independent educational automation tool.*

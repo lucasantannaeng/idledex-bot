@@ -203,6 +203,7 @@ function initMainWorldEngine(configSchema) {
     let lastRecoveryCheck = 0;
     let wallet = { silver: 0, gold: 0 };
     let collection = {};
+    let collectionLoaded = false;
     let team = [];
     let lastHuntMap = null;
     try { lastHuntMap = sessionStorage.getItem('idledex-last-hunt-map'); } catch {}
@@ -872,6 +873,8 @@ function initMainWorldEngine(configSchema) {
         } else if (botConfig.auto_idle) {
             sendEvent("idle:start");
             logEvent("⚡ Modo Auto-Idle nativo ativado no servidor", "info");
+        } else {
+            sendEvent("idle:stop");
         }
     }
 
@@ -1006,6 +1009,15 @@ function initMainWorldEngine(configSchema) {
     // --- COMPETITIVE BEST NATURES DATABASE (GEN 1 - 5: KANTO TO UNOVA) ---
     const BEST_NATURES_GEN1_TO_5 = {"bulbasaur": ["modest", "timid"], "ivysaur": ["modest", "timid"], "venusaur": ["modest", "timid", "calm"], "charmander": ["adamant", "jolly"], "charmeleon": ["adamant", "jolly"], "charizard": ["timid", "jolly", "modest", "adamant"], "squirtle": ["calm", "careful", "bold"], "wartortle": ["calm", "careful", "bold"], "blastoise": ["modest", "bold", "calm"], "caterpie": ["adamant", "jolly"], "metapod": ["impish", "relaxed", "adamant"], "butterfree": ["modest", "timid"], "weedle": ["adamant", "jolly"], "kakuna": ["impish", "relaxed", "adamant"], "beedrill": ["adamant", "jolly"], "pidgey": ["adamant", "jolly"], "pidgeotto": ["adamant", "jolly"], "pidgeot": ["adamant", "jolly"], "rattata": ["adamant", "jolly"], "raticate": ["adamant", "jolly"], "spearow": ["adamant", "jolly"], "fearow": ["adamant", "jolly"], "ekans": ["adamant", "jolly"], "arbok": ["adamant", "jolly"], "pikachu": ["adamant", "jolly"], "raichu": ["timid", "naive", "hasty"], "sandshrew": ["impish", "relaxed", "adamant"], "sandslash": ["adamant", "impish"], "nidoran-f": ["impish", "relaxed", "adamant"], "nidorina": ["impish", "relaxed", "adamant"], "nidoqueen": ["bold", "modest", "timid"], "nidoran-m": ["adamant", "jolly"], "nidorino": ["adamant", "jolly"], "nidoking": ["timid", "modest", "naive"], "clefairy": ["calm", "careful", "bold"], "clefable": ["bold", "calm"], "vulpix": ["modest", "timid"], "ninetales": ["timid", "modest"], "jigglypuff": ["calm", "careful", "bold"], "wigglytuff": ["modest", "calm"], "zubat": ["adamant", "jolly"], "golbat": ["adamant", "jolly"], "oddish": ["modest", "timid"], "gloom": ["modest", "timid"], "vileplume": ["bold", "modest", "calm"], "paras": ["adamant", "jolly"], "parasect": ["careful", "adamant"], "venonat": ["modest", "timid"], "venomoth": ["timid", "modest"], "diglett": ["adamant", "jolly"], "dugtrio": ["adamant", "jolly"], "meowth": ["adamant", "jolly"], "persian": ["adamant", "jolly"], "psyduck": ["modest", "timid"], "golduck": ["modest", "timid"], "mankey": ["adamant", "jolly"], "primeape": ["adamant", "jolly"], "growlithe": ["adamant", "jolly"], "arcanine": ["jolly", "adamant", "timid", "modest"], "poliwag": ["modest", "timid"], "poliwhirl": ["adamant", "jolly"], "poliwrath": ["adamant"], "abra": ["modest", "timid"], "kadabra": ["modest", "timid"], "alakazam": ["timid", "modest"], "machop": ["adamant", "jolly"], "machoke": ["adamant", "jolly"], "machamp": ["adamant", "brave"], "bellsprout": ["naive", "hasty"], "weepinbell": ["naive", "hasty"], "victreebel": ["modest", "adamant", "naive"], "tentacool": ["calm", "careful", "bold"], "tentacruel": ["timid", "calm", "bold"], "geodude": ["impish", "relaxed", "adamant"], "graveler": ["impish", "relaxed", "adamant"], "golem": ["adamant", "impish"], "ponyta": ["adamant", "jolly"], "rapidash": ["adamant", "jolly"], "slowpoke": ["impish", "relaxed", "adamant"], "slowbro": ["bold", "relaxed", "quiet"], "magnemite": ["modest", "timid"], "magneton": ["modest", "timid"], "farfetchd": ["adamant", "jolly"], "doduo": ["adamant", "jolly"], "dodrio": ["adamant", "jolly"], "seel": ["calm", "careful", "bold"], "dewgong": ["calm", "careful"], "grimer": ["impish", "relaxed", "adamant"], "muk": ["adamant", "careful"], "shellder": ["impish", "relaxed", "adamant"], "cloyster": ["jolly", "adamant", "impish"], "gastly": ["modest", "timid"], "haunter": ["modest", "timid"], "gengar": ["timid", "modest"], "onix": ["impish", "relaxed", "adamant"], "drowzee": ["calm", "careful", "bold"], "hypno": ["calm", "careful"], "krabby": ["adamant", "jolly"], "kingler": ["adamant", "jolly"], "voltorb": ["modest", "timid"], "electrode": ["timid", "naive"], "exeggcute": ["modest", "timid"], "exeggutor": ["modest", "quiet"], "cubone": ["adamant", "jolly"], "marowak": ["adamant", "brave"], "hitmonlee": ["adamant", "jolly"], "hitmonchan": ["adamant", "jolly"], "lickitung": ["calm", "careful", "bold"], "koffing": ["impish", "relaxed", "adamant"], "weezing": ["bold", "impish"], "rhyhorn": ["impish", "relaxed", "adamant"], "rhydon": ["adamant", "impish"], "chansey": ["bold", "calm"], "tangela": ["bold", "modest"], "kangaskhan": ["adamant", "jolly"], "horsea": ["modest", "timid"], "seadra": ["modest", "timid"], "goldeen": ["adamant", "jolly"], "seaking": ["adamant", "jolly"], "staryu": ["modest", "timid"], "starmie": ["timid", "modest"], "mr-mime": ["timid", "modest"], "scyther": ["adamant", "jolly"], "jynx": ["timid", "modest"], "electabuzz": ["timid", "naive"], "magmar": ["modest", "timid", "naive"], "pinsir": ["adamant", "jolly"], "tauros": ["adamant", "jolly"], "magikarp": ["adamant", "jolly"], "gyarados": ["adamant", "jolly"], "lapras": ["modest", "calm"], "ditto": ["timid", "jolly", "bold", "calm"], "eevee": ["adamant", "jolly"], "vaporeon": ["bold", "calm", "modest"], "jolteon": ["timid", "modest"], "flareon": ["adamant"], "porygon": ["modest", "timid"], "omanyte": ["modest", "timid"], "omastar": ["modest", "timid"], "kabuto": ["adamant", "jolly"], "kabutops": ["adamant", "jolly"], "aerodactyl": ["jolly", "adamant"], "snorlax": ["adamant", "careful", "brave"], "articuno": ["timid", "calm"], "zapdos": ["timid", "bold", "modest"], "moltres": ["timid", "modest"], "dratini": ["adamant", "jolly"], "dragonair": ["adamant", "jolly"], "dragonite": ["adamant", "jolly"], "mewtwo": ["timid", "modest"], "mew": ["timid", "jolly", "bold", "calm"], "chikorita": ["calm", "careful", "bold"], "bayleef": ["calm", "careful", "bold"], "meganium": ["calm", "bold"], "cyndaquil": ["modest", "timid"], "quilava": ["modest", "timid"], "typhlosion": ["timid", "modest"], "totodile": ["adamant", "jolly"], "croconaw": ["adamant", "jolly"], "feraligatr": ["adamant", "jolly"], "sentret": ["adamant", "jolly"], "furret": ["adamant", "jolly"], "hoothoot": ["calm", "careful", "bold"], "noctowl": ["calm", "modest"], "ledyba": ["adamant", "jolly"], "ledian": ["adamant", "jolly"], "spinarak": ["adamant", "jolly"], "ariados": ["adamant", "jolly"], "crobat": ["jolly", "timid"], "chinchou": ["calm", "careful", "bold"], "lanturn": ["modest", "calm"], "pichu": ["modest", "timid"], "cleffa": ["calm", "careful", "bold"], "igglybuff": ["calm", "careful", "bold"], "togepi": ["calm", "careful", "bold"], "togetic": ["bold", "calm"], "natu": ["modest", "timid"], "xatu": ["timid", "bold"], "mareep": ["modest", "timid"], "flaaffy": ["modest", "timid"], "ampharos": ["modest", "quiet"], "bellossom": ["calm", "modest"], "marill": ["adamant", "jolly"], "azumarill": ["adamant"], "sudowoodo": ["impish", "relaxed", "adamant"], "politoed": ["bold", "calm"], "hoppip": ["adamant", "jolly"], "skiploom": ["adamant", "jolly"], "jumpluff": ["adamant", "jolly"], "aipom": ["adamant", "jolly"], "sunkern": ["modest", "timid"], "sunflora": ["modest", "quiet"], "yanma": ["modest", "timid"], "wooper": ["impish", "relaxed", "adamant"], "quagsire": ["relaxed"], "espeon": ["timid", "modest"], "umbreon": ["calm", "careful"], "murkrow": ["adamant", "jolly"], "slowking": ["calm", "quiet"], "misdreavus": ["timid", "modest"], "unown": ["modest", "timid"], "wobbuffet": ["bold", "calm"], "girafarig": ["timid"], "pineco": ["impish", "relaxed", "adamant"], "forretress": ["relaxed", "impish"], "dunsparce": ["impish", "relaxed", "adamant"], "gligar": ["impish", "jolly"], "steelix": ["impish", "relaxed"], "snubbull": ["adamant", "jolly"], "granbull": ["adamant", "impish"], "qwilfish": ["jolly", "impish"], "scizor": ["adamant"], "shuckle": ["bold", "impish"], "heracross": ["adamant", "jolly"], "sneasel": ["adamant", "jolly"], "teddiursa": ["adamant", "jolly"], "ursaring": ["adamant"], "slugma": ["modest", "timid"], "magcargo": ["bold", "modest"], "swinub": ["adamant", "jolly"], "piloswine": ["adamant"], "corsola": ["impish", "relaxed", "adamant"], "remoraid": ["modest", "timid"], "octillery": ["modest", "quiet"], "delibird": ["adamant", "jolly"], "mantine": ["calm"], "skarmory": ["impish", "bold"], "houndour": ["modest", "timid"], "houndoom": ["timid", "hasty"], "kingdra": ["modest", "adamant"], "phanpy": ["impish", "relaxed", "adamant"], "donphan": ["adamant", "impish"], "porygon2": ["bold", "calm"], "stantler": ["adamant", "jolly"], "smeargle": ["jolly", "timid"], "tyrogue": ["adamant", "jolly"], "hitmontop": ["adamant", "impish"], "smoochum": ["modest", "timid"], "elekid": ["adamant", "jolly"], "magby": ["naive", "hasty"], "miltank": ["impish", "careful"], "blissey": ["bold", "calm"], "raikou": ["timid", "modest"], "entei": ["adamant", "jolly"], "suicune": ["bold", "timid", "calm"], "larvitar": ["adamant", "jolly"], "pupitar": ["adamant", "jolly"], "tyranitar": ["adamant", "jolly"], "lugia": ["bold", "timid"], "ho-oh": ["adamant", "careful"], "celebi": ["timid", "bold", "modest"], "treecko": ["modest", "timid"], "grovyle": ["modest", "timid"], "sceptile": ["timid", "modest", "naive"], "torchic": ["adamant", "jolly"], "combusken": ["adamant", "jolly"], "blaziken": ["adamant", "jolly"], "mudkip": ["impish", "relaxed", "adamant"], "marshtomp": ["impish", "relaxed", "adamant"], "swampert": ["adamant", "relaxed"], "poochyena": ["adamant", "jolly"], "mightyena": ["adamant", "jolly"], "zigzagoon": ["adamant", "jolly"], "linoone": ["adamant", "jolly"], "wurmple": ["modest", "timid"], "silcoon": ["impish", "relaxed", "adamant"], "beautifly": ["modest", "timid"], "cascoon": ["impish", "relaxed", "adamant"], "dustox": ["calm", "careful", "bold"], "lotad": ["modest", "timid"], "lombre": ["modest", "timid"], "ludicolo": ["modest", "timid"], "seedot": ["adamant", "jolly"], "nuzleaf": ["adamant", "jolly"], "shiftry": ["adamant", "naughty"], "taillow": ["adamant", "jolly"], "swellow": ["jolly", "adamant"], "wingull": ["modest", "timid"], "pelipper": ["bold", "calm"], "ralts": ["modest", "timid"], "kirlia": ["modest", "timid"], "gardevoir": ["timid", "modest"], "surskit": ["modest", "timid"], "masquerain": ["timid", "modest"], "shroomish": ["adamant", "jolly"], "breloom": ["adamant", "jolly"], "slakoth": ["adamant", "jolly"], "vigoroth": ["adamant", "jolly"], "slaking": ["jolly", "adamant"], "nincada": ["adamant", "jolly"], "ninjask": ["jolly", "adamant"], "shedinja": ["adamant", "lonely"], "whismur": ["modest", "timid"], "loudred": ["modest", "timid"], "exploud": ["modest"], "makuhita": ["impish", "relaxed", "adamant"], "hariyama": ["adamant"], "azurill": ["adamant", "jolly"], "nosepass": ["impish", "relaxed", "adamant"], "skitty": ["adamant", "jolly"], "delcatty": ["adamant", "jolly"], "sableye": ["bold", "calm"], "mawile": ["adamant"], "aron": ["impish", "relaxed", "adamant"], "lairon": ["impish", "relaxed", "adamant"], "aggron": ["adamant"], "meditite": ["adamant", "jolly"], "medicham": ["jolly", "adamant"], "electrike": ["modest", "timid"], "manectric": ["timid", "modest"], "plusle": ["modest", "timid"], "minun": ["modest", "timid"], "volbeat": ["calm", "careful", "bold"], "illumise": ["calm", "careful", "bold"], "roselia": ["timid", "modest"], "gulpin": ["calm", "careful", "bold"], "swalot": ["calm", "bold"], "carvanha": ["adamant", "jolly"], "sharpedo": ["adamant", "jolly"], "wailmer": ["calm", "careful", "bold"], "wailord": ["modest", "calm"], "numel": ["naive", "hasty"], "camerupt": ["quiet", "modest"], "torkoal": ["bold", "relaxed"], "spoink": ["modest", "timid"], "grumpig": ["calm", "modest"], "spinda": ["adamant", "jolly"], "trapinch": ["adamant", "jolly"], "vibrava": ["adamant", "jolly"], "flygon": ["adamant", "jolly"], "cacnea": ["adamant", "jolly"], "cacturne": ["adamant", "mild"], "swablu": ["calm", "careful", "bold"], "altaria": ["careful", "adamant", "modest"], "zangoose": ["jolly", "adamant"], "seviper": ["modest", "adamant"], "lunatone": ["modest", "timid"], "solrock": ["impish", "relaxed", "adamant"], "barboach": ["impish", "relaxed", "adamant"], "whiscash": ["adamant"], "corphish": ["adamant", "jolly"], "crawdaunt": ["adamant"], "baltoy": ["calm", "careful", "bold"], "claydol": ["bold", "calm"], "lileep": ["calm", "careful", "bold"], "cradily": ["careful"], "anorith": ["adamant", "jolly"], "armaldo": ["adamant", "jolly"], "feebas": ["calm", "careful", "bold"], "milotic": ["bold", "calm"], "castform": ["modest", "timid"], "kecleon": ["adamant"], "shuppet": ["adamant", "jolly"], "banette": ["adamant", "jolly"], "duskull": ["calm", "careful", "bold"], "dusclops": ["bold", "calm"], "tropius": ["calm", "careful", "bold"], "chimecho": ["calm", "bold"], "absol": ["jolly", "adamant"], "wynaut": ["calm", "careful", "bold"], "snorunt": ["modest", "timid"], "glalie": ["jolly"], "spheal": ["calm", "careful", "bold"], "sealeo": ["calm", "careful", "bold"], "walrein": ["calm", "bold"], "clamperl": ["modest", "timid"], "huntail": ["adamant", "jolly"], "gorebyss": ["modest", "timid"], "relicanth": ["adamant"], "luvdisc": ["modest", "timid"], "bagon": ["adamant", "jolly"], "shelgon": ["impish", "relaxed", "adamant"], "salamence": ["jolly", "naive", "adamant", "timid"], "beldum": ["adamant", "jolly"], "metang": ["impish", "relaxed", "adamant"], "metagross": ["adamant", "jolly"], "regirock": ["impish", "careful"], "regice": ["calm", "modest"], "registeel": ["calm", "careful"], "latias": ["timid", "calm"], "latios": ["timid", "modest"], "kyogre": ["timid", "modest"], "groudon": ["adamant", "jolly"], "rayquaza": ["jolly", "naive", "adamant"], "jirachi": ["jolly", "timid"], "deoxys": ["timid", "naive", "hasty"], "turtwig": ["impish", "relaxed", "adamant"], "grotle": ["impish", "relaxed", "adamant"], "torterra": ["adamant", "impish"], "chimchar": ["naive", "hasty"], "monferno": ["naive", "hasty"], "infernape": ["naive", "jolly", "hasty", "timid"], "piplup": ["modest", "timid"], "prinplup": ["modest", "timid"], "empoleon": ["modest", "calm"], "starly": ["adamant", "jolly"], "staravia": ["adamant", "jolly"], "staraptor": ["jolly", "adamant"], "bidoof": ["impish", "relaxed", "adamant"], "bibarel": ["adamant"], "kricketot": ["adamant", "jolly"], "kricketune": ["adamant", "jolly"], "shinx": ["adamant", "jolly"], "luxio": ["adamant", "jolly"], "luxray": ["adamant", "jolly"], "budew": ["modest", "timid"], "roserade": ["timid", "modest"], "cranidos": ["adamant", "jolly"], "rampardos": ["jolly", "adamant"], "shieldon": ["impish", "relaxed", "adamant"], "bastiodon": ["impish", "careful"], "burmy": ["calm", "careful", "bold"], "wormadam": ["calm", "careful", "bold"], "mothim": ["modest", "timid"], "combee": ["calm", "careful", "bold"], "vespiquen": ["impish", "careful"], "pachirisu": ["impish"], "buizel": ["adamant", "jolly"], "floatzel": ["adamant", "jolly"], "cherubi": ["modest", "timid"], "cherrim": ["timid", "modest"], "shellos": ["calm", "careful", "bold"], "gastrodon": ["relaxed", "calm"], "ambipom": ["jolly"], "drifloon": ["modest", "timid"], "drifblim": ["modest", "timid"], "buneary": ["adamant", "jolly"], "lopunny": ["jolly"], "mismagius": ["timid"], "honchkrow": ["adamant"], "glameow": ["adamant", "jolly"], "purugly": ["adamant", "jolly"], "chingling": ["modest", "timid"], "stunky": ["adamant", "jolly"], "skuntank": ["adamant"], "bronzor": ["calm", "careful", "bold"], "bronzong": ["relaxed", "sassy"], "bonsly": ["impish", "relaxed", "adamant"], "mime-jr": ["modest", "timid"], "happiny": ["calm", "careful", "bold"], "chatot": ["modest", "timid"], "spiritomb": ["bold", "calm"], "gible": ["adamant", "jolly"], "gabite": ["adamant", "jolly"], "garchomp": ["jolly", "adamant"], "munchlax": ["calm", "careful", "bold"], "riolu": ["adamant", "jolly"], "lucario": ["jolly", "timid", "adamant"], "hippopotas": ["impish", "relaxed", "adamant"], "hippowdon": ["impish"], "skorupi": ["impish", "relaxed", "adamant"], "drapion": ["jolly", "adamant"], "croagunk": ["adamant", "jolly"], "toxicroak": ["jolly", "adamant"], "carnivine": ["adamant", "jolly"], "finneon": ["modest", "timid"], "lumineon": ["timid", "bold"], "mantyke": ["calm", "careful", "bold"], "snover": ["naive", "hasty"], "abomasnow": ["quiet"], "weavile": ["jolly"], "magnezone": ["modest", "timid"], "lickilicky": ["careful", "adamant"], "rhyperior": ["adamant"], "tangrowth": ["relaxed"], "electivire": ["jolly"], "magmortar": ["modest", "timid"], "togekiss": ["timid", "modest"], "yanmega": ["modest", "timid"], "leafeon": ["jolly", "adamant"], "glaceon": ["modest", "timid"], "gliscor": ["impish", "jolly"], "mamoswine": ["jolly", "adamant"], "porygon-z": ["timid"], "gallade": ["jolly", "adamant"], "probopass": ["bold", "calm"], "dusknoir": ["adamant", "impish"], "froslass": ["timid"], "rotom": ["bold", "timid", "calm", "modest"], "uxie": ["bold", "relaxed"], "mesprit": ["timid", "modest"], "azelf": ["timid", "jolly"], "dialga": ["modest", "timid"], "palkia": ["timid", "hasty"], "heatran": ["timid", "modest", "calm"], "regigigas": ["adamant", "jolly"], "giratina": ["bold", "impish", "modest"], "cresselia": ["bold", "calm"], "phione": ["modest", "timid"], "manaphy": ["timid"], "darkrai": ["timid"], "shaymin": ["timid"], "arceus": ["jolly", "timid", "adamant", "modest"], "snivy": ["modest", "timid"], "servine": ["modest", "timid"], "serperior": ["timid"], "tepig": ["adamant", "jolly"], "pignite": ["adamant", "jolly"], "emboar": ["adamant"], "oshawott": ["modest", "timid"], "dewott": ["modest", "timid"], "samurott": ["adamant", "modest"], "patrat": ["adamant", "jolly"], "watchog": ["adamant", "jolly"], "lillipup": ["adamant", "jolly"], "herdier": ["adamant", "jolly"], "stoutland": ["adamant"], "purrloin": ["adamant", "jolly"], "liepard": ["jolly"], "pansage": ["modest", "timid"], "simisage": ["modest", "timid"], "pansear": ["modest", "timid"], "simisear": ["modest", "timid"], "panpour": ["modest", "timid"], "simipour": ["modest", "timid"], "munna": ["calm", "careful", "bold"], "musharna": ["bold", "calm"], "pidove": ["adamant", "jolly"], "tranquill": ["adamant", "jolly"], "unfezant": ["adamant", "jolly"], "blitzle": ["modest", "timid"], "zebstrika": ["timid"], "roggenrola": ["impish", "relaxed", "adamant"], "boldore": ["impish", "relaxed", "adamant"], "gigalith": ["brave", "adamant"], "woobat": ["modest", "timid"], "swoobat": ["timid"], "drilbur": ["adamant", "jolly"], "excadrill": ["jolly", "adamant"], "audino": ["bold", "calm"], "timburr": ["adamant", "jolly"], "gurdurr": ["impish", "relaxed", "adamant"], "conkeldurr": ["adamant", "brave"], "tympole": ["modest", "timid"], "palpitoad": ["modest", "timid"], "seismitoad": ["modest", "relaxed"], "throh": ["careful"], "sawk": ["jolly"], "sewaddle": ["adamant", "jolly"], "swadloon": ["impish", "relaxed", "adamant"], "leavanny": ["jolly"], "venipede": ["adamant", "jolly"], "whirlipede": ["impish", "relaxed", "adamant"], "scolipede": ["jolly"], "cottonee": ["calm", "careful", "bold"], "whimsicott": ["timid"], "petilil": ["modest", "timid"], "lilligant": ["timid", "modest"], "basculin": ["jolly"], "sandile": ["adamant", "jolly"], "krokorok": ["adamant", "jolly"], "krookodile": ["jolly", "adamant"], "darumaka": ["adamant", "jolly"], "darmanitan": ["jolly", "adamant"], "maractus": ["modest", "timid"], "dwebble": ["impish", "relaxed", "adamant"], "crustle": ["adamant"], "scraggy": ["adamant", "jolly"], "scrafty": ["careful", "adamant"], "sigilyph": ["timid"], "yamask": ["impish", "relaxed", "adamant"], "cofagrigus": ["bold", "quiet"], "tirtouga": ["impish", "relaxed", "adamant"], "carracosta": ["adamant"], "archen": ["adamant", "jolly"], "archeops": ["jolly", "naive"], "trubbish": ["impish", "relaxed", "adamant"], "garbodor": ["impish"], "zorua": ["naive", "hasty"], "zoroark": ["timid", "naive"], "minccino": ["adamant", "jolly"], "cinccino": ["jolly"], "gothita": ["modest", "timid"], "gothorita": ["modest", "timid"], "gothitelle": ["calm"], "solosis": ["brave", "quiet", "relaxed", "sassy"], "duosion": ["brave", "quiet", "relaxed", "sassy"], "reuniclus": ["quiet", "bold"], "ducklett": ["modest", "timid"], "swanna": ["timid", "modest"], "vanillite": ["modest", "timid"], "vanillish": ["modest", "timid"], "vanilluxe": ["modest", "timid"], "deerling": ["adamant", "jolly"], "sawsbuck": ["jolly", "adamant"], "emolga": ["timid"], "karrablast": ["adamant", "jolly"], "escavalier": ["brave", "adamant"], "foongus": ["calm", "careful", "bold"], "amoonguss": ["calm", "bold"], "frillish": ["calm", "careful", "bold"], "jellicent": ["bold", "calm"], "alomomola": ["bold", "impish"], "joltik": ["modest", "timid"], "galvantula": ["timid"], "ferroseed": ["impish", "relaxed", "adamant"], "ferrothorn": ["relaxed", "sassy"], "klink": ["adamant", "jolly"], "klang": ["adamant", "jolly"], "klinklang": ["adamant"], "tynamo": ["modest", "timid"], "eelektrik": ["modest", "timid"], "eelektross": ["quiet", "modest", "adamant"], "elgyem": ["brave", "quiet", "relaxed", "sassy"], "beheeyem": ["quiet"], "litwick": ["modest", "timid"], "lampent": ["modest", "timid"], "chandelure": ["timid", "modest"], "axew": ["adamant", "jolly"], "fraxure": ["adamant", "jolly"], "haxorus": ["jolly", "adamant"], "cubchoo": ["adamant", "jolly"], "beartic": ["adamant"], "cryogonal": ["timid", "calm"], "shelmet": ["modest", "timid"], "accelgor": ["timid"], "stunfisk": ["bold", "calm"], "mienfoo": ["adamant", "jolly"], "mienshao": ["jolly", "naive"], "druddigon": ["adamant"], "golett": ["adamant", "jolly"], "golurk": ["adamant"], "pawniard": ["adamant", "jolly"], "bisharp": ["adamant", "jolly"], "bouffalant": ["adamant"], "rufflet": ["adamant", "jolly"], "braviary": ["jolly", "adamant"], "vullaby": ["impish", "relaxed", "adamant"], "mandibuzz": ["bold", "impish"], "heatmor": ["naive", "hasty"], "durant": ["jolly"], "deino": ["modest", "timid"], "zweilous": ["adamant", "jolly"], "hydreigon": ["timid", "modest"], "larvesta": ["modest", "timid"], "volcarona": ["timid", "modest"], "cobalion": ["jolly", "timid"], "terrakion": ["jolly", "adamant"], "virizion": ["jolly", "timid"], "tornadus": ["timid", "naive"], "thundurus": ["timid", "naive"], "reshiram": ["timid", "modest"], "zekrom": ["adamant", "jolly"], "landorus": ["jolly", "naive"], "kyurem": ["timid", "modest", "hasty"], "keldeo": ["timid", "modest"], "meloetta": ["timid", "modest", "naive"], "genesect": ["naive", "hasty", "timid"]};
 
+    function getBestNatures(mon) {
+        for (const value of [mon?.speciesId, mon?.species, mon?.name]) {
+            if (typeof value !== 'string') continue;
+            const natures = BEST_NATURES_GEN1_TO_5[value.toLowerCase().trim()];
+            if (natures) return natures;
+        }
+        return ["adamant", "jolly", "modest", "timid", "bold", "calm", "impish", "careful"];
+    }
+
     function evaluateCapturedCreature(caught) {
         if (!caught || !hasCompleteIVs(caught)) return null;
         const speciesId = String(caught.speciesId || (caught.name ? caught.name.toLowerCase() : "")).toLowerCase();
@@ -1020,7 +1032,7 @@ function initMainWorldEngine(configSchema) {
         const ivTotal = ivHp + ivAtk + ivDef + ivSpa + ivSpd + ivSpe;
         const ivPct = Math.round((ivTotal / 186) * 1000) / 10;
 
-        const bestList = BEST_NATURES_GEN1_TO_5[speciesId] || ["adamant", "jolly", "modest", "timid", "bold", "calm", "impish", "careful"];
+        const bestList = getBestNatures(caught);
         const isBestNature = bestList.includes(nature);
 
         let grade = "C";
@@ -1282,8 +1294,9 @@ function initMainWorldEngine(configSchema) {
         }
     }
 
-    function updateCreatures(creatures, patch = false) {
+    function updateCreatures(creatures, patch = false, complete = !patch) {
         if (!Array.isArray(creatures)) return;
+        if (complete) collectionLoaded = true;
         if (!patch) collection = {};
         for (const mon of creatures) {
             if (!mon?.id) continue;
@@ -1300,7 +1313,7 @@ function initMainWorldEngine(configSchema) {
             }
         }
 
-        if (!patch) {
+        if (complete) {
             for (const [id, pending] of pendingReleases.entries()) {
                 if (!collection[id]) {
                     pendingReleases.delete(id);
@@ -1326,16 +1339,19 @@ function initMainWorldEngine(configSchema) {
         }
 
         if (!inBattle) myMon = team.find(mon => mon.isLeader) || team[0] || null;
-        reconcileDonations();
-        resolveCapturedCreatures();
+        if (collectionLoaded) {
+            reconcileDonations();
+            resolveCapturedCreatures();
+        }
     }
 
     function resolveCapturedCreatures() {
+        if (!collectionLoaded) return;
         pendingCaptures = pendingCaptures.filter(capture => {
             const candidates = Object.values(collection).filter(mon =>
                 !capture.knownIds.has(mon.id) && String(mon.speciesId) === String(capture.speciesId) &&
                 (!capture.id || mon.id === capture.id));
-            if (candidates.length !== 1 || !hasCompleteIVs(candidates[0])) return true;
+            if (candidates.length !== 1 || !hasCompleteIVs(candidates[0]) || !hasKnownKeepCriteria(candidates[0])) return true;
             const mon = candidates[0];
             const evaluation = evaluateCapturedCreature(mon);
             lastCapturedMon = evaluation;
@@ -1404,6 +1420,11 @@ function handleGameMessage(msg) {
 
         // Welcome Packet — Official IdleDex Initial State
         if (t === "welcome") {
+            // The initial roster is partial; only the subsequent team snapshot
+            // confirms the Box and operations outstanding across reconnects.
+            collectionLoaded = false;
+            collection = {};
+            team = [];
             if (d.playerId) {
                 playerId = String(d.playerId);
                 try { sessionStorage.setItem('idledex_playerId', playerId); } catch (e) {}
@@ -1459,7 +1480,7 @@ function handleGameMessage(msg) {
                 // Extract player progression, team, wallet & inventory from snapshot
                 if (d.snapshot.player) {
                     const p = d.snapshot.player;
-                    updateCreatures(p.team);
+                    updateCreatures(p.team, false, false);
                     if (p.wallet) {
                         wallet = {
                             silver: p.wallet.silver ?? p.wallet.coins ?? 0,
@@ -1733,7 +1754,11 @@ function handleGameMessage(msg) {
 
         // Collection Updates
         else if (t === "collection" || t === "collection:patch") {
-            const mons = Array.isArray(d) ? d : (d.mons || d.monsters || []);
+            const mons = Array.isArray(d) ? d : (d.mons || d.monsters);
+            if (!Array.isArray(mons)) return;
+            // Compatibility for the legacy full-collection envelope. A patch
+            // alone never establishes that the entire Box has arrived.
+            if (t === 'collection') collectionLoaded = true;
             const previousIds = new Set(Object.keys(collection));
             for (const mon of mons) {
                 if (mon && mon.id) {
@@ -1751,6 +1776,7 @@ function handleGameMessage(msg) {
                 }
             }
             reconcileDonations();
+            resolveCapturedCreatures();
             for (const mon of [...mons].sort((a, b) => Number(previousIds.has(a?.id)) - Number(previousIds.has(b?.id)))) {
                 if (mon && !mon.deleted && !mon.removed) checkMonIVStrategy(collection[mon.id]);
             }
@@ -2080,7 +2106,7 @@ function handleGameMessage(msg) {
     }
 
     function isProtectedCreature(mon) {
-        return !mon || mon.isShiny || mon.shiny || mon.isLocked || mon.locked || mon.isLeader || mon.mega ||
+        return !mon || mon.isShiny || mon.shiny || mon.isLocked || mon.locked || mon.isLeader || mon.mega || mon.isMega || mon.isListed ||
             pendingLocks.has(mon.id) ||
             (mon.eventTier > 0) || (mon.form?.eventTier > 0) ||
             (mon.teamSlot !== undefined && mon.teamSlot !== null) ||
@@ -2090,8 +2116,11 @@ function handleGameMessage(msg) {
 
     function isDonatableCreature(mon) {
         return Boolean(
+            collectionLoaded &&
             mon &&
             !isProtectedCreature(mon) &&
+            !isNewBattleCreature(mon) &&
+            hasKnownKeepCriteria(mon) &&
             !meetsQualityThreshold(mon, botConfig.min_quality) &&
             !releasedCreatureIds.has(mon.id) &&
             !pendingReleases.has(mon.id) &&
@@ -2142,6 +2171,7 @@ function handleGameMessage(msg) {
     }
 
     function reconcileDonations() {
+        if (!collectionLoaded) return;
         for (const id of pendingLocks) {
             if (!collection[id] || collection[id].isLocked || collection[id].locked) pendingLocks.delete(id);
         }
@@ -2151,12 +2181,12 @@ function handleGameMessage(msg) {
         }
     }
 
-    function hasSurplusCopies(mon) {
+    function hasSurplusCopies(mon, excludedIds = new Set()) {
         if (!mon) return false;
         const targetSpeciesId = String(mon.speciesId !== undefined ? mon.speciesId : (mon.species || ''));
         if (!targetSpeciesId) return false;
         const otherCopies = Object.values(collection).filter(c => {
-            if (!c || !c.id || c.id === mon.id) return false;
+            if (!c || !c.id || c.id === mon.id || excludedIds.has(c.id)) return false;
             const sId = String(c.speciesId !== undefined ? c.speciesId : (c.species || ''));
             if (sId !== targetSpeciesId) return false;
             if (releasedCreatureIds.has(c.id)) return false;
@@ -2167,8 +2197,18 @@ function handleGameMessage(msg) {
         return otherCopies.length >= 1;
     }
 
+    function isNewBattleCreature(mon) {
+        return inBattle && mon && !battleKnownCreatureIds.has(mon.id);
+    }
+
+    function hasKnownKeepCriteria(mon, config = botConfig) {
+        if (config.min_quality && config.min_quality !== 'any' && getCreatureQuality(mon) === null) return false;
+        if (config.desired_nature && config.desired_nature !== 'any' && !String(mon?.nature || '').trim()) return false;
+        return true;
+    }
+
     function monMatchesKeepCriteria(mon, config = botConfig) {
-        if (!mon || !hasCompleteIVs(mon)) return true;
+        if (!mon || !hasCompleteIVs(mon) || !hasKnownKeepCriteria(mon, config)) return true;
 
         const mode = config.iv_evaluation_mode || 'percent';
         const stats = mon.ivs || {};
@@ -2179,7 +2219,7 @@ function handleGameMessage(msg) {
         const spd = Number(stats.spd !== undefined ? stats.spd : (stats.spDef || 0));
         const spe = Number(stats.spe !== undefined ? stats.spe : (stats.speed || 0));
         const ivSum = hp + atk + def + spa + spd + spe;
-        const ivPct = Math.round((ivSum / 186) * 100);
+        const ivPct = (ivSum / 186) * 100;
 
         const cutoffPct = config.discard_iv_pct ?? 0;
         const desiredNature = String(config.desired_nature || 'any').toLowerCase().trim();
@@ -2225,8 +2265,7 @@ function handleGameMessage(msg) {
         if (hasNatureFilter) {
             const monNature = String(mon.nature || '').toLowerCase().trim();
             if (desiredNature === 'competitive') {
-                const speciesId = String(mon.speciesId || (mon.species || (mon.name ? mon.name.toLowerCase() : ''))).toLowerCase();
-                const bestList = BEST_NATURES_GEN1_TO_5[speciesId] || ["adamant", "jolly", "modest", "timid", "bold", "calm", "impish", "careful"];
+                const bestList = getBestNatures(mon);
                 if (!bestList.includes(monNature)) {
                     return false;
                 }
@@ -2239,7 +2278,9 @@ function handleGameMessage(msg) {
     }
 
     function checkMonIVStrategy(mon) {
+        if (!collectionLoaded) return;
         if (!botConfig.enabled || !mon || !mon.id || releasedCreatureIds.has(mon.id) || pendingReleases.has(mon.id) || isReservedForDonation(mon) || pendingReleases.size >= 500) return;
+        if (isNewBattleCreature(mon)) return;
 
         // Strict Safety Gate: Never release shiny, special event tiers, locked creatures, or party members
         if (isProtectedCreature(mon) || !hasCompleteIVs(mon) || !Number.isInteger(mon.boxSlot) || mon.boxSlot < 0) {
@@ -2295,6 +2336,14 @@ function handleGameMessage(msg) {
             return;
         }
 
+        if (!collectionLoaded) {
+            if (manual) {
+                sendEvent('box:open');
+                logEvent('⏳ Limpeza de Box indisponível: aguardando a coleção completa. Aguarde o carregamento e tente novamente.', 'info');
+            }
+            return;
+        }
+
         const mode = botConfig.iv_evaluation_mode || 'percent';
         const cutoffPct = botConfig.discard_iv_pct ?? 0;
         const desiredNature = String(botConfig.desired_nature || 'any').toLowerCase().trim();
@@ -2316,6 +2365,7 @@ function handleGameMessage(msg) {
             mon && mon.id &&
             Number.isInteger(mon.boxSlot) && mon.boxSlot >= 0 &&
             !isProtectedCreature(mon) &&
+            !isNewBattleCreature(mon) &&
             hasCompleteIVs(mon) &&
             !releasedCreatureIds.has(mon.id) &&
             !pendingReleases.has(mon.id) &&
@@ -2323,12 +2373,14 @@ function handleGameMessage(msg) {
         );
 
         const discardCandidates = [];
+        const selectedIds = new Set();
         for (const mon of boxCreatures) {
-            if (botConfig.protect_last_copy !== false && !hasSurplusCopies(mon)) {
+            if (botConfig.protect_last_copy !== false && !hasSurplusCopies(mon, selectedIds)) {
                 continue;
             }
             if (!monMatchesKeepCriteria(mon, botConfig)) {
                 discardCandidates.push(mon);
+                selectedIds.add(mon.id);
             }
         }
 
@@ -2952,6 +3004,7 @@ function handleGameMessage(msg) {
             commandGeneration++;
             const wasConnected = hasConnected;
             activeWs = ws;
+            collectionLoaded = false;
             hasConnected = true;
             if (wasConnected) {
                 reconnectCount++;
@@ -2977,6 +3030,7 @@ function handleGameMessage(msg) {
             if (ws._idledexRetired || activeWs !== ws) return;
             // Reset state related to this WebSocket
             activeWs = null;
+            collectionLoaded = false;
             pendingCaptures = [];
             inBattle = false;
             battleWindowOpen = false;
@@ -3083,6 +3137,7 @@ function handleGameMessage(msg) {
         if (cmd === 'toggle-bot') {
             commandGeneration++;
             botConfig.enabled = (payload && payload.enabled !== undefined) ? payload.enabled : !botConfig.enabled;
+            if (typeof payload?.auto_idle === 'boolean') botConfig.auto_idle = payload.auto_idle;
             if (!botConfig.enabled) {
                 clearTimeout(autoTravelState.timeoutTimer);
                 autoTravelState.active = false;
@@ -3108,9 +3163,7 @@ function handleGameMessage(msg) {
                     battleWatchdog = null;
                 }
                 logEvent("⏸️ Bot pausado pelo usuário (Controle manual liberado)", "warning");
-                if (botConfig.auto_idle) {
-                    sendEvent("idle:start");
-                }
+                sendEvent(botConfig.auto_idle ? "idle:start" : "idle:stop");
             } else {
                 logEvent("▶️ Bot ativado pelo usuário (Controle Autoritativo)", "success");
                 sendEvent("idle:stop");

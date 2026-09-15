@@ -1,6 +1,6 @@
 {
   "name": "idledex-desktop",
-  "version": "2.5.0",
+  "version": "2.5.2",
   "description": "IdleDex Desktop App with Built-in Chromium and Autonomous Bot",
   "author": "Luca Rodrigues Gomes de Sant'Anna <lucasantannaeng@gmail.com>",
   "license": "MIT",

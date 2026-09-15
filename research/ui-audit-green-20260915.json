@@ -1,9 +1,9 @@
 {
   "passed": true,
-  "scope": "candidate",
+  "scope": "source",
   "main": "actual",
-  "checkedAt": "2026-09-15T23:34:06.881Z",
-  "candidateHash": "65b3c7eab1fe95f9c8757a9f522721d037d90b74919995f1e5f52d0ee8ebc7bb",
+  "checkedAt": "2026-09-15T10:24:08.748Z",
+  "candidateHash": null,
   "runtime": "33.4.11",
   "startup": {
     "hooked": true,
@@ -33,8 +33,7 @@
       "",
       "133",
       "129"
-    ],
-    "focusedSpecies": "129"
+    ]
   },
   "help": {
     "open": true,

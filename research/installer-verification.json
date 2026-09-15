@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-09-15T23:38:25.030Z",
+  "passed": true,
+  "reports": [
+    {
+      "file": "dist-release\\IdleDex_Desktop_Portable_2.5.2.exe",
+      "sha256": "03d5dfde311b0ce59887dc55130f8ef801326702e3fd4439ef96fd2331e9b4cb",
+      "version": "2.5.2",
+      "candidateHash": "65b3c7eab1fe95f9c8757a9f522721d037d90b74919995f1e5f52d0ee8ebc7bb",
+      "verifiedFiles": 17
+    },
+    {
+      "file": "dist-release\\IdleDex_Desktop_Setup_2.5.2.exe",
+      "sha256": "0e8ad11dea1ba9b1539bab8072b12baacd20b96e81bc4e24e9e888c175b70999",
+      "version": "2.5.2",
+      "candidateHash": "65b3c7eab1fe95f9c8757a9f522721d037d90b74919995f1e5f52d0ee8ebc7bb",
+      "verifiedFiles": 17
+    }
+  ]
+}

@@ -1,0 +1,305 @@
+{
+  "checkedAt": "2026-09-15T15:43:13.264Z",
+  "connected": true,
+  "enabled": false,
+  "autoIdle": false,
+  "map": "route_077",
+  "species": [
+    {
+      "id": 165,
+      "idType": "number",
+      "name": "ledyba"
+    },
+    {
+      "id": 166,
+      "idType": "number",
+      "name": "ledian"
+    },
+    {
+      "id": 167,
+      "idType": "number",
+      "name": "spinarak"
+    },
+    {
+      "id": 168,
+      "idType": "number",
+      "name": "ariados"
+    },
+    {
+      "id": 182,
+      "idType": "number",
+      "name": "bellossom"
+    },
+    {
+      "id": 187,
+      "idType": "number",
+      "name": "hoppip"
+    },
+    {
+      "id": 188,
+      "idType": "number",
+      "name": "skiploom"
+    },
+    {
+      "id": 189,
+      "idType": "number",
+      "name": "jumpluff"
+    },
+    {
+      "id": 175,
+      "idType": "number",
+      "name": "togepi"
+    },
+    {
+      "id": 207,
+      "idType": "number",
+      "name": "gligar"
+    },
+    {
+      "id": 213,
+      "idType": "number",
+      "name": "shuckle"
+    },
+    {
+      "id": 236,
+      "idType": "number",
+      "name": "tyrogue"
+    },
+    {
+      "id": 237,
+      "idType": "number",
+      "name": "hitmontop"
+    },
+    {
+      "id": 233,
+      "idType": "number",
+      "name": "porygon2"
+    },
+    {
+      "id": 246,
+      "idType": "number",
+      "name": "larvitar"
+    },
+    {
+      "id": 247,
+      "idType": "number",
+      "name": "pupitar"
+    },
+    {
+      "id": 248,
+      "idType": "number",
+      "name": "tyranitar"
+    }
+  ],
+  "focusOptions": [
+    {
+      "value": "",
+      "label": "(Espécie 1: Nenhuma)"
+    },
+    {
+      "value": "168",
+      "label": "ariados"
+    },
+    {
+      "value": "182",
+      "label": "bellossom"
+    },
+    {
+      "value": "207",
+      "label": "gligar"
+    },
+    {
+      "value": "237",
+      "label": "hitmontop"
+    },
+    {
+      "value": "187",
+      "label": "hoppip"
+    },
+    {
+      "value": "189",
+      "label": "jumpluff"
+    },
+    {
+      "value": "246",
+      "label": "larvitar"
+    },
+    {
+      "value": "166",
+      "label": "ledian"
+    },
+    {
+      "value": "165",
+      "label": "ledyba"
+    },
+    {
+      "value": "233",
+      "label": "porygon2"
+    },
+    {
+      "value": "247",
+      "label": "pupitar"
+    },
+    {
+      "value": "213",
+      "label": "shuckle"
+    },
+    {
+      "value": "188",
+      "label": "skiploom"
+    },
+    {
+      "value": "167",
+      "label": "spinarak"
+    },
+    {
+      "value": "175",
+      "label": "togepi"
+    },
+    {
+      "value": "248",
+      "label": "tyranitar"
+    },
+    {
+      "value": "236",
+      "label": "tyrogue"
+    },
+    {
+      "value": "lapras",
+      "label": "Lapras"
+    }
+  ],
+  "focusValue": "lapras",
+  "configuredFocus": "lapras",
+  "targetMode": "none",
+  "targetCount": 0,
+  "collectionCount": 8,
+  "boxCount": 0,
+  "sampleShape": [
+    [
+      "id",
+      "speciesId",
+      "name",
+      "nickname",
+      "speciesName",
+      "level",
+      "exp",
+      "expNextLevel",
+      "hp",
+      "maxHp",
+      "types",
+      "regions",
+      "ivs",
+      "quality",
+      "statRoles",
+      "evs",
+      "stats",
+      "nature",
+      "gender",
+      "isShiny",
+      "isMega",
+      "rarity",
+      "mega",
+      "isLeader",
+      "isLocked",
+      "isStarter",
+      "isListed",
+      "teamSlot",
+      "boxSlot",
+      "moves",
+      "moveWeights",
+      "movePool",
+      "evolution",
+      "fuelEnergy",
+      "fuelBlock",
+      "caughtAt",
+      "hpPercent"
+    ],
+    [
+      "id",
+      "speciesId",
+      "name",
+      "nickname",
+      "speciesName",
+      "level",
+      "exp",
+      "expNextLevel",
+      "hp",
+      "maxHp",
+      "types",
+      "regions",
+      "ivs",
+      "quality",
+      "statRoles",
+      "evs",
+      "stats",
+      "nature",
+      "gender",
+      "isShiny",
+      "isMega",
+      "rarity",
+      "mega",
+      "isLeader",
+      "isLocked",
+      "isStarter",
+      "isListed",
+      "teamSlot",
+      "boxSlot",
+      "moves",
+      "moveWeights",
+      "movePool",
+      "evolution",
+      "fuelEnergy",
+      "fuelBlock",
+      "caughtAt",
+      "hpPercent"
+    ],
+    [
+      "id",
+      "speciesId",
+      "name",
+      "nickname",
+      "speciesName",
+      "level",
+      "exp",
+      "expNextLevel",
+      "hp",
+      "maxHp",
+      "types",
+      "regions",
+      "ivs",
+      "quality",
+      "statRoles",
+      "evs",
+      "stats",
+      "nature",
+      "gender",
+      "isShiny",
+      "isMega",
+      "rarity",
+      "mega",
+      "isLeader",
+      "isLocked",
+      "isStarter",
+      "isListed",
+      "teamSlot",
+      "boxSlot",
+      "moves",
+      "moveWeights",
+      "movePool",
+      "evolution",
+      "fuelEnergy",
+      "fuelBlock",
+      "caughtAt",
+      "hpPercent"
+    ]
+  ],
+  "boxMissingSlot": 0,
+  "slotTypes": [
+    "object"
+  ],
+  "completeIVs": 0,
+  "qualityFields": [],
+  "buttonDisabled": false,
+  "errors": []
+}

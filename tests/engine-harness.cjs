@@ -6,6 +6,7 @@ const vm = require('node:vm');
 function createEngine(fetch = async () => ({ ok: false })) {
     const listeners = new Map();
     const telemetry = [];
+    const logs = [];
     const timers = new Map();
     let timerId = 0;
     let now = Date.now();
@@ -75,6 +76,7 @@ function createEngine(fetch = async () => ({ ok: false })) {
                 webFrame: { executeJavaScript(source) { vm.runInContext(source, context); } },
                 ipcRenderer: { on() {}, sendToHost(channel, data) {
                     if (channel === 'game-telemetry') telemetry.push(structuredClone(data));
+                    if (channel === 'game-log') logs.push(structuredClone(data));
                 } },
             };
         },
@@ -91,7 +93,7 @@ function createEngine(fetch = async () => ({ ok: false })) {
             window.dispatchEvent(new sandbox.CustomEvent('idledex-from-preload', { detail: { cmd: 'update-config', payload } }));
             return telemetry.at(-1);
         },
-        telemetry, timers,
+        telemetry, logs, timers,
         now() { return now; },
         onKeyDown(callback) { window.addEventListener('keydown', callback); },
         onKeyUp(callback) { window.addEventListener('keyup', callback); },

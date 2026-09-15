@@ -84,7 +84,8 @@ class EconomyMonitor:
 
         history = self.price_history.get(target_id)
         if history and len(history.prices) >= 5:
-            avg = history.avg_price
+            recent = history.prices[-10:]
+            avg = sum(recent) / len(recent)
             return avg * 0.9
         return None
 
@@ -136,8 +137,6 @@ class PokemonValuator:
     def _base_iv_score(self, mon: 'MonData') -> float:
         """Score based on IV distribution."""
         ivs = mon.ivs
-        total = sum(ivs.values())
-
         # Weight certain stats differently based on role
         weights = {
             "attack": 1.2,
@@ -148,9 +147,10 @@ class PokemonValuator:
             "hp": 0.8
         }
 
-        weighted_sum = sum(ivs.get(stat, 0) * weights.get(stat, 1.0)
-                          for stat in ivs)
-        return (weighted_sum / 126) * 60  # Normalize to 0-60
+        weighted_sum = sum(max(0, min(31, ivs.get(stat, 0))) * weight
+                           for stat, weight in weights.items())
+        maximum = 31 * sum(weights.values())
+        return (weighted_sum / maximum) * 60  # Local heuristic, normalized to 0-60
 
     def _nature_bonus(self, mon: 'MonData') -> float:
         """Bonus for correct nature."""

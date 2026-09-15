@@ -1,14 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+project_dir = Path(SPECPATH)
+
 block_cipher = None
 
 a = Analysis(
-    ['bot.py'],
-    pathex=['D:/Projetos/1.Autorais/idledex-bot'],
+    [str(project_dir / 'bot.py')],
+    pathex=[str(project_dir)],
     binaries=[],
     datas=[
-        ('dashboard.html', '.'),
-        ('visualizer.html', '.'),
+        (str(project_dir / 'dashboard.html'), '.'),
+        (str(project_dir / 'visualizer.html'), '.'),
     ],
     hiddenimports=[
         'websockets',

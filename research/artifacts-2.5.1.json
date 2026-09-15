@@ -1,0 +1,20 @@
+﻿[
+    {
+        "Path":  "dist-release/IdleDex_Desktop_Portable_2.5.1.exe",
+        "Bytes":  74553056,
+        "Version":  "2.5.1",
+        "SHA256":  "5e54fed1d96f11b86680dfed7c55b948da65cb112dc335dcd5a072008abb7978"
+    },
+    {
+        "Path":  "dist-release/IdleDex_Desktop_Setup_2.5.1.exe",
+        "Bytes":  74756894,
+        "Version":  "2.5.1",
+        "SHA256":  "9b36e562e8080b97da951207244147f0856f49137a7f252adecf5c3bd56efe69"
+    },
+    {
+        "Path":  "dist-release/win-unpacked/IdleDex_Desktop.exe",
+        "Bytes":  188808192,
+        "Version":  "2.5.1.0",
+        "SHA256":  "922bcbe95389cf604fd410f7ca536090baa56e68f5293490c21dcdfb471dad6d"
+    }
+]
