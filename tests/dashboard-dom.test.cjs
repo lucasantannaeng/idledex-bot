@@ -32,6 +32,13 @@ class MockElement {
         this._textContent = '';
         this.value = '';
         this.checked = false;
+        this.classList = {
+            _classes: new Set(),
+            add: (...cls) => cls.forEach(c => this.classList._classes.add(c)),
+            remove: (...cls) => cls.forEach(c => this.classList._classes.delete(c)),
+            contains: (c) => this.classList._classes.has(c),
+            toggle: (c) => this.classList._classes.has(c) ? (this.classList._classes.delete(c), false) : (this.classList._classes.add(c), true)
+        };
     }
 
     get innerHTML() {
@@ -418,5 +425,55 @@ test('T17: initial index.html does not claim BOT ATIVO before receiving configur
     assert.ok(html.includes('<span id="pill-text">BOT PAUSADO</span>'), 'Initial status text must be BOT PAUSADO');
     assert.ok(!html.includes('<span id="pill-text">BOT ATIVO</span>'), 'Initial HTML must never falsely claim BOT ATIVO');
 });
+
+test('T23: radar clutter card is removed, area species populate dropdowns, and locked row signals conflict', () => {
+    const html = fs.readFileSync(path.join(__dirname, '../app/index.html'), 'utf8');
+    assert.ok(!html.includes('btn-goto-config-spawns'), 'Radar clutter redirect button must be removed');
+    assert.ok(!html.includes('current-map-badge-radar'), 'Radar clutter badge must be removed');
+    assert.ok(!html.includes('radar-spawns-summary'), 'Radar clutter summary must be removed');
+
+    const env = createDOMEnvironment();
+    const sel1 = env.document.getElementById('cfg-pinned-species-1');
+    const sel2 = env.document.getElementById('cfg-pinned-species-2');
+
+    // 1. Dynamic area species dropdown population
+    env.window.handleTelemetry({
+        currentMap: 'route-test-area',
+        availableSpecies: [
+            { speciesId: 'rattata', name: 'Rattata' },
+            { speciesId: 'pidgey', name: 'Pidgey' },
+            { speciesId: 'caterpie', name: 'Caterpie' }
+        ]
+    });
+
+    // Pinned species dropdowns must contain area species options sorted alphabetically
+    assert.ok(sel1.children.length >= 4, 'sel1 must contain default + 3 area species');
+    assert.ok(sel2.children.length >= 4, 'sel2 must contain default + 3 area species');
+
+    const vals = sel1.children.map(c => c.value);
+    assert.ok(vals.includes('caterpie'));
+    assert.ok(vals.includes('pidgey'));
+    assert.ok(vals.includes('rattata'));
+
+    // 2. Conflict lock interaction and signaling
+    const elIdle = env.document.getElementById('cfg-auto-idle');
+    const elRoam = env.document.getElementById('cfg-auto-roam');
+    const rowRoam = env.document.getElementById('row-auto-roam');
+    const lockRoam = env.document.getElementById('lock-auto-roam');
+
+    elIdle.checked = true;
+    env.window.updateConflictLocks();
+
+    assert.equal(elRoam.disabled, true);
+    assert.equal(lockRoam.textContent.includes('Auto-Idle'), true);
+    assert.equal(rowRoam.classList.contains('is-locked'), true);
+
+    const handled = env.window.handleLockedRowInteraction('row-auto-roam', 'cfg-auto-roam');
+    assert.equal(handled, true);
+
+    const lastLog = env.logFeed.children.at(-1);
+    assert.ok(lastLog.textContent.includes('Auto-Idle Nativo do Servidor'), 'Log must explicitly signal what option to disable');
+});
+
 
 

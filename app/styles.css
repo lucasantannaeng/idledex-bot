@@ -415,13 +415,61 @@ h1, h2, h3, h4, h5, h6, .card-title, .form-section-title {
 /* CONFLICT LOCK & DISABLED STATES */
 .lock-tag {
     font-size: 0.65rem;
-    padding: 1px 5px;
-    border-radius: 3px;
-    background: rgba(244, 63, 94, 0.15);
-    color: var(--rose);
-    border: 1px solid rgba(244, 63, 94, 0.3);
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(244, 63, 94, 0.16);
+    color: #fca5a5;
+    border: 1px solid rgba(244, 63, 94, 0.35);
     margin-left: 6px;
     font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all var(--transition);
+    user-select: none;
+}
+
+.lock-tag:hover {
+    background: rgba(244, 63, 94, 0.30);
+    border-color: var(--rose);
+    color: #ffffff;
+}
+
+.form-item.is-locked {
+    cursor: pointer;
+    position: relative;
+}
+
+.form-item.is-locked label {
+    cursor: pointer;
+}
+
+.form-item.is-locked input[type="checkbox"]:disabled {
+    pointer-events: none;
+}
+
+@keyframes conflictGlow {
+    0%, 100% {
+        box-shadow: none;
+        outline: 2px solid transparent;
+    }
+    25%, 75% {
+        box-shadow: 0 0 14px rgba(245, 158, 11, 0.75);
+        outline: 2px solid var(--amber);
+        border-color: var(--amber) !important;
+    }
+}
+
+.conflict-source-highlight {
+    animation: conflictGlow 1.6s ease-in-out;
+    border-color: var(--amber) !important;
+}
+
+@keyframes lockTagPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.18); filter: brightness(1.4); }
+}
+
+.lock-pulse {
+    animation: lockTagPulse 0.35s ease-in-out 2;
 }
 
 .form-item.disabled, .form-control:disabled, input:disabled, select:disabled {

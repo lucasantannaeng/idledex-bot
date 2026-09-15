@@ -2,8 +2,8 @@
   "passed": true,
   "scope": "candidate",
   "main": "actual",
-  "checkedAt": "2026-09-15T01:24:23.668Z",
-  "candidateHash": "cee1592cf0632217861bbe69d15e0a9cfc716f814758b2c2072c904d581e9cd6",
+  "checkedAt": "2026-09-15T01:52:54.660Z",
+  "candidateHash": "ece9c54c82834c952ab4cebd6a11ff41eaa45497592e927b99799e245f520d2c",
   "runtime": "33.4.11",
   "startup": {
     "hooked": true,

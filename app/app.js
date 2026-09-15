@@ -14,6 +14,8 @@ let currentTargetSpecies = [];
 let currentTargetMode = 'all'; // 'all' | 'selected' | 'none'
 let saveRevision = 0;
 let lastRenderedMapId = "";
+let lastRenderedPinnedSpeciesKey = "";
+let currentAreaSpeciesList = [];
 let gameReady = false;
 
 function syncConfigToGame() {
@@ -160,6 +162,44 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     document.getElementById('btn-save-settings')?.addEventListener?.('click', saveBotSettings);
     document.getElementById('btn-clear-logs')?.addEventListener?.('click', clearLogs);
+
+    // Conflict interaction guidance on locked rows
+    const lockedRows = [
+        { rowId: 'row-auto-roam', inputId: 'cfg-auto-roam' },
+        { rowId: 'row-auto-idle', inputId: 'cfg-auto-idle' },
+        { rowId: 'row-auto-route-switch', inputId: 'cfg-auto-route-switch' },
+        { rowId: 'row-only-uncaught', inputId: 'cfg-only-uncaught' }
+    ];
+    for (const { rowId, inputId } of lockedRows) {
+        const rowEl = document.getElementById(rowId);
+        if (rowEl && typeof rowEl.addEventListener === 'function') {
+            rowEl.addEventListener('click', (e) => {
+                const input = document.getElementById(inputId);
+                if (input && input.disabled) {
+                    e.preventDefault();
+                    handleLockedRowInteraction(rowId, inputId);
+                }
+            });
+        }
+    }
+
+    // Real-time conflict updates when toggles or dropdowns change
+    const conflictInputs = [
+        'cfg-auto-idle',
+        'cfg-auto-roam',
+        'cfg-auto-route-switch',
+        'cfg-only-uncaught',
+        'cfg-pinned-species-1',
+        'cfg-pinned-species-2'
+    ];
+    for (const cid of conflictInputs) {
+        const cel = document.getElementById(cid);
+        if (cel && typeof cel.addEventListener === 'function') {
+            cel.addEventListener('change', () => {
+                updateConflictLocks();
+            });
+        }
+    }
 });
 
 // --- 2. TELEMETRY & DATA DISPATCH ---
@@ -405,6 +445,9 @@ function updateAreaSpawnsUI(data) {
 
     const mapId = data.currentMap || "";
     const species = Array.isArray(data.availableSpecies) ? data.availableSpecies : [];
+
+    // Dynamically update pinned species dropdowns with area species
+    populatePinnedSpeciesDropdowns(species);
 
     if (species.length === 0) {
         const emptyDiv = document.createElement('div');
@@ -953,6 +996,131 @@ function updateMinIvSum() {
     return sum;
 }
 
+function getConflictExplanation(inputId) {
+    const elIdle = document.getElementById('cfg-auto-idle');
+    const elRoam = document.getElementById('cfg-auto-roam');
+    const elSwitch = document.getElementById('cfg-auto-route-switch');
+
+    const isIdle = elIdle ? Boolean(elIdle.checked) : false;
+    const isRoam = elRoam ? Boolean(elRoam.checked) : false;
+    const isSwitch = elSwitch ? Boolean(elSwitch.checked) : false;
+
+    const sp1 = (getVal('cfg-pinned-species-1') || '').trim();
+    const sp2 = (getVal('cfg-pinned-species-2') || '').trim();
+    const rawLegacyPin = (getVal('cfg-pinned-species') || '').trim();
+    const hasPinned = Boolean(sp1 || sp2 || rawLegacyPin);
+
+    if (inputId === 'cfg-auto-roam') {
+        if (isIdle) {
+            return {
+                targetName: 'Auto-Patrulha na Grama',
+                blockingOption: 'Auto-Idle Nativo do Servidor',
+                message: 'Para ativar "Auto-Patrulha na Grama", desative primeiro a opção "Auto-Idle Nativo do Servidor".',
+                highlightIds: ['row-auto-idle', 'cfg-auto-idle'],
+                lockBadgeId: 'lock-auto-roam'
+            };
+        }
+    } else if (inputId === 'cfg-auto-idle') {
+        if (isRoam && isSwitch) {
+            return {
+                targetName: 'Auto-Idle Nativo do Servidor',
+                blockingOption: 'Auto-Patrulha e Auto-Troca de Rota',
+                message: 'Para ativar "Auto-Idle Nativo", desative primeiro as opções "Auto-Patrulha na Grama" e "Auto-Troca de Rota".',
+                highlightIds: ['row-auto-roam', 'row-auto-route-switch', 'cfg-auto-roam', 'cfg-auto-route-switch'],
+                lockBadgeId: 'lock-auto-idle'
+            };
+        } else if (isRoam) {
+            return {
+                targetName: 'Auto-Idle Nativo do Servidor',
+                blockingOption: 'Auto-Patrulha na Grama',
+                message: 'Para ativar "Auto-Idle Nativo", desative primeiro a opção "Auto-Patrulha na Grama".',
+                highlightIds: ['row-auto-roam', 'cfg-auto-roam'],
+                lockBadgeId: 'lock-auto-idle'
+            };
+        } else if (isSwitch) {
+            return {
+                targetName: 'Auto-Idle Nativo do Servidor',
+                blockingOption: 'Auto-Troca de Rota',
+                message: 'Para ativar "Auto-Idle Nativo", desative primeiro a opção "Auto-Troca de Rota".',
+                highlightIds: ['row-auto-route-switch', 'cfg-auto-route-switch'],
+                lockBadgeId: 'lock-auto-idle'
+            };
+        }
+    } else if (inputId === 'cfg-auto-route-switch') {
+        if (hasPinned) {
+            return {
+                targetName: 'Auto-Troca de Rota',
+                blockingOption: 'Fixar Espécie (Farming IV)',
+                message: 'Para ativar "Auto-Troca de Rota", desative primeiro "Fixar Espécie (Farming IV)" (selecione "Nenhuma").',
+                highlightIds: ['cfg-pinned-species-1', 'cfg-pinned-species-2'],
+                lockBadgeId: 'lock-auto-route-switch'
+            };
+        } else if (isIdle) {
+            return {
+                targetName: 'Auto-Troca de Rota',
+                blockingOption: 'Auto-Idle Nativo do Servidor',
+                message: 'Para ativar "Auto-Troca de Rota", desative primeiro a opção "Auto-Idle Nativo do Servidor".',
+                highlightIds: ['row-auto-idle', 'cfg-auto-idle'],
+                lockBadgeId: 'lock-auto-route-switch'
+            };
+        }
+    } else if (inputId === 'cfg-only-uncaught') {
+        if (hasPinned) {
+            return {
+                targetName: 'Capturar Apenas Não Registrados',
+                blockingOption: 'Fixar Espécie (Farming IV)',
+                message: 'Para ativar "Capturar Apenas Não Registrados", desative primeiro "Fixar Espécie (Farming IV)" (selecione "Nenhuma").',
+                highlightIds: ['cfg-pinned-species-1', 'cfg-pinned-species-2'],
+                lockBadgeId: 'lock-only-uncaught'
+            };
+        }
+    }
+    return null;
+}
+
+function handleLockedRowInteraction(rowId, inputId) {
+    const input = document.getElementById(inputId);
+    if (!input || !input.disabled) return false;
+
+    const conflict = getConflictExplanation(inputId);
+    if (!conflict) return false;
+
+    if (conflict.message) {
+        appendLog(`⚠️ [CONFLITO] ${conflict.message}`, 'warning');
+    }
+
+    if (conflict.lockBadgeId) {
+        const lockBadge = document.getElementById(conflict.lockBadgeId);
+        if (lockBadge && typeof lockBadge.classList?.remove === 'function') {
+            lockBadge.classList.remove('lock-pulse');
+            void (lockBadge.offsetWidth || 0);
+            lockBadge.classList.add('lock-pulse');
+            setTimeout(() => {
+                try { lockBadge.classList?.remove?.('lock-pulse'); } catch (_) {}
+            }, 1200);
+        }
+    }
+
+    if (Array.isArray(conflict.highlightIds)) {
+        for (const hid of conflict.highlightIds) {
+            const el = document.getElementById(hid);
+            if (el && typeof el.classList?.remove === 'function') {
+                el.classList.remove('conflict-source-highlight');
+                void (el.offsetWidth || 0);
+                el.classList.add('conflict-source-highlight');
+                if (typeof el.scrollIntoView === 'function') {
+                    try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
+                }
+                setTimeout(() => {
+                    try { el.classList?.remove?.('conflict-source-highlight'); } catch (_) {}
+                }, 2000);
+            }
+        }
+    }
+
+    return true;
+}
+
 function updateConflictLocks() {
     const elIdle = document.getElementById('cfg-auto-idle');
     const elRoam = document.getElementById('cfg-auto-roam');
@@ -963,6 +1131,11 @@ function updateConflictLocks() {
     const lockSwitch = document.getElementById('lock-auto-route-switch');
     const lockUncaught = document.getElementById('lock-only-uncaught');
     const badgeFarming = document.getElementById('badge-farming-active');
+
+    const rowIdle = document.getElementById('row-auto-idle');
+    const rowRoam = document.getElementById('row-auto-roam');
+    const rowSwitch = document.getElementById('row-auto-route-switch');
+    const rowUncaught = document.getElementById('row-only-uncaught');
 
     const sp1 = (getVal('cfg-pinned-species-1') || '').trim();
     const sp2 = (getVal('cfg-pinned-species-2') || '').trim();
@@ -983,24 +1156,44 @@ function updateConflictLocks() {
             elSwitch.checked = false;
             elSwitch.disabled = true;
         }
-        if (lockSwitch?.style) {
-            lockSwitch.textContent = '🔒 Farming';
-            lockSwitch.style.display = 'inline';
+        if (lockSwitch) {
+            lockSwitch.textContent = '🔒 Desative "Fixar Espécie"';
+            lockSwitch.title = 'Desative "Fixar Espécie (Farming IV)" para habilitar a Auto-Troca de Rota.';
+            if (lockSwitch.style) lockSwitch.style.display = 'inline-flex';
         }
+        if (rowSwitch) {
+            rowSwitch.classList?.add?.('is-locked');
+            rowSwitch.title = 'Desative "Fixar Espécie (Farming IV)" para habilitar a Auto-Troca de Rota.';
+        }
+
         if (elUncaught) {
             elUncaught.checked = false;
             elUncaught.disabled = true;
         }
-        if (lockUncaught?.style) {
-            lockUncaught.style.display = 'inline';
+        if (lockUncaught) {
+            lockUncaught.textContent = '🔒 Desative "Fixar Espécie"';
+            lockUncaught.title = 'Desative "Fixar Espécie (Farming IV)" para habilitar a captura apenas de não registrados.';
+            if (lockUncaught.style) lockUncaught.style.display = 'inline-flex';
+        }
+        if (rowUncaught) {
+            rowUncaught.classList?.add?.('is-locked');
+            rowUncaught.title = 'Desative "Fixar Espécie (Farming IV)" para habilitar a captura apenas de não registrados.';
         }
     } else {
         if (lockUncaught?.style) lockUncaught.style.display = 'none';
         if (elUncaught) elUncaught.disabled = false;
+        if (rowUncaught) {
+            rowUncaught.classList?.remove?.('is-locked');
+            if (typeof rowUncaught.removeAttribute === 'function') rowUncaught.removeAttribute('title');
+        }
 
         if (!isIdle) {
             if (elSwitch) elSwitch.disabled = false;
             if (lockSwitch?.style) lockSwitch.style.display = 'none';
+            if (rowSwitch) {
+                rowSwitch.classList?.remove?.('is-locked');
+                if (typeof rowSwitch.removeAttribute === 'function') rowSwitch.removeAttribute('title');
+            }
         }
     }
 
@@ -1010,37 +1203,97 @@ function updateConflictLocks() {
             elRoam.checked = false;
             elRoam.disabled = true;
         }
-        if (lockRoam?.style) lockRoam.style.display = 'inline';
+        if (lockRoam) {
+            lockRoam.textContent = '🔒 Desative "Auto-Idle"';
+            lockRoam.title = 'Desative "Auto-Idle Nativo do Servidor" para habilitar a Auto-Patrulha na Grama.';
+            if (lockRoam.style) lockRoam.style.display = 'inline-flex';
+        }
+        if (rowRoam) {
+            rowRoam.classList?.add?.('is-locked');
+            rowRoam.title = 'Desative "Auto-Idle Nativo do Servidor" para habilitar a Auto-Patrulha na Grama.';
+        }
+
         if (elSwitch) {
             elSwitch.checked = false;
             elSwitch.disabled = true;
         }
-        if (lockSwitch?.style) {
-            lockSwitch.textContent = '🔒 Auto-Idle';
-            lockSwitch.style.display = 'inline';
+        if (lockSwitch) {
+            lockSwitch.textContent = '🔒 Desative "Auto-Idle"';
+            lockSwitch.title = 'Desative "Auto-Idle Nativo do Servidor" para habilitar a Auto-Troca de Rota.';
+            if (lockSwitch.style) lockSwitch.style.display = 'inline-flex';
         }
+        if (rowSwitch) {
+            rowSwitch.classList?.add?.('is-locked');
+            rowSwitch.title = 'Desative "Auto-Idle Nativo do Servidor" para habilitar a Auto-Troca de Rota.';
+        }
+
         if (elIdle) elIdle.disabled = false;
         if (lockIdle?.style) lockIdle.style.display = 'none';
+        if (rowIdle) {
+            rowIdle.classList?.remove?.('is-locked');
+            if (typeof rowIdle.removeAttribute === 'function') rowIdle.removeAttribute('title');
+        }
     } else if (isRoam || isSwitch) {
         if (elIdle) {
             elIdle.checked = false;
             elIdle.disabled = true;
         }
-        if (lockIdle?.style) lockIdle.style.display = 'inline';
+        let idleConflictText = '🔒 Desative "Auto-Patrulha"';
+        let idleConflictTitle = 'Desative "Auto-Patrulha na Grama" para habilitar o Auto-Idle Nativo.';
+        if (isRoam && isSwitch) {
+            idleConflictText = '🔒 Desative "Patrulha / Rota"';
+            idleConflictTitle = 'Desative "Auto-Patrulha na Grama" e "Auto-Troca de Rota" para habilitar o Auto-Idle Nativo.';
+        } else if (isSwitch) {
+            idleConflictText = '🔒 Desative "Troca de Rota"';
+            idleConflictTitle = 'Desative "Auto-Troca de Rota" para habilitar o Auto-Idle Nativo.';
+        }
+        if (lockIdle) {
+            lockIdle.textContent = idleConflictText;
+            lockIdle.title = idleConflictTitle;
+            if (lockIdle.style) lockIdle.style.display = 'inline-flex';
+        }
+        if (rowIdle) {
+            rowIdle.classList?.add?.('is-locked');
+            rowIdle.title = idleConflictTitle;
+        }
+
         if (elRoam) elRoam.disabled = false;
         if (lockRoam?.style) lockRoam.style.display = 'none';
+        if (rowRoam) {
+            rowRoam.classList?.remove?.('is-locked');
+            if (typeof rowRoam.removeAttribute === 'function') rowRoam.removeAttribute('title');
+        }
+
         if (!hasPinned) {
             if (elSwitch) elSwitch.disabled = false;
             if (lockSwitch?.style) lockSwitch.style.display = 'none';
+            if (rowSwitch) {
+                rowSwitch.classList?.remove?.('is-locked');
+                if (typeof rowSwitch.removeAttribute === 'function') rowSwitch.removeAttribute('title');
+            }
         }
     } else {
         if (elIdle) elIdle.disabled = false;
         if (lockIdle?.style) lockIdle.style.display = 'none';
+        if (rowIdle) {
+            rowIdle.classList?.remove?.('is-locked');
+            if (typeof rowIdle.removeAttribute === 'function') rowIdle.removeAttribute('title');
+        }
+
         if (elRoam) elRoam.disabled = false;
         if (lockRoam?.style) lockRoam.style.display = 'none';
+        if (rowRoam) {
+            rowRoam.classList?.remove?.('is-locked');
+            if (typeof rowRoam.removeAttribute === 'function') rowRoam.removeAttribute('title');
+        }
+
         if (!hasPinned) {
             if (elSwitch) elSwitch.disabled = false;
             if (lockSwitch?.style) lockSwitch.style.display = 'none';
+            if (rowSwitch) {
+                rowSwitch.classList?.remove?.('is-locked');
+                if (typeof rowSwitch.removeAttribute === 'function') rowSwitch.removeAttribute('title');
+            }
         }
     }
 }
@@ -1050,6 +1303,11 @@ function populatePinnedSpeciesDropdowns(availableSpecies) {
     const sel1 = document.getElementById('cfg-pinned-species-1');
     const sel2 = document.getElementById('cfg-pinned-species-2');
     if (!sel1 || !sel2) return;
+
+    // Do not rebuild while user is actively interacting with the select dropdown
+    if (typeof document !== 'undefined' && (document.activeElement === sel1 || document.activeElement === sel2)) {
+        return;
+    }
 
     const val1 = (sel1.value || '').toLowerCase().trim();
     const val2 = (sel2.value || '').toLowerCase().trim();
@@ -1061,12 +1319,26 @@ function populatePinnedSpeciesDropdowns(availableSpecies) {
         const name = typeof sp === 'string' ? sp : (sp.name || sp.speciesId || '');
         const id = typeof sp === 'string' ? sp : (sp.speciesId || sp.name || '');
         const canonical = (name || id).trim();
-        const key = canonical.toLowerCase();
+        const key = (id || name).trim().toLowerCase();
         if (canonical && !seen.has(key)) {
             seen.add(key);
             speciesList.push({ name: canonical, value: key });
         }
     }
+
+    // Sort species alphabetically by name for clean UX
+    speciesList.sort((a, b) => a.name.localeCompare(b.name));
+
+    const speciesKey = speciesList.map(s => s.value).sort().join('|');
+    const fullKey = `${speciesKey}::${val1}::${val2}`;
+    const optCount1 = sel1.options ? sel1.options.length : (sel1.children ? sel1.children.length : 0);
+    const optCount2 = sel2.options ? sel2.options.length : (sel2.children ? sel2.children.length : 0);
+
+    // Throttle: skip DOM re-render if identical species and selection are already rendered
+    if (fullKey === lastRenderedPinnedSpeciesKey && (optCount1 > 1 || optCount2 > 1)) {
+        return;
+    }
+    lastRenderedPinnedSpeciesKey = fullKey;
 
     const buildOptions = (currentVal, placeholder) => {
         const frag = document.createDocumentFragment();
@@ -1449,4 +1721,6 @@ window.setIvModeUI = setIvModeUI;
 window.updateMinIvSum = updateMinIvSum;
 window.updateConflictLocks = updateConflictLocks;
 window.populatePinnedSpeciesDropdowns = populatePinnedSpeciesDropdowns;
+window.getConflictExplanation = getConflictExplanation;
+window.handleLockedRowInteraction = handleLockedRowInteraction;
 window.triggerBoxCleanup = triggerBoxCleanup;

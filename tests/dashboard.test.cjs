@@ -369,4 +369,44 @@ test('T22: cfg-min-quality is loaded into DOM, saved into configuration and pass
     assert.equal(app.sent.at(-1).payload.min_quality, 'excellent');
 });
 
+test('T23: conflict explanation accurately signals blocking options to disable', async () => {
+    const app = dashboard({ enabled: false });
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+
+    // 1. Auto-roam locked by Auto-idle
+    app.inputs.get('cfg-auto-idle').checked = true;
+    app.inputs.get('cfg-auto-roam').checked = false;
+    app.window.updateConflictLocks();
+
+    const roamConflict = app.window.getConflictExplanation('cfg-auto-roam');
+    assert.ok(roamConflict, 'Conflict explanation must be provided for locked auto-roam');
+    assert.equal(roamConflict.blockingOption, 'Auto-Idle Nativo do Servidor');
+    assert.ok(roamConflict.message.includes('Auto-Idle Nativo do Servidor'));
+
+    // 2. Auto-idle locked by Auto-roam
+    app.inputs.get('cfg-auto-idle').checked = false;
+    app.inputs.get('cfg-auto-roam').checked = true;
+    app.inputs.get('cfg-auto-route-switch').checked = false;
+    app.window.updateConflictLocks();
+
+    const idleConflict = app.window.getConflictExplanation('cfg-auto-idle');
+    assert.ok(idleConflict, 'Conflict explanation must be provided for locked auto-idle');
+    assert.equal(idleConflict.blockingOption, 'Auto-Patrulha na Grama');
+    assert.ok(idleConflict.message.includes('Auto-Patrulha na Grama'));
+
+    // 3. Auto-route-switch and only-uncaught locked by Pinned species
+    app.inputs.get('cfg-pinned-species-1').value = 'pikachu';
+    app.window.updateConflictLocks();
+
+    const switchConflict = app.window.getConflictExplanation('cfg-auto-route-switch');
+    assert.ok(switchConflict, 'Conflict explanation must be provided for locked auto-route-switch');
+    assert.equal(switchConflict.blockingOption, 'Fixar Espécie (Farming IV)');
+
+    const uncaughtConflict = app.window.getConflictExplanation('cfg-only-uncaught');
+    assert.ok(uncaughtConflict, 'Conflict explanation must be provided for locked only-uncaught');
+    assert.equal(uncaughtConflict.blockingOption, 'Fixar Espécie (Farming IV)');
+});
+
+
 

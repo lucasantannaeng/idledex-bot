@@ -1,9 +1,9 @@
 {
-  "checkedAt": "2026-09-15T01:24:31.844Z",
+  "checkedAt": "2026-09-15T01:53:03.740Z",
   "version": "2.5.0",
   "sourceMatchesDistribution": true,
   "candidatePath": "dist-release/win-unpacked/resources/app",
-  "candidateHash": "cee1592cf0632217861bbe69d15e0a9cfc716f814758b2c2072c904d581e9cd6",
+  "candidateHash": "ece9c54c82834c952ab4cebd6a11ff41eaa45497592e927b99799e245f520d2c",
   "shippedFileCount": 17,
   "hashes": {
     "electron/account-session.js": "feadf88e62ae9da2474bff50d205018e3d018b1f19c1e7036dbaa287275929de",
@@ -17,18 +17,18 @@
     "electron/preload-game.js": "e63dde5d109734ceb204ea249fe3c8eb6f21ad38dd4c115fd491b75ff71124e1",
     "electron/tray-icon.ico": "927ee25d59681a2ac4afec9e586b7bbf9b8ceb87528be1d14cc4e5aa5b6dcf0f",
     "electron/tray-icon.png": "8c8f7cd81237ad15cac46d11a5f0f1324aa4fdd5d9b531b7e84330575ff2d5e3",
-    "app/app.js": "79225f3a24bf7e27001257a9ca54ec4663584f324458e551bc891358d03ed946",
+    "app/app.js": "ff7d8a77bbcbe1504f42eb0a8171f424712847c1d103056f87c6f9a65368b4de",
     "app/help.js": "1dc460a18ae81084d9710fee766a99eaf1e386d296b46630d952e93308382068",
     "app/icon.png": "66c6b57ddff4a6f8a27736770f4c9087ffa4c3aee6ad6f14847c480e71bf9296",
-    "app/index.html": "2c717e33533bf0aef5d11fd69c5619097f8b472fadaac03abf33940141d0f0cb",
-    "app/styles.css": "efb6bcf920463eb13dd2ac52d4a0bdc7e1ee499e8ad1a735b78b3ab51c8055d3"
+    "app/index.html": "c3caba347afeec2fef5185f2e4f6a8078b667dce40b3df8c5ea58b7bab4e5729",
+    "app/styles.css": "6a61b3f54eb4818af5d05cc06cd11d2a10a5790efaf44453e5f61868eb5373d0"
   },
   "smoke": {
     "passed": true,
     "scope": "candidate",
     "main": "actual",
-    "checkedAt": "2026-09-15T01:24:23.668Z",
-    "candidateHash": "cee1592cf0632217861bbe69d15e0a9cfc716f814758b2c2072c904d581e9cd6",
+    "checkedAt": "2026-09-15T01:52:54.660Z",
+    "candidateHash": "ece9c54c82834c952ab4cebd6a11ff41eaa45497592e927b99799e245f520d2c",
     "runtime": "33.4.11",
     "startup": {
       "hooked": true,

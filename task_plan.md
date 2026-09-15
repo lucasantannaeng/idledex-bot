@@ -421,6 +421,23 @@ Este fechamento atualiza o status das pendências da seção Auditoria Codex. Fa
   - Smoke test do Electron aprovado com isolamento de contexto e sandbox (`research/smoke-result.json`).
   - Verificação de integridade de release (`research/verify-release.cjs` com 17 arquivos validados).
   - Compilação dos binários finais: Portable (`IdleDex_Desktop_Portable_2.5.0.exe`) e Installer (`IdleDex_Desktop_Setup_2.5.0.exe`).
-
-
+## Fase 23: Limpeza de UI do Radar, Sinalização Interativa de Conflitos e Dropdowns Dinâmicos da Área
+- [x] 23.1 Limpeza do Painel Radar (`app/index.html`):
+  - Remoção completa do card órfão de redirecionamento `📍 Rota & Spawns` (`#btn-goto-config-spawns`, `#current-map-badge-radar`, `#radar-spawns-summary`), mantendo a aba Radar enxuta e focada exclusivamente no Mini-Radar canvas e na lista de Criaturas Próximas Detectadas.
+- [x] 23.2 Sinalização Ativa de Opções em Conflito (`app/app.js`, `app/styles.css`, `app/index.html`):
+  - Textos explícitos e sem ambiguidades nas badges de bloqueio: `🔒 Desative "Fixar Espécie"`, `🔒 Desative "Auto-Idle"`, `🔒 Desative "Auto-Patrulha"`, `🔒 Desative "Troca de Rota"`.
+  - Tooltips nativos (`title`) detalhados tanto na badge de trava quanto no container da linha e label.
+  - Interação por clique em linhas/toggles bloqueados: disparado log explicativo imediato (`⚠️ [CONFLITO] Para ativar "X", desative primeiro a opção "Y"`), pulso visual na badge (`.lock-pulse`) e destaque com brilho âmbar pulsante (`.conflict-source-highlight`) na opção bloqueadora.
+  - Atualização reativa em tempo real: mudança em qualquer toggle ou dropdown de conflito recalcula e aplica imediatamente os bloqueios em tela.
+- [x] 23.3 Dropdowns Dinâmicos de Espécies da Área em Fixar Espécie (`app/app.js`):
+  - Conexão de `populatePinnedSpeciesDropdowns(species)` no recebimento de telemetria da área (`updateAreaSpawnsUI`).
+  - População dinâmica de `#cfg-pinned-species-1` e `#cfg-pinned-species-2` com as criaturas reais detectadas na rota atual, ordenadas alfabeticamente.
+  - Preservação da seleção ativa do usuário e opções salvas fora de rota (`(Salvo)`).
+  - Throttling e proteção contra fechamento acidental: verificação de foco ativo (`document.activeElement`) e chave canônica de espécies para evitar repinturas desnecessárias de DOM durante a navegação.
+- [x] 23.4 Validação, Testes Automatizados & Empacotamento:
+  - 167 testes unitários passando 100% (Node.js test runner).
+  - Testes T23 adicionados em `tests/dashboard.test.cjs` e `tests/dashboard-dom.test.cjs`.
+  - Electron Smoke Test aprovado (`research/smoke-result.json`).
+  - Verificação de release aprovada com 17 arquivos e integridade de hash (`research/verify-release.cjs`).
+  - Executáveis recompilados com sucesso: `dist-release/IdleDex_Desktop_Portable_2.5.0.exe` e `dist-release/IdleDex_Desktop_Setup_2.5.0.exe`.
 
