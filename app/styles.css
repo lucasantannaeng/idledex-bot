@@ -503,6 +503,14 @@ h1, h2, h3, h4, h5, h6, .card-title, .form-section-title {
     color: var(--rose);
 }
 
+/* QUALITY TIERS (Official in-game quality styling) */
+.badge.q-fair { background: #4b5563; color: #fff; }
+.badge.q-good { background: #3b82f6; color: #fff; }
+.badge.q-great { background: var(--cyan); color: #000; }
+.badge.q-excellent { background: var(--purple); color: #fff; }
+.badge.q-superb { background: var(--amber); color: #000; }
+.badge.q-perfect { background: linear-gradient(135deg, #10b981, #06b6d4); color: #000; box-shadow: 0 0 6px rgba(16, 185, 129, 0.4); }
+
 /* CUSTOM SCROLLBARS */
 ::-webkit-scrollbar {
     width: 4px;

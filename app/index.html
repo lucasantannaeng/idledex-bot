@@ -129,7 +129,10 @@
                     <div class="card" id="card-last-capture">
                         <div class="card-header">
                             <span class="card-title">🎯 Avaliação da Última Captura</span>
-                            <span id="last-cap-grade" class="badge" style="background:var(--cyan); color:#000; font-weight:bold; font-size:0.75rem; padding:2px 6px; border-radius:4px;">Sem Capturas</span>
+                            <div style="display:flex; gap:4px; align-items:center;">
+                                <span id="last-cap-quality" class="badge" style="display:none; font-weight:bold; font-size:0.75rem; padding:2px 6px; border-radius:4px;"></span>
+                                <span id="last-cap-grade" class="badge" style="background:var(--cyan); color:#000; font-weight:bold; font-size:0.75rem; padding:2px 6px; border-radius:4px;">Sem Capturas</span>
+                            </div>
                         </div>
                         <div id="last-cap-body" style="font-size:0.78rem; line-height:1.5; color:var(--text-muted); margin-top:6px;">
                             Aguardando captura para avaliar IVs e Nature competitiva.
@@ -415,6 +418,19 @@
                                     <option value="sassy">Sassy (+SpD, -Spe)</option>
                                     <option value="naive">Naive (+Spe, -SpD)</option>
                                     <option value="hasty">Hasty (+Spe, -Def)</option>
+                                </select>
+                            </div>
+
+                            <!-- NOTA / QUALIDADE OFICIAL DO JOGO -->
+                            <div class="form-item">
+                                <label>Nota Mínima (Qualidade do Jogo)</label>
+                                <select id="cfg-min-quality" class="form-control" style="width:165px; font-size:0.72rem;">
+                                    <option value="any">Qualquer nota (Desativado)</option>
+                                    <option value="good">Bom (500+ / 2★)</option>
+                                    <option value="great">Ótimo (800+ / 3★)</option>
+                                    <option value="excellent">Excelente (940+ / 4★)</option>
+                                    <option value="superb">Excepcional (990+ / 5★)</option>
+                                    <option value="perfect">Perfeito (1000 / 6★)</option>
                                 </select>
                             </div>
 

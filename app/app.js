@@ -572,7 +572,26 @@ async function saveAreaSettings() {
 function updateLastCaptureUI(mon) {
     if (!mon) return;
     const gradeBadge = document.getElementById('last-cap-grade');
+    const qualityBadge = document.getElementById('last-cap-quality');
     const bodyEl = document.getElementById('last-cap-body');
+
+    if (qualityBadge) {
+        const qualityScore = Number.isFinite(mon.quality) ? mon.quality : (Number.isFinite(mon.qualitySelf?.score) ? mon.qualitySelf.score : null);
+        if (qualityScore !== null && qualityScore >= 0) {
+            let qTier = 'fair';
+            let qLabel = 'Razoável 1★';
+            if (qualityScore >= 1000) { qTier = 'perfect'; qLabel = 'Perfeito 6★'; }
+            else if (qualityScore >= 990) { qTier = 'superb'; qLabel = 'Excepcional 5★'; }
+            else if (qualityScore >= 940) { qTier = 'excellent'; qLabel = 'Excelente 4★'; }
+            else if (qualityScore >= 800) { qTier = 'great'; qLabel = 'Ótimo 3★'; }
+            else if (qualityScore >= 500) { qTier = 'good'; qLabel = 'Bom 2★'; }
+            qualityBadge.textContent = qLabel;
+            qualityBadge.className = `badge q-${qTier}`;
+            qualityBadge.style.display = 'inline-block';
+        } else {
+            qualityBadge.style.display = 'none';
+        }
+    }
 
     if (gradeBadge) {
         gradeBadge.textContent = `Grau ${mon.grade || 'C'}`;
@@ -1161,6 +1180,7 @@ function applyConfigToInputs(cfg) {
     updateMinIvSum();
 
     setVal('cfg-desired-nature', (cfg.desired_nature || 'any').toLowerCase().trim());
+    setVal('cfg-min-quality', (cfg.min_quality || 'any').toLowerCase().trim());
     setCheck('cfg-auto-box-cleanup', !!cfg.auto_box_cleanup);
 
     setCheck('cfg-pause-no-balls', cfg.pause_on_no_balls !== false);
@@ -1288,6 +1308,7 @@ async function saveBotSettings() {
         iv_evaluation_mode: ivMode,
         min_ivs: minIvs,
         desired_nature: (getVal('cfg-desired-nature') || 'any').toLowerCase().trim(),
+        min_quality: (getVal('cfg-min-quality') || 'any').toLowerCase().trim(),
         auto_box_cleanup: getCheck('cfg-auto-box-cleanup'),
         discard_iv_pct: getNumber('cfg-discard-iv-pct', 50),
         pause_on_no_balls: getCheck('cfg-pause-no-balls'),

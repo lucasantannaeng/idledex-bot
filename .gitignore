@@ -19,6 +19,7 @@ research/previous-runtime/
 node_modules/
 *.log
 _agy_prompt.txt
+scratch/
 
 # Unignore electron project sources (overriding global .gitignore)
 !electron/

@@ -117,4 +117,17 @@ test('Phase 21: pinned_species supports up to 2 species and locks conflicting se
     assert.deepEqual(comma.pinned_species, ['mawile', 'sableye']);
 });
 
+test('Phase 22: min_quality accepts official tiers and sanitizes invalid values', () => {
+    assert.equal(DEFAULT_CONFIG.min_quality, 'any');
+    assert.equal(normalizeConfig({}).min_quality, 'any');
+    assert.equal(normalizeConfig({ min_quality: 'good' }).min_quality, 'good');
+    assert.equal(normalizeConfig({ min_quality: 'GREAT' }).min_quality, 'great');
+    assert.equal(normalizeConfig({ min_quality: 'excellent' }).min_quality, 'excellent');
+    assert.equal(normalizeConfig({ min_quality: 'superb' }).min_quality, 'superb');
+    assert.equal(normalizeConfig({ min_quality: 'perfect' }).min_quality, 'perfect');
+    assert.equal(normalizeConfig({ min_quality: 'invalid_tier' }).min_quality, 'any');
+    assert.equal(normalizeConfig({ min_quality: 999 }).min_quality, 'any');
+});
+
+
 

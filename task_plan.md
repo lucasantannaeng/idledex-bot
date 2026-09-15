@@ -401,4 +401,26 @@ Este fechamento atualiza o status das pendências da seção Auditoria Codex. Fa
   - Executar `npm test`, `python -m unittest discover tests` e smoke test real do Electron.
   - Reempacotar e validar release candidate (`research/verify-release.cjs` e executáveis).
 
+## Fase 22: Integração Oficial do Sistema de Nota / Qualidade do Jogo (Quality 0-1000)
+- [x] 22.1 Engenharia Reversa do Pacote Oficial do Jogo (`index-Ykq_gMSa.js`):
+  - Identificação de `creature.quality` (inteiro de 0 a 1000) e percentil (`Math.floor(quality / 10)`).
+  - Mapeamento das 6 faixas oficiais: Razoável 1★ (0), Bom 2★ (500), Ótimo 3★ (800), Excelente 4★ (940), Excepcional 5★ (990), Perfeito 6★ (1000).
+- [x] 22.2 Schema & Normalização (`electron/config-schema.js` & `tests/config-schema.test.cjs`):
+  - Adição de `min_quality` ('any'|'good'|'great'|'excellent'|'superb'|'perfect') com default 'any'.
+- [x] 22.3 Interface do Dashboard & Ajuda Contextual (`app/index.html`, `app/styles.css`, `app/help.js`, `app/app.js`):
+  - Dropdown `#cfg-min-quality` sob Critérios de IV, Nature & Descarte.
+  - Badge dinâmica de nota `#last-cap-quality` no card de última captura com estilização por faixa (`.q-fair` a `.q-perfect`).
+  - Tópico de ajuda completo no painel lateral para `#cfg-min-quality`.
+- [x] 22.4 Motor de Execução no Jogo (`electron/preload-game.js`):
+  - Operador lógico OR em `monMatchesKeepCriteria`: criatura é mantida se atender `min_quality` OU satisfizer critérios de IV/Nature.
+  - Salvaguardas em `isProtectedCreature` e `isDonatableCreature`: criaturas com nota igual ou superior à configurada são excluídas de descarte e protegidas de doações a NPCs (Carvalho / Colecionador).
+  - Auto-bloqueio (`auto_lock_valuable`): bloqueio automático na captura de criaturas que alcancem `min_quality`.
+  - Telemetria de captura expandida com nota, estrelas e percentil oficial.
+- [x] 22.5 Validação, Testes Automatizados & Empacotamento:
+  - Suíte de testes atualizada: 165 testes unitários passando 100% (Node + Python).
+  - Smoke test do Electron aprovado com isolamento de contexto e sandbox (`research/smoke-result.json`).
+  - Verificação de integridade de release (`research/verify-release.cjs` com 17 arquivos validados).
+  - Compilação dos binários finais: Portable (`IdleDex_Desktop_Portable_2.5.0.exe`) e Installer (`IdleDex_Desktop_Setup_2.5.0.exe`).
+
+
 

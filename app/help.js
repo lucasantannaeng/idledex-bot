@@ -116,6 +116,11 @@ const HELP_TOPICS = [
         'Melhores Natures (Smogon) mantém apenas naturezas competitivas populares que aumentam atributos ofensivos ou defensivos sem penalizar a velocidade (como Adamant, Jolly, Modest, Timid, Bold, Impish, Calm e Careful).',
         'Selecionar uma natureza específica (ex: Adamant ou Modest) restringe a retenção exclusivamente a essa natureza. Criaturas com naturezas diferentes serão elegíveis para descarte ou limpeza da Box, exceto se protegidas pelas salvaguardas invioláveis.'
     ]],
+    ['cfg-min-quality', 'Nota mínima oficial do jogo', 'Filtra capturas e limpeza de box pela pontuação oficial de qualidade.', [
+        'O jogo oficial avalia cada criatura em uma escala de 0 a 1000 com 6 faixas: Razoável (0+ / 1★), Bom (500+ / 2★), Ótimo (800+ / 3★), Excelente (940+ / 4★), Excepcional (990+ / 5★) e Perfeito (1000 / 6★).',
+        'Selecione a faixa mínima desejada. No Modo Proteção (OU), qualquer criatura que atingir esta qualidade é mantida automaticamente, mesmo que não cumpra os filtros estritos de IV ou Natureza.',
+        'Criaturas com esta qualidade também recebem proteção contra sacrifício/entrega para NPCs (Professor e Colecionador) e podem ser travadas automaticamente se o Auto-Lock estiver ativo.'
+    ]],
     ['cfg-auto-box-cleanup', 'Modo limpeza de box', 'Libera criaturas excedentes da Box que não atendem aos critérios de IV e Natureza.', [
         'O botão Executar Limpeza de Box Agora inicia imediatamente uma varredura nas criaturas armazenadas na Box (fora da equipe ativa). Criaturas que não atenderem ao modo de IV e ao filtro de Natureza configurados são liberadas.',
         'Auto-Limpeza de Box Periódica executa essa mesma varredura de forma contínua em segundo plano a cada 2 minutos enquanto o bot estiver em execução.',

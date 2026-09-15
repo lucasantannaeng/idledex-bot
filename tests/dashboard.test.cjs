@@ -354,3 +354,19 @@ test('T21: IV mode, individual minimums, nature filter, and box cleanup trigger'
     assert.ok(cleanupCmd, 'triggerBoxCleanup must dispatch cleanup-box manual action to gameView');
 });
 
+test('T22: cfg-min-quality is loaded into DOM, saved into configuration and passed to gameView', async () => {
+    const app = dashboard({ enabled: false, min_quality: 'good' });
+    await app.events.DOMContentLoaded();
+    app.events['dom-ready']();
+
+    assert.equal(app.inputs.get('cfg-min-quality').value, 'good');
+
+    app.inputs.get('cfg-min-quality').value = 'excellent';
+    await app.window.saveBotSettings();
+
+    const lastSaved = app.saved.at(-1);
+    assert.equal(lastSaved.min_quality, 'excellent');
+    assert.equal(app.sent.at(-1).payload.min_quality, 'excellent');
+});
+
+

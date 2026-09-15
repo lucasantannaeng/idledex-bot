@@ -1062,3 +1062,131 @@ test('T21: Box cleanup respects individual IV minimums and nature filters', () =
     assert.strictEqual(releaseEvents[0].d.creatureIds.includes('pidg-3'), false, 'pidg-3 passes all criteria and must NOT be released');
 });
 
+test('T22: Box cleanup keeps creatures meeting min_quality even if IV and nature do not match (Logical OR)', () => {
+    const engine = createEngine();
+    const socket = engine.socket(); socket.open();
+    socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
+    engine.configure({
+        enabled: true,
+        iv_evaluation_mode: 'percent',
+        discard_iv_pct: 80,
+        desired_nature: 'adamant',
+        min_quality: 'good', // 500+ / 2★
+        protect_last_copy: true,
+    });
+
+    socket.message({ t: 'team', d: { creatures: [
+        { id: 'leader', name: 'Charizard', speciesId: 6, teamSlot: 0, isLeader: true, hp: 100, maxHp: 100, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 } },
+        // Candidate 1: low IV (16%), wrong nature (modest), but high quality (850 - great) -> KEEP (meets min_quality)!
+        { id: 'geo-1', name: 'Geodude', speciesId: 74, teamSlot: null, boxSlot: 0, nature: 'modest', quality: 850, ivs: { hp: 5, atk: 5, def: 5, spa: 5, spd: 5, spe: 5 } },
+        // Candidate 2: high IV (90%), right nature (adamant), but low quality (200 - fair) -> KEEP (meets IV/Nature)!
+        { id: 'geo-2', name: 'Geodude', speciesId: 74, teamSlot: null, boxSlot: 1, nature: 'adamant', quality: 200, ivs: { hp: 28, atk: 28, def: 28, spa: 28, spd: 28, spe: 28 } },
+        // Candidate 3: low IV (16%), wrong nature (timid), and low quality (350 - fair) -> DISCARD (fails BOTH)!
+        { id: 'geo-3', name: 'Geodude', speciesId: 74, teamSlot: null, boxSlot: 2, nature: 'timid', quality: 350, ivs: { hp: 5, atk: 5, def: 5, spa: 5, spd: 5, spe: 5 } },
+    ] } });
+
+    engine.command('manual-action', { action: 'cleanup-box' });
+
+    const releaseEvents = socket.sent.filter(c => c.t === 'creature:release');
+    assert.strictEqual(releaseEvents.length, 1);
+    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('geo-1'), false, 'geo-1 meets min_quality and must be KEPT');
+    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('geo-2'), false, 'geo-2 meets IV/nature criteria and must be KEPT');
+    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('geo-3'), true, 'geo-3 fails both criteria and must be released');
+});
+
+test('T22: Box cleanup releases creatures failing min_quality when only min_quality is configured', () => {
+    const engine = createEngine();
+    const socket = engine.socket(); socket.open();
+    socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
+    engine.configure({
+        enabled: true,
+        iv_evaluation_mode: 'percent',
+        discard_iv_pct: 0,
+        desired_nature: 'any',
+        min_quality: 'great', // 800+ / 3★
+        protect_last_copy: true,
+    });
+
+    socket.message({ t: 'team', d: { creatures: [
+        { id: 'leader', name: 'Charizard', speciesId: 6, teamSlot: 0, isLeader: true, hp: 100, maxHp: 100, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 } },
+        // Candidate 1: Quality 940 (excellent) >= 800 -> KEEP
+        { id: 'zub-1', name: 'Zubat', speciesId: 41, teamSlot: null, boxSlot: 0, quality: 940, ivs: { hp: 15, atk: 15, def: 15, spa: 15, spd: 15, spe: 15 } },
+        // Candidate 2: Quality 600 (good) < 800 -> DISCARD
+        { id: 'zub-2', name: 'Zubat', speciesId: 41, teamSlot: null, boxSlot: 1, quality: 600, ivs: { hp: 15, atk: 15, def: 15, spa: 15, spd: 15, spe: 15 } },
+    ] } });
+
+    engine.command('manual-action', { action: 'cleanup-box' });
+
+    const releaseEvents = socket.sent.filter(c => c.t === 'creature:release');
+    assert.strictEqual(releaseEvents.length, 1);
+    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('zub-1'), false, 'zub-1 meets min_quality and must be KEPT');
+    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('zub-2'), true, 'zub-2 fails min_quality and must be released');
+});
+
+test('T22: Capture auto-lock and NPC delivery protection honor min_quality threshold', () => {
+    const engine = createEngine();
+    const socket = engine.socket(); socket.open();
+    socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
+    engine.configure({
+        enabled: true,
+        auto_lock_valuable: true,
+        min_quality: 'excellent', // 940+ / 4★
+        auto_npc_quests: true,
+        auto_travel_deliveries: false,
+    });
+
+    // 1. Simulate battle and capture of creature with quality 950 (meets excellent)
+    socket.sent.length = 0;
+    socket.message({
+        t: 'battle:start',
+        d: { ownerId: 'trainer', battleId: 'b_capture', foe: { speciesId: 63, name: 'Abra' } }
+    });
+    socket.message({
+        t: 'battle:end',
+        d: {
+            battleId: 'b_capture',
+            result: 'capture',
+            captured: true,
+            caught: {
+                id: 'abra-high-q',
+                speciesId: 63,
+                name: 'Abra',
+                level: 10,
+                quality: 950,
+                nature: 'hasty',
+                ivs: { hp: 10, atk: 10, def: 10, spa: 10, spd: 10, spe: 10 } // grade C
+            }
+        }
+    });
+
+    const lockEvents = socket.sent.filter(c => c.t === 'creature:lock');
+    assert.strictEqual(lockEvents.length, 1, 'High-quality captured creature must be auto-locked');
+    assert.strictEqual(lockEvents[0].d.creatureId, 'abra-high-q');
+    assert.strictEqual(lockEvents[0].d.locked, true);
+
+    // 2. Add creatures to collection and check that high quality creature is protected from NPC donation
+    socket.message({ t: 'team', d: { creatures: [
+        { id: 'leader', name: 'Charizard', speciesId: 6, teamSlot: 0, isLeader: true, hp: 100, maxHp: 100, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 } },
+        // High quality Abra in Box
+        { id: 'abra-high-q', name: 'Abra', speciesId: 63, boxSlot: 0, quality: 950, ivs: { hp: 10, atk: 10, def: 10, spa: 10, spd: 10, spe: 10 } },
+        // Surplus normal Abra in Box (quality 200)
+        { id: 'abra-normal', name: 'Abra', speciesId: 63, boxSlot: 1, quality: 200, ivs: { hp: 10, atk: 10, def: 10, spa: 10, spd: 10, spe: 10 } },
+    ] } });
+
+    // Open professor quest modal asking for Abra
+    socket.sent.length = 0;
+    socket.message({
+        t: 'professor:dialog',
+        d: {
+            quest: { speciesId: 63, count: 1, ready: true }
+        }
+    });
+
+    // If donation occurs, it must only consume abra-normal, never abra-high-q
+    const donateEvents = socket.sent.filter(c => c.t === 'professor:deliver');
+    if (donateEvents.length > 0) {
+        assert.strictEqual(donateEvents[0].d.creatureIds.includes('abra-high-q'), false, 'abra-high-q must never be delivered to NPC');
+    }
+});
+
+

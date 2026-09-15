@@ -45,6 +45,7 @@ const DEFAULT_CONFIG = Object.freeze({
     iv_evaluation_mode: 'percent', // 'percent' | 'individual'
     min_ivs: Object.freeze({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }),
     desired_nature: 'any', // 'any' | 'competitive' | specific nature
+    min_quality: 'any', // 'any' | 'good' | 'great' | 'excellent' | 'superb' | 'perfect'
     auto_box_cleanup: false,
     close_to_tray: false,
 });
@@ -56,6 +57,7 @@ const VALID_MOVE_MODES = new Set(['smart', 'max_damage', 'first']);
 const VALID_UNSELECTED_ACTIONS = new Set(['battle', 'flee']);
 const VALID_TARGET_MODES = new Set(['all', 'selected', 'none']);
 const VALID_IV_EVAL_MODES = new Set(['percent', 'individual']);
+const VALID_QUALITIES = new Set(['any', 'good', 'great', 'excellent', 'superb', 'perfect']);
 const VALID_NATURES = new Set([
     'any', 'competitive',
     'hardy', 'docile', 'serious', 'bashful', 'quirky',
@@ -178,6 +180,9 @@ function normalizeConfig(raw, fallback = DEFAULT_CONFIG) {
 
     const rawNat = typeof raw.desired_nature === 'string' ? raw.desired_nature.toLowerCase().trim() : '';
     out.desired_nature = VALID_NATURES.has(rawNat) ? rawNat : (base.desired_nature || 'any');
+
+    const rawQual = typeof raw.min_quality === 'string' ? raw.min_quality.toLowerCase().trim() : '';
+    out.min_quality = VALID_QUALITIES.has(rawQual) ? rawQual : (base.min_quality || 'any');
 
     out.auto_box_cleanup = normalizeBool(raw.auto_box_cleanup, base.auto_box_cleanup || false);
 
