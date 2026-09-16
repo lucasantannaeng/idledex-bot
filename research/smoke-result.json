@@ -2,8 +2,8 @@
   "passed": true,
   "scope": "candidate",
   "main": "actual",
-  "checkedAt": "2026-09-15T23:34:06.881Z",
-  "candidateHash": "65b3c7eab1fe95f9c8757a9f522721d037d90b74919995f1e5f52d0ee8ebc7bb",
+  "checkedAt": "2026-09-16T01:32:00.197Z",
+  "candidateHash": "17b3c62a8f001a3984e3e3663aeee9e2aff28f3be0bc7e8b4be9ef35c147a36e",
   "runtime": "33.4.11",
   "startup": {
     "hooked": true,
@@ -38,7 +38,7 @@
   },
   "help": {
     "open": true,
-    "sections": 39,
+    "sections": 41,
     "missing": 0,
     "title": "HP inimigo para captura"
   },

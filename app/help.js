@@ -118,13 +118,22 @@ const HELP_TOPICS = [
     ]],
     ['cfg-min-quality', 'Nota mínima oficial do jogo', 'Filtra capturas e limpeza de box pela pontuação oficial de qualidade.', [
         'O jogo oficial avalia cada criatura em uma escala de 0 a 1000 com 6 faixas: Razoável (0+ / 1★), Bom (500+ / 2★), Ótimo (800+ / 3★), Excelente (940+ / 4★), Excepcional (990+ / 5★) e Perfeito (1000 / 6★).',
-        'Selecione a faixa mínima desejada. No Modo Proteção (OU), qualquer criatura que atingir esta qualidade é mantida automaticamente, mesmo que não cumpra os filtros estritos de IV ou Natureza.',
-        'Criaturas com esta qualidade também recebem proteção contra sacrifício/entrega para NPCs (Professor e Colecionador) e podem ser travadas automaticamente se o Auto-Lock estiver ativo.'
+        'Selecione a faixa mínima desejada. A regra de retenção opera em modo estrito (E): a criatura precisa atender simultaneamente à qualidade mínima, aos requisitos de IV e à natureza desejada configurados. Falhar em qualquer critério ativo marca o monstro para liberação.',
+        'Criaturas com qualidade excepcional ou superior (5★/6★, 990+), grau S ou shiny são protegidas e podem receber trava automática do jogo.'
     ]],
-    ['cfg-auto-box-cleanup', 'Modo limpeza de box', 'Libera criaturas excedentes da Box que não atendem aos critérios de IV e Natureza.', [
+    ['cfg-auto-box-cleanup', 'Modo limpeza de box', 'Libera criaturas excedentes da Box que não atendem aos critérios de IV, Natureza e Qualidade.', [
         'O botão Executar Limpeza de Box Agora salva e aplica os ajustes exibidos antes de iniciar a varredura na Box (fora da equipe). Se a gravação falhar, a limpeza não começa. Criaturas que não atenderem aos critérios configurados são elegíveis para liberação.',
         'Auto-Limpeza de Box Periódica executa essa mesma varredura de forma contínua em segundo plano a cada 2 minutos enquanto o bot estiver em execução.',
-        'Salvaguardas Invioláveis: Shinies, integrantes da Equipe, criaturas Bloqueadas no jogo e a última cópia restante de cada espécie NUNCA são liberadas sob nenhuma hipótese.'
+        'Salvaguardas Invioláveis: Shinies, integrantes da Equipe, criaturas Bloqueadas e formas Mega ou listadas no mercado NUNCA são liberadas sob nenhuma hipótese.'
+    ]],
+    ['cfg-auto-discard-caught', 'Descarte imediato pós-captura', 'Avalia e libera criaturas recém-capturadas imediatamente após o combate se não cumprirem os critérios.', [
+        'Quando ativado, cada monstro recém-capturado que for para a Box (fora da equipe) é avaliado instantaneamente no encerramento da batalha. Se não atender aos critérios configurados (IV, Natureza e Qualidade), é liberado imediatamente sem precisar aguardar a varredura periódica da Box.',
+        'Quando desativado, o descarte pós-captura imediato fica suspenso e as criaturas são acumuladas na Box para descarte manual ou limpeza periódica.',
+        'Salvaguardas como shinies, equipe, bloqueados e última cópia (se ativa) continuam rigorosamente respeitadas.'
+    ]],
+    ['cfg-protect-last-copy', 'Proteger última cópia de cada espécie', 'Impede a liberação da única cópia restante de uma espécie na coleção.', [
+        'Quando ativado (padrão recomendado), o bot nunca liberará um Pokémon se ele for a única cópia restante daquela espécie na sua coleção, mesmo que tenha IVs ou Qualidade baixos.',
+        'Desmarque esta opção apenas se desejar liberar qualquer exemplar indesejado, inclusive exemplares únicos, mantendo apenas criaturas que passem estritamente em todos os seus filtros de qualidade e IV.'
     ]],
     ['cfg-pause-no-balls', 'Pausa por falta de esferas', 'Interrompe a automação ao esgotar as esferas.', [
         'Esta pausa é acionada pela patrulha quando as esferas acabam e Não Selecionados está em Fugir Imediato. Confira o estoque em Mochila, reabasteça no jogo e retome manualmente quando estiver pronto.',

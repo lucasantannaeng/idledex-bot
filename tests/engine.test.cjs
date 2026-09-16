@@ -1062,7 +1062,7 @@ test('T21: Box cleanup respects individual IV minimums and nature filters', () =
     assert.strictEqual(releaseEvents[0].d.creatureIds.includes('pidg-3'), false, 'pidg-3 passes all criteria and must NOT be released');
 });
 
-test('T22: Box cleanup keeps creatures meeting min_quality even if IV and nature do not match (Logical OR)', () => {
+test('T22: Box cleanup enforces strict AND rule (creature must meet IV, nature, AND min_quality to be kept)', () => {
     const engine = createEngine();
     const socket = engine.socket(); socket.open();
     socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
@@ -1077,21 +1077,25 @@ test('T22: Box cleanup keeps creatures meeting min_quality even if IV and nature
 
     socket.message({ t: 'team', d: { creatures: [
         { id: 'leader', name: 'Charizard', speciesId: 6, teamSlot: 0, isLeader: true, hp: 100, maxHp: 100, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 } },
-        // Candidate 1: low IV (16%), wrong nature (modest), but high quality (850 - great) -> KEEP (meets min_quality)!
+        // Candidate 1: low IV (16%), wrong nature (modest), but high quality (850 - great) -> DISCARD (fails IV/Nature under strict AND)!
         { id: 'geo-1', name: 'Geodude', speciesId: 74, teamSlot: null, boxSlot: 0, nature: 'modest', quality: 850, ivs: { hp: 5, atk: 5, def: 5, spa: 5, spd: 5, spe: 5 } },
-        // Candidate 2: high IV (90%), right nature (adamant), but low quality (200 - fair) -> KEEP (meets IV/Nature)!
+        // Candidate 2: high IV (90%), right nature (adamant), but low quality (200 - fair) -> DISCARD (fails Quality under strict AND)!
         { id: 'geo-2', name: 'Geodude', speciesId: 74, teamSlot: null, boxSlot: 1, nature: 'adamant', quality: 200, ivs: { hp: 28, atk: 28, def: 28, spa: 28, spd: 28, spe: 28 } },
-        // Candidate 3: low IV (16%), wrong nature (timid), and low quality (350 - fair) -> DISCARD (fails BOTH)!
+        // Candidate 3: low IV (16%), wrong nature (timid), and low quality (350 - fair) -> DISCARD (fails all three)!
         { id: 'geo-3', name: 'Geodude', speciesId: 74, teamSlot: null, boxSlot: 2, nature: 'timid', quality: 350, ivs: { hp: 5, atk: 5, def: 5, spa: 5, spd: 5, spe: 5 } },
+        // Candidate 4: high IV (90%), right nature (adamant), AND high quality (850 - great) -> KEEP (meets ALL THREE criteria)!
+        { id: 'geo-4', name: 'Geodude', speciesId: 74, teamSlot: null, boxSlot: 3, nature: 'adamant', quality: 850, ivs: { hp: 28, atk: 28, def: 28, spa: 28, spd: 28, spe: 28 } },
     ] } });
 
     engine.command('manual-action', { action: 'cleanup-box' });
 
     const releaseEvents = socket.sent.filter(c => c.t === 'creature:release');
     assert.strictEqual(releaseEvents.length, 1);
-    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('geo-1'), false, 'geo-1 meets min_quality and must be KEPT');
-    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('geo-2'), false, 'geo-2 meets IV/nature criteria and must be KEPT');
-    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('geo-3'), true, 'geo-3 fails both criteria and must be released');
+    const releasedIds = releaseEvents[0].d.creatureIds;
+    assert.strictEqual(releasedIds.includes('geo-1'), true, 'geo-1 fails IV/nature and must be released under strict AND');
+    assert.strictEqual(releasedIds.includes('geo-2'), true, 'geo-2 fails quality and must be released under strict AND');
+    assert.strictEqual(releasedIds.includes('geo-3'), true, 'geo-3 fails all criteria and must be released');
+    assert.strictEqual(releasedIds.includes('geo-4'), false, 'geo-4 meets all criteria and must be KEPT');
 });
 
 test('T22: Box cleanup releases creatures failing min_quality when only min_quality is configured', () => {
@@ -1123,19 +1127,19 @@ test('T22: Box cleanup releases creatures failing min_quality when only min_qual
     assert.strictEqual(releaseEvents[0].d.creatureIds.includes('zub-2'), true, 'zub-2 fails min_quality and must be released');
 });
 
-test('T22: Capture auto-lock and NPC delivery protection honor min_quality threshold', () => {
+test('T22: Capture auto-lock locks ultra-rare (>= 990 / 5★-6★) and protects from NPC donation', () => {
     const engine = createEngine();
     const socket = engine.socket(); socket.open();
     socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
     engine.configure({
         enabled: true,
         auto_lock_valuable: true,
-        min_quality: 'excellent', // 940+ / 4★
+        min_quality: 'good', // 500+ / 2★
         auto_npc_quests: true,
         auto_travel_deliveries: false,
     });
 
-    // 1. Simulate battle and capture of creature with quality 950 (meets excellent)
+    // 1. Simulate battle and capture of creature with quality 995 (exceptional 5★ >= 990)
     socket.sent.length = 0;
     socket.message({
         t: 'battle:start',
@@ -1148,11 +1152,11 @@ test('T22: Capture auto-lock and NPC delivery protection honor min_quality thres
             result: 'capture',
             captured: true,
             caught: {
-                id: 'abra-high-q',
+                id: 'abra-ultra-q',
                 speciesId: 63,
                 name: 'Abra',
                 level: 10,
-                quality: 950,
+                quality: 995,
                 nature: 'hasty',
                 ivs: { hp: 10, atk: 10, def: 10, spa: 10, spd: 10, spe: 10 } // grade C
             }
@@ -1160,16 +1164,16 @@ test('T22: Capture auto-lock and NPC delivery protection honor min_quality thres
     });
 
     const lockEvents = socket.sent.filter(c => c.t === 'creature:lock');
-    assert.strictEqual(lockEvents.length, 1, 'High-quality captured creature must be auto-locked');
-    assert.strictEqual(lockEvents[0].d.creatureId, 'abra-high-q');
+    assert.strictEqual(lockEvents.length, 1, 'Ultra-rare captured creature (>= 990) must be auto-locked');
+    assert.strictEqual(lockEvents[0].d.creatureId, 'abra-ultra-q');
     assert.strictEqual(lockEvents[0].d.locked, true);
 
-    // 2. Add creatures to collection and check that high quality creature is protected from NPC donation
+    // 2. Add creatures to collection and check that good/great quality creature is protected from NPC donation
     socket.message({ t: 'team', d: { creatures: [
         { id: 'leader', name: 'Charizard', speciesId: 6, teamSlot: 0, isLeader: true, hp: 100, maxHp: 100, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 } },
-        // High quality Abra in Box
-        { id: 'abra-high-q', name: 'Abra', speciesId: 63, boxSlot: 0, quality: 950, ivs: { hp: 10, atk: 10, def: 10, spa: 10, spd: 10, spe: 10 } },
-        // Surplus normal Abra in Box (quality 200)
+        // High quality Abra in Box (meets min_quality good 500+)
+        { id: 'abra-high-q', name: 'Abra', speciesId: 63, boxSlot: 0, quality: 650, ivs: { hp: 10, atk: 10, def: 10, spa: 10, spd: 10, spe: 10 } },
+        // Surplus low quality Abra in Box (quality 200 < 500)
         { id: 'abra-normal', name: 'Abra', speciesId: 63, boxSlot: 1, quality: 200, ivs: { hp: 10, atk: 10, def: 10, spa: 10, spd: 10, spe: 10 } },
     ] } });
 
@@ -1187,6 +1191,72 @@ test('T22: Capture auto-lock and NPC delivery protection honor min_quality thres
     if (donateEvents.length > 0) {
         assert.strictEqual(donateEvents[0].d.creatureIds.includes('abra-high-q'), false, 'abra-high-q must never be delivered to NPC');
     }
+});
+
+test('T23: Post-capture immediate discard toggle (auto_discard_caught)', () => {
+    const engine = createEngine();
+    const socket = engine.socket(); socket.open();
+    socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
+
+    // When auto_discard_caught is FALSE, low IV caught creature is NOT discarded on capture
+    engine.configure({
+        enabled: true,
+        discard_iv_pct: 80,
+        auto_discard_caught: false,
+        protect_last_copy: false,
+    });
+
+    socket.message({ t: 'battle:start', d: { ownerId: 'trainer', battleId: 'b1', foe: { speciesId: 19, name: 'Rattata' } } });
+    socket.message({ t: 'battle:end', d: { battleId: 'b1', result: 'capture', caught: { speciesId: 19, id: 'rat-1' } } });
+    socket.message({ t: 'team', d: { creatures: [
+        { id: 'rat-1', speciesId: 19, name: 'Rattata', teamSlot: null, boxSlot: 0, ivs: { hp: 2, atk: 2, def: 2, spa: 2, spd: 2, spe: 2 } }
+    ] } });
+
+    const releaseEventsDisabled = socket.sent.filter(c => c.t === 'creature:release');
+    assert.strictEqual(releaseEventsDisabled.length, 0, 'When auto_discard_caught is false, no release must be sent on capture');
+
+    // When auto_discard_caught is TRUE, low IV caught creature IS discarded immediately on capture
+    engine.configure({
+        enabled: true,
+        discard_iv_pct: 80,
+        auto_discard_caught: true,
+        protect_last_copy: false,
+    });
+
+    socket.message({ t: 'battle:start', d: { ownerId: 'trainer', battleId: 'b2', foe: { speciesId: 19, name: 'Rattata' } } });
+    socket.message({ t: 'battle:end', d: { battleId: 'b2', result: 'capture', caught: { speciesId: 19, id: 'rat-2' } } });
+    socket.message({ t: 'team', d: { creatures: [
+        { id: 'rat-1', speciesId: 19, name: 'Rattata', teamSlot: null, boxSlot: 0, ivs: { hp: 2, atk: 2, def: 2, spa: 2, spd: 2, spe: 2 } },
+        { id: 'rat-2', speciesId: 19, name: 'Rattata', teamSlot: null, boxSlot: 1, ivs: { hp: 2, atk: 2, def: 2, spa: 2, spd: 2, spe: 2 } }
+    ] } });
+
+    const releaseEventsEnabled = socket.sent.filter(c => c.t === 'creature:release');
+    assert.strictEqual(releaseEventsEnabled.length, 1, 'When auto_discard_caught is true, release must be sent on capture');
+    assert.strictEqual(releaseEventsEnabled[0].d.creatureIds.includes('rat-2'), true);
+});
+
+test('T24: protect_last_copy allows release of sole copy when set to false', () => {
+    const engine = createEngine();
+    const socket = engine.socket(); socket.open();
+    socket.message({ t: 'welcome', d: { playerId: 'trainer', map: 'route_001' } });
+
+    // Single low-IV copy with protect_last_copy: false
+    engine.configure({
+        enabled: true,
+        discard_iv_pct: 80,
+        protect_last_copy: false,
+    });
+
+    socket.message({ t: 'team', d: { creatures: [
+        { id: 'leader', name: 'Charizard', speciesId: 6, teamSlot: 0, isLeader: true, hp: 100, maxHp: 100, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 } },
+        { id: 'lone-pidgey', name: 'Pidgey', speciesId: 16, teamSlot: null, boxSlot: 0, ivs: { hp: 2, atk: 2, def: 2, spa: 2, spd: 2, spe: 2 } }
+    ] } });
+
+    engine.command('manual-action', { action: 'cleanup-box' });
+
+    const releaseEvents = socket.sent.filter(c => c.t === 'creature:release');
+    assert.strictEqual(releaseEvents.length, 1);
+    assert.strictEqual(releaseEvents[0].d.creatureIds.includes('lone-pidgey'), true, 'Single copy must be released when protect_last_copy is false');
 });
 
 

@@ -460,3 +460,25 @@ Este fechamento atualiza o status das pendências da seção Auditoria Codex. Fa
   - Electron Smoke Test aprovado (`research/smoke-result.json`).
   - Verificação de release aprovada com 17 arquivos e integridade de hash (`research/verify-release.cjs`).
   - Executáveis recompilados com sucesso: `dist-release/IdleDex_Desktop_Portable_2.5.0.exe` e `dist-release/IdleDex_Desktop_Setup_2.5.0.exe`.
+
+## Fase 25: Regra Estrita (AND) de Critérios de Retenção, Descarte Pós-Captura Selecionável & Proteção Configurável de Última Cópia (v2.5.2)
+- [x] 25.1 Regra Estrita (E / AND) de Retenção (`electron/preload-game.js`):
+  - Refatoração de `monMatchesKeepCriteria`: uma criatura só é MANTIDA se atender simultaneamente a TODOS os critérios ativos configurados (Nota mínima E IV mínimo E Natureza desejada). Falhar em qualquer critério ativo marca o monstro para liberação.
+  - Remoção de `meetsQualityThreshold` de `isProtectedCreature`, eliminando a armadilha de imunidade que impedia a liberação de criaturas com notas medianas (500+).
+  - Salvaguardas invioláveis preservadas: Shinies ✨, integrantes da equipe, criaturas bloqueadas com cadeado, formas Mega e anúncios no mercado.
+- [x] 25.2 Descarte Imediato Pós-Captura Selecionável (`app/index.html`, `app/app.js`, `app/help.js`, `electron/config-schema.js`, `electron/preload-game.js`):
+  - Checkbox `#cfg-auto-discard-caught` ("Descarte Imediato Pós-Captura") adicionado à UI, persistido em `config-schema.js` com normalização booleana segura e tópico de ajuda contextual.
+  - Em `resolveCapturedCreatures` e `creature:patch`, o descarte pós-captura imediato respeita o toggle `auto_discard_caught`. Se desmarcado, as criaturas acumulam na Box para limpeza manual ou periódica.
+  - Em `checkMonIVStrategy(mon, isPostCapture = true)`, criaturas recém-capturadas fora da equipe (`teamSlot === null`) podem ser descartadas sem exigir `boxSlot >= 0` previamente indexado.
+- [x] 25.3 Proteção Configurável de Última Cópia (`app/index.html`, `app/app.js`, `app/help.js`, `electron/preload-game.js`):
+  - Checkbox `#cfg-protect-last-copy` ("Proteger Última Cópia de Cada Espécie") integrado ao dashboard e conectado a `botConfig.protect_last_copy`.
+  - Quando desmarcado, autoriza a liberação até mesmo do último exemplar de uma espécie caso ele falhe nos critérios configurados.
+- [x] 25.4 Auto-Lock Proporcional a Ultra-Raros:
+  - `auto_lock_valuable` em `battle:end` e `resolveCapturedCreatures` envia `creature:lock` apenas para ultra-raros: Shinies, Event Tiers, Grade S ou Qualidade >= 990 (5★-6★), evitando bloqueio indevido de criaturas comuns.
+- [x] 25.5 Pipeline, Testes Automatizados & Binários de Release:
+  - Bundle `electron/generated/preload-game.js` recompilado com sucesso.
+  - Suíte completa de testes aprovada com 100% de sucesso: 223 testes Node.js (`npm test`) e 35 testes Python (`python -m unittest discover tests`).
+  - Electron Smoke Test real aprovado com 0 tópicos ausentes (`research/smoke-result.json`).
+  - `research/verify-release.cjs`: 17 arquivos validados com hash `17b3c62a8f00`.
+  - Executáveis de produção gerados e verificados com sucesso: `IdleDex_Desktop_Portable_2.5.2.exe` e `IdleDex_Desktop_Setup_2.5.2.exe`.
+

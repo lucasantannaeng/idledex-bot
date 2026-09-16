@@ -47,6 +47,7 @@ const DEFAULT_CONFIG = Object.freeze({
     desired_nature: 'any', // 'any' | 'competitive' | specific nature
     min_quality: 'any', // 'any' | 'good' | 'great' | 'excellent' | 'superb' | 'perfect'
     auto_box_cleanup: false,
+    auto_discard_caught: true,
     close_to_tray: false,
 });
 
@@ -185,6 +186,7 @@ function normalizeConfig(raw, fallback = DEFAULT_CONFIG) {
     out.min_quality = VALID_QUALITIES.has(rawQual) ? rawQual : (base.min_quality || 'any');
 
     out.auto_box_cleanup = normalizeBool(raw.auto_box_cleanup, base.auto_box_cleanup || false);
+    out.auto_discard_caught = normalizeBool(raw.auto_discard_caught, base.auto_discard_caught !== undefined ? base.auto_discard_caught : true);
 
     if (raw.pinned_species === undefined) {
         out.pinned_species = base.pinned_species;

@@ -231,3 +231,23 @@ abaixo não equivalem ao aceite desta revisão; H01–H03 seguem sem prova exigi
   - `dist-release/IdleDex_Desktop_Portable_2.5.2.exe` (74.5 MB, SHA256: `03d5dfde311b0ce59887dc55130f8ef801326702e3fd4439ef96fd2331e9b4cb`)
   - `dist-release/IdleDex_Desktop_Setup_2.5.2.exe` (82.1 MB, SHA256: `0e8ad11dea1ba9b1539bab8072b12baacd20b96e81bc4e24e9e888c175b70999`)
   - `dist-release/win-unpacked/IdleDex_Desktop.exe` (188.8 MB)
+
+## 2026-09-15 — Fase 25: Regra Estrita (AND) de Retenção, Descarte Pós-Captura e Proteção de Cópia (v2.5.2) (author: antigravity)
+- Diagnóstico e Resolução dos Critérios de Limpeza e Descarte:
+  1. Regra Estrita (E / AND) para Retenção: Criatura só é mantida se satisfizer simultaneamente TODOS os filtros configurados (Nota mínima E IV mínimo E Natureza desejada). Se falhar em qualquer um, é marcada para descarte.
+  2. Correção de `isProtectedCreature`: Removido `meetsQualityThreshold`, eliminando o falso bloqueio que impedia descarte por IV/Natureza de qualquer criatura com nota mediana (500+).
+  3. Descarte Imediato Pós-Captura Selecionável: Adicionado `#cfg-auto-discard-caught` (persistido via `config-schema.js`). Em `resolveCapturedCreatures` e `creature:patch`, o descarte só ocorre se este toggle estiver ativo; caso contrário, as capturas acumulam na Box para limpeza manual/periódica.
+  4. Desbloqueio de Post-Capture: `checkMonIVStrategy(mon, isPostCapture = true)` autoriza o descarte de recém-capturados fora da equipe (`teamSlot === null`) sem exigir indexação prévia de `boxSlot`.
+  5. Proteger Última Cópia Configurável: Adicionado `#cfg-protect-last-copy` ao dashboard, permitindo ao usuário desmarcar a opção para descartar até mesmo exemplares únicos com atributos ruins.
+  6. Auto-Lock Proporcional a Ultra-Raros: `auto_lock_valuable` em `battle:end` e `resolveCapturedCreatures` aciona `creature:lock` exclusivamente para Shinies, Event Tiers, Grade S ou Nota >= 990 (5★-6★).
+- Verificação e Testes Automatizados (100% de Sucesso):
+  - Suíte Node (`npm test`): **223/223** testes aprovados (0 falhas, 0 pulados).
+  - Suíte Python (`python -m unittest discover tests`): **35/35** testes aprovados (0 falhas, 0 pulados).
+  - Electron Candidate Smoke Test (`research/smoke-result.json`): 100% aprovado (`candidateHash: 17b3c62a8f001a3984e3e3663aeee9e2aff28f3be0bc7e8b4be9ef35c147a36e`, `help.missing === 0`).
+  - Verificação de Release (`research/verify-release.cjs`): 17/17 arquivos validados com hash `17b3c62a8f00`.
+  - Verificação dos Instaladores (`research/verify-installers.cjs`): 17 arquivos internos de cada executável extraídos e verificados com 100% de integridade.
+- Binários Compilados em `dist-release/`:
+  - `dist-release/IdleDex_Desktop_Portable_2.5.2.exe` (SHA256: `c2c97ad4f9ba13492dc0bb606d91a207a342fef295752b5c2ee1150ff9adb9d6`)
+  - `dist-release/IdleDex_Desktop_Setup_2.5.2.exe` (SHA256: `fbcaa4940080ed7d9fd6e6ed1c967f1e991588fa9153156ef5a6b23d6b4ebb46`)
+  - `dist-release/win-unpacked/IdleDex_Desktop.exe`
+

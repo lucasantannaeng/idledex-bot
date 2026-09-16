@@ -1368,10 +1368,12 @@ function initMainWorldEngine(configSchema) {
             }
             logEvent(`📊 ${mon.name || mon.speciesId}: IV ${evaluation.ivTotal}/186 (${evaluation.grade}${qualityLog}).`, 'info');
             if (botConfig.enabled) {
-                if (botConfig.auto_lock_valuable && (isProtectedCreature(mon) || evaluation.grade === 'S' || meetsQualityThreshold(mon, botConfig.min_quality))) {
-                    if (!mon.isLocked) sendEvent('creature:lock', { creatureId: mon.id, locked: true });
-                } else {
-                    checkMonIVStrategy(mon);
+                const qScore = evaluation.quality ?? getCreatureQuality(mon);
+                const isUltraRare = mon.isShiny || mon.shiny || evaluation.grade === 'S' || (mon.eventTier > 0) || (mon.form?.eventTier > 0) || (qScore !== null && qScore >= 990);
+                if (botConfig.auto_lock_valuable && isUltraRare) {
+                    if (!mon.isLocked && !mon.locked) sendEvent('creature:lock', { creatureId: mon.id, locked: true });
+                } else if (botConfig.auto_discard_caught) {
+                    checkMonIVStrategy(mon, true);
                 }
             }
             return false;
@@ -1777,8 +1779,10 @@ function handleGameMessage(msg) {
             }
             reconcileDonations();
             resolveCapturedCreatures();
-            for (const mon of [...mons].sort((a, b) => Number(previousIds.has(a?.id)) - Number(previousIds.has(b?.id)))) {
-                if (mon && !mon.deleted && !mon.removed) checkMonIVStrategy(collection[mon.id]);
+            if (botConfig.auto_discard_caught) {
+                for (const mon of [...mons].sort((a, b) => Number(previousIds.has(a?.id)) - Number(previousIds.has(b?.id)))) {
+                    if (mon && !mon.deleted && !mon.removed) checkMonIVStrategy(collection[mon.id], true);
+                }
             }
             emitTelemetry();
         }
@@ -2053,9 +2057,10 @@ function handleGameMessage(msg) {
                         }
                         logEvent(`🎉 [CAPTURA] ${evalData.name}${star} Lv${evalData.level}! ${natMsg}, ${tierMsg}${qualityMsg}`, evalData.grade === "S" ? "success" : "info");
 
-                        // Auto-lock valuable creatures (Shinies, Event Tiers, Grade S, or Quality threshold)
+                        // Auto-lock valuable creatures (Shinies, Event Tiers, Grade S, or Quality threshold >= 990)
                         if (botConfig.enabled && botConfig.auto_lock_valuable && evalData.id) {
-                            const isValuable = evalData.isShiny || evalData.grade === "S" || (d.caught.eventTier && d.caught.eventTier > 0) || meetsQualityThreshold(d.caught, botConfig.min_quality);
+                            const qScore = evalData.quality ?? getCreatureQuality(d.caught);
+                            const isValuable = evalData.isShiny || evalData.grade === "S" || (d.caught.eventTier && d.caught.eventTier > 0) || (qScore !== null && qScore >= 990);
                             if (isValuable) {
                                 sendEvent("creature:lock", { creatureId: evalData.id, locked: true });
                                 logEvent(`🔒 [PROTEÇÃO] ${evalData.name} bloqueado contra descarte/perda acidental!`, "success");
@@ -2110,8 +2115,7 @@ function handleGameMessage(msg) {
             pendingLocks.has(mon.id) ||
             (mon.eventTier > 0) || (mon.form?.eventTier > 0) ||
             (mon.teamSlot !== undefined && mon.teamSlot !== null) ||
-            team.some(member => member.id === mon.id) ||
-            meetsQualityThreshold(mon, botConfig.min_quality);
+            team.some(member => member.id === mon.id);
     }
 
     function isDonatableCreature(mon) {
@@ -2227,41 +2231,39 @@ function handleGameMessage(msg) {
         const hasIndividualMin = mode === 'individual' && Object.values(minIvs).some(v => v > 0);
         const hasPercentMin = mode === 'percent' && cutoffPct > 0;
         const hasNatureFilter = desiredNature !== 'any';
-        const hasIvNatureFilter = hasIndividualMin || hasPercentMin || hasNatureFilter;
-
         const hasQualityFilter = Boolean(config.min_quality && config.min_quality !== 'any');
 
-        // If neither filter is active, keep everything
-        if (!hasIvNatureFilter && !hasQualityFilter) {
+        // If no filter is active, keep everything
+        if (!hasIndividualMin && !hasPercentMin && !hasNatureFilter && !hasQualityFilter) {
             return true;
         }
 
-        // Quality check (OR branch: if quality meets threshold, keep!)
-        if (hasQualityFilter && meetsQualityThreshold(mon, config.min_quality)) {
-            return true;
-        }
+        // Strict AND rule: creature must meet ALL active criteria to be kept.
+        // If it fails ANY active criterion, it is marked for discard (returns false).
 
-        // If only quality filter was active and creature failed it, don't keep
-        if (!hasIvNatureFilter) {
+        // 1. Quality filter check
+        if (hasQualityFilter && !meetsQualityThreshold(mon, config.min_quality)) {
             return false;
         }
 
-        // IV/Nature check (OR branch: if IV/Nature filters pass, keep!)
+        // 2. IV filter check
         if (mode === 'individual') {
-            if (hp < (minIvs.hp ?? 0) ||
+            if (hasIndividualMin && (
+                hp < (minIvs.hp ?? 0) ||
                 atk < (minIvs.atk ?? 0) ||
                 def < (minIvs.def ?? 0) ||
                 spa < (minIvs.spa ?? 0) ||
                 spd < (minIvs.spd ?? 0) ||
-                spe < (minIvs.spe ?? 0)) {
+                spe < (minIvs.spe ?? 0))) {
                 return false;
             }
         } else {
-            if (cutoffPct > 0 && ivPct < cutoffPct) {
+            if (hasPercentMin && ivPct < cutoffPct) {
                 return false;
             }
         }
 
+        // 3. Nature filter check
         if (hasNatureFilter) {
             const monNature = String(mon.nature || '').toLowerCase().trim();
             if (desiredNature === 'competitive') {
@@ -2274,20 +2276,27 @@ function handleGameMessage(msg) {
             }
         }
 
+        // Passes all active criteria
         return true;
     }
 
-    function checkMonIVStrategy(mon) {
+    function checkMonIVStrategy(mon, isPostCapture = false) {
         if (!collectionLoaded) return;
         if (!botConfig.enabled || !mon || !mon.id || releasedCreatureIds.has(mon.id) || pendingReleases.has(mon.id) || isReservedForDonation(mon) || pendingReleases.size >= 500) return;
         if (isNewBattleCreature(mon)) return;
 
         // Strict Safety Gate: Never release shiny, special event tiers, locked creatures, or party members
-        if (isProtectedCreature(mon) || !hasCompleteIVs(mon) || !Number.isInteger(mon.boxSlot) || mon.boxSlot < 0) {
+        if (isProtectedCreature(mon) || !hasCompleteIVs(mon)) {
             return;
         }
 
-        // Conservative policy: protect last copy of each species
+        const inBox = Number.isInteger(mon.boxSlot) && mon.boxSlot >= 0;
+        const isEligiblePostCapture = isPostCapture && (mon.teamSlot === null || mon.teamSlot === undefined) && !team.some(member => member.id === mon.id);
+        if (!inBox && !isEligiblePostCapture) {
+            return;
+        }
+
+        // Conservative policy: protect last copy of each species (configurable via protect_last_copy)
         if (botConfig.protect_last_copy !== false && !hasSurplusCopies(mon)) {
             return;
         }
@@ -2319,6 +2328,7 @@ function handleGameMessage(msg) {
         const speciesName = mon.species || mon.name || 'Criatura';
         const qScore = getCreatureQuality(mon);
         const qMsg = (qScore !== null && qScore >= 0) ? `, Nota: ${qScore}` : '';
+        const tag = isPostCapture ? '[DESCARTE PÓS-CAPTURA] ' : '';
         pendingReleases.set(mon.id, {
             speciesName,
             ivSum,
@@ -2327,7 +2337,7 @@ function handleGameMessage(msg) {
             requestedAt: Date.now(),
         });
         sendEvent("creature:release", { creatureIds: [mon.id] });
-        logEvent(`📤 Solicitando liberação de ${speciesName} (IV: ${ivSum}/186 - ${ivPct}%${mon.nature ? ', Nature: ' + mon.nature : ''}${qMsg})...`, "info");
+        logEvent(`📤 ${tag}Solicitando liberação de ${speciesName} (IV: ${ivSum}/186 - ${ivPct}%${mon.nature ? ', Nature: ' + mon.nature : ''}${qMsg})...`, "info");
     }
 
     function executeBoxCleanup(manual = false) {

@@ -168,10 +168,10 @@ test('capture waits for a delayed quality patch and then auto-locks a qualifying
     const { engine, socket } = setup({ discard_iv_pct: 80, min_quality: 'great', protect_last_copy: false, auto_lock_valuable: true });
     socket.message({ t: 'battle:start', d: { ownerId: 'audit-trainer', battleId: 'capture-quality', foe: { speciesId: 11, name: 'Metapod' } } });
     socket.message({ t: 'battle:end', d: { battleId: 'capture-quality', result: 'capture', caught: { speciesId: 11, id: 'late-quality' } } });
-    socket.message({ t: 'team', d: { creatures: [mon('late-quality')] } });
+    socket.message({ t: 'team', d: { creatures: [mon('late-quality', { ivs: { hp: 30, atk: 30, def: 30, spa: 30, spd: 30, spe: 30 } })] } });
     engine.command('manual-action', { action: 'cleanup-box' });
     assert.deepEqual(releases(socket), []);
-    socket.message({ t: 'collection:patch', d: { mons: [{ id: 'late-quality', quality: 900 }] } });
+    socket.message({ t: 'collection:patch', d: { mons: [{ id: 'late-quality', quality: 995 }] } });
     assert.deepEqual(releases(socket), []);
     assert.equal(socket.sent.filter(packet => packet.t === 'creature:lock' && packet.d.creatureId === 'late-quality').length, 1);
 });

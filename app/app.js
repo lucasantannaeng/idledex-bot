@@ -1502,6 +1502,8 @@ function applyConfigToInputs(cfg) {
     setVal('cfg-desired-nature', (cfg.desired_nature || 'any').toLowerCase().trim());
     setVal('cfg-min-quality', (cfg.min_quality || 'any').toLowerCase().trim());
     setCheck('cfg-auto-box-cleanup', !!cfg.auto_box_cleanup);
+    setCheck('cfg-auto-discard-caught', !!cfg.auto_discard_caught);
+    setCheck('cfg-protect-last-copy', cfg.protect_last_copy !== false);
 
     setCheck('cfg-pause-no-balls', cfg.pause_on_no_balls !== false);
     setCheck('cfg-auto-dailies', cfg.auto_claim_dailies !== false);
@@ -1632,6 +1634,8 @@ async function saveBotSettings() {
         desired_nature: (getVal('cfg-desired-nature') || 'any').toLowerCase().trim(),
         min_quality: (getVal('cfg-min-quality') || 'any').toLowerCase().trim(),
         auto_box_cleanup: getCheck('cfg-auto-box-cleanup'),
+        auto_discard_caught: getCheck('cfg-auto-discard-caught'),
+        protect_last_copy: getCheck('cfg-protect-last-copy'),
         discard_iv_pct: getNumber('cfg-discard-iv-pct', 50),
         pause_on_no_balls: getCheck('cfg-pause-no-balls'),
         auto_roam: effectiveAutoRoam,
