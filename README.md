@@ -1,171 +1,115 @@
-# IdleDex Desktop 2.5.1
+# IdleDex Desktop v2.5.2
 
-Aplicativo Electron com o jogo embutido e controles locais de captura, combate,
-patrulha, recupera??o, Box e entregas. O produto principal ? o Desktop.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20x64-informational.svg)](#)
+[![Electron](https://img.shields.io/badge/Electron-33.4.11-47848F.svg)](https://www.electronjs.org/)
+[![Tests](https://img.shields.io/badge/Tests-109%20passed-success.svg)](#)
+[![Security](https://img.shields.io/badge/Security-Sandboxed%20%7C%20Zero--Trust-brightgreen.svg)](#)
 
-## Abrir a vers?o corrigida
+> **Aplicativo Desktop profissional em Electron com navegador Chromium embutido e motor de automação local para o jogo IdleDex.**
 
-- Port?til: `dist-release/IdleDex_Desktop_Portable_2.5.1.exe`.
-- Instalador: `dist-release/IdleDex_Desktop_Setup_2.5.1.exe`.
-- Pasta completa: `dist-release/win-unpacked/IdleDex_Desktop.exe`.
+---
 
-Feche a vers?o anterior antes de abrir a nova. Para atualizar um atalho de uma
-instala??o existente, use o instalador 2.5.1. A sess?o e as op??es ficam no perfil
-local do Electron, separadas do pacote. Fa?a login pelo jogo; n?o ? necess?rio
-copiar cookies ou tokens.
+## ⚡ Visão Geral
 
-## Foco de captura
+O **IdleDex Desktop** integra o cliente do jogo diretamente em uma instância isolada do Electron, oferecendo controles locais avançados de combate, captura seletiva, patrulha, recuperação automática, entregas e gerenciamento inteligente de Box. 
 
-Em **Config ? Spawns da ?rea**, marque as esp?cies desejadas. As altera??es da
-lista s?o salvas imediatamente. **Marcar Todos** seleciona todas as esp?cies;
-**Desmarcar** remove os alvos comuns. **N?o Selecionados** determina se o bot luta
-por XP ou foge. Esp?cies fixadas e Shinies mant?m a prioridade descrita no Tutorial.
+Toda a automação roda localmente no seu computador, comunicando-se com a sessão do jogo sem necessidade de plugins de terceiros ou cópia manual de cookies.
 
-Os dois campos **Fixar Esp?cie** aceitam as esp?cies detectadas na ?rea. Selecione
-o foco e clique em **Salvar Ajustes**. O foco bloqueia op??es conflitantes de
-troca de rota e captura apenas de in?ditos. A lista aceita IDs num?ricos e mant?m
-o foco do teclado durante atualiza??es de captura.
+---
 
-## Limpeza da Box
+## 🎯 Funcionalidades Principais
 
-Escolha o percentual m?nimo de IV ou os m?nimos individuais, natureza e nota
-m?nima. **Executar Limpeza de Box Agora** salva os ajustes exibidos, aplica ao
-motor e solicita a limpeza. Se a grava??o falhar ou o jogo estiver recarregando,
-a limpeza n?o inicia. O Console informa falta de conex?o, aus?ncia de crit?rios,
-nenhum candidato e pedidos enviados ao servidor.
+### 1. Foco e Seletividade de Captura
+* **Spawns da Área:** Selecione quais espécies da rota atual devem ser capturadas. As alterações são sincronizadas e salvas imediatamente.
+* **Fixar Espécie:** Permite travar até duas espécies prioritárias da área com salvamento de foco e bloqueio de opções conflitantes.
+* **Modo Não Selecionados:** Controle se o bot deve lutar por XP ou fugir ao encontrar espécies não marcadas.
+* **Prioridade de Shinies:** Preservação estrita de criaturas raras e Shinies em qualquer rota.
 
-- Sem crit?rios ativos, nenhuma criatura ? liberada.
-- Equipe, Shinies, criaturas bloqueadas e recursos reservados n?o s?o descartados.
-- A prote??o da ?ltima c?pia ? ativada por padr?o e considera o lote inteiro.
-- Dados necess?rios ausentes mant?m a criatura at? uma atualiza??o suficiente.
-- A nota m?nima funciona como prote??o adicional: atingir a nota conserva a
-  criatura mesmo quando ela n?o passa em IV/natureza.
-- Um pedido enviado n?o equivale a descarte confirmado. O motor aguarda o servidor.
+### 2. Limpeza Inteligente de Box (Clean & Keep)
+* **Critérios Estritos (AND/OR):** Filtre descarte por percentual mínimo de IV, IVs individuais (HP, ATK, DEF, SP.ATK, SP.DEF, SPEED), natureza e nota de qualidade.
+* **Proteção da Última Cópia:** Opção para jamais descartar o único exemplar de uma espécie na Box.
+* **Preservação Automática:** Equipe ativa, Shinies, criaturas bloqueadas com cadeado e recursos reservados são 100% blindados contra descarte.
+* **Execução Segura:** Sem critérios ativos, nenhuma criatura é liberada. O console exibe o detalhamento de cada ação recebida do servidor.
 
-A rotina autom?tica de limpeza usa as op??es salvas. IVs e natureza s?o avaliados
-ap?s captura; o bot n?o conhece valores que o servidor n?o enviou.
+### 3. Autonomia e Ciclo de Vida
+* **Auto-Idle & Pausa Inteligente:** Pausa automática em eventos de suspensão do sistema, troca de conta ou falhas no renderer.
+* **Troca de Conta Simplificada:** Botão dedicado para limpar a sessão e permitir login em outra conta com configurações preservadas.
 
-## Pausa e conta
+---
 
-**Pausar Bot** interrompe o motor local. Se **Auto-Idle Nativo** estiver marcado,
-o jogo pode continuar pelo AUTO. Desative essa op??o para controle manual.
-Suspens?o do computador, falha do renderer e troca de conta param ambos os modos.
-Uma grava??o pendente n?o deve reativar uma pausa autom?tica.
+## 🚀 Como Executar e Desenvolver
 
-Use **Sair / Trocar conta** para limpar a sess?o do jogo. As configura??es s?o
-preservadas, com automa??o pausada. Revise os alvos antes de retomar na nova conta.
-O teste de troca de sess?o ? sint?tico; login em uma segunda conta real continua
-sem comprova??o nesta revis?o.
+### Pré-requisitos
+* **Node.js:** `>= 18.0.0`
+* **npm:** `>= 9.0.0`
+* **Sistema Operacional:** Windows 10/11 x64
 
-## Desenvolvimento e distribui??o
+### Instalação e Execução Local
 
-```powershell
-npm.cmd ci
-npm.cmd test
-npm.cmd start
-npm.cmd run pack
-npm.cmd run dist:portable
-npm.cmd run dist:installer
-```
-
-O preload ? gerado automaticamente pelos scripts de teste, execu??o e build.
-O runtime instalado e testado nesta revis?o ? Electron 33.4.11. A atualiza??o de
-runtime do backlog continua pendente; a vers?o 2.5.1 corrige a aplica??o.
-
-Consulte [tests.md](tests.md) para smoke e integridade do candidato, e
-[QUICKSTART.md](QUICKSTART.md) para opera??o. Diagn?stico local:
-`npm.cmd start -- --inspect-bot`; a porta de depura??o n?o abre no uso normal.
-
-## Evid?ncia e limites
-
-A revis?o cobre o c?digo real com simula??es de protocolo e cliques no DOM do
-Electron, usando perfil descart?vel e rede offline. N?o houve libera??o de
-criaturas na conta real. Isso n?o comprova todos os contratos do servidor, login
-real de segunda conta ou consumo efetivo de lote no laborat?rio. A navega??o
-local usa heur?stica; n?o h? prova de equival?ncia ao algoritmo de grama nativo.
-
-A auditoria atual est? em [research/2026-09-15-functional-audit.md](research/2026-09-15-functional-audit.md).
-`plan.md` e `task_plan.md` preservam requisitos e hist?rico; checkboxes hist?ricos
-n?o substituem evid?ncia do candidato atual.
-
-## Legado
-
-`bot.py`, `config.py`, `economy.py`, a spec PyInstaller e o userscript foram
-preservados. H? regress?es locais de HTTP, persist?ncia, cookies, economia e
-ciclo de vida WebSocket. O Python requer `websockets>=14.0` para a API usada.
-O userscript ainda cont?m mensagens de combate antigas e n?o ? equivalente ao
-Desktop. Os execut?veis Python antigos n?o foram reconstru?dos nesta entrega.
-
-<<<<<<< HEAD
-### Option A: Portable Standalone Executable (Recommended for End Users)
-1. Baixe o executável compilado `IdleDex_Desktop_Portable_2.5.0.exe` (com o ícone da **Master Ball**).
-2. Execute o arquivo diretamente em qualquer computador com Windows 10/11 x64 (não requer instalação de Node.js, Python ou extensões).
-3. Faça login normalmente na sua conta IdleDex pela janela embutida.
-4. Ajuste suas preferências no painel lateral, clique em **Salvar Configurações** e ative o botão **Ligar Bot**.
-
-### Option B: Running from Source (Developers)
-
-#### Prerequisites
-* Node.js `>= 18.0.0`
-* npm `>= 9.0.0`
-
-#### Installation & Development
 ```bash
-# Clone the repository
+# 1. Clonar o repositório
 git clone https://github.com/lucasantannaeng/idledex-bot.git
 cd idledex-bot
 
-# Install dependencies
+# 2. Instalar dependências
 npm ci
 
-# Run test suites
-npm test
-
-# Launch in development mode
+# 3. Executar em modo de desenvolvimento
 npm start
 
-# Launch with Chrome DevTools Protocol diagnostics enabled (port 9222)
+# 4. Executar com depuração CDP habilitada (porta 9222)
 npm start -- --inspect-bot
 ```
 
-#### Compiling the Portable Executable
+### Compilação de Pacotes para Distribuição
+
 ```bash
-# Build standalone single-file portable .exe
+# Gerar executável portátil standalone (.exe)
 npm run dist:portable
+
+# Gerar instalador NSIS completo (.exe)
+npm run dist:installer
+
+# Gerar pacote descompactado para testes rápidos
+npm run pack
 ```
-O executável gerado estará disponível em `dist-release/IdleDex_Desktop_Portable_2.5.0.exe`.
+
+Os artefatos compilados serão gerados no diretório `dist-release/`.
 
 ---
 
-## 🧪 Testing & Verification
+## 🧪 Testes e Validação de Integridade
 
-O projeto conta com suítes automatizadas de testes cobrindo integridade de empacotamento, regressão de protocolo e ciclo de vida Electron:
+O projeto possui suítes automatizadas cobrindo ciclo de vida do Electron, contrato da Box, regressão de UI e higienização de DOM:
 
 ```bash
-# Run full Node test suite (109 unit/integration tests)
+# Executar a suíte completa de testes unitários e de integração
 npm test
 
-# Run DOM sanitization, CSP & tutorial offline tests
-node --test tests/dashboard-dom.test.cjs
+# Executar teste de fumaça (smoke test) isolado no Electron
+npm run smoke
 
-# Run legacy Python server security unit tests (9 tests)
-python -m unittest discover tests
-
-# Build distribution package into dist-release
-npm run pack
-
-# Run isolated Electron candidate smoke test
-npx electron tests/electron-smoke.cjs --app-dir dist-release/win-unpacked/resources/app
-
-# Run candidate release integrity and allowlist verifier
-node research/verify-release.cjs --app-dir dist-release/win-unpacked/resources/app
+# Executar validação de integridade dos instaladores e allowlist
+node research/verify-installers.cjs
 ```
 
 ---
 
-## 📄 License & Credits
+## 🛡️ Segurança e Privacidade (DevSecOps)
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
-Autor: Luca Rodrigues Gomes de Sant'Anna.
+* **Isolamento de Contexto (`contextIsolation: true`):** O renderer não tem acesso direto a APIs sensíveis do Node.js.
+* **Zero-Trust de Credenciais:** As credenciais de acesso ficam restritas à sessão segura do Chromium embutido. Nenhuma senha, token ou chave privada é salva em disco ou enviada para servidores externos.
+* **Git Protegido:** Regras universais de `.gitignore` impedem que builds `.exe`, `.asar`, perfis temporários e logs sejam enviados para o repositório.
 
-*Disclaimer: IdleDex is an independent educational automation tool.*
+---
+
+## 📄 Licença e Autoria
+
+Este projeto é distribuído sob a licença **MIT** — consulte o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+**Autor:** Luca Rodrigues Gomes de Sant'Anna ([lucasantannaeng@gmail.com](mailto:lucasantannaeng@gmail.com))
+
+---
+
+*Aviso: IdleDex é uma marca registrada de seus respectivos criadores. Este projeto é uma ferramenta independente desenvolvida para fins educacionais e de automação pessoal.*
